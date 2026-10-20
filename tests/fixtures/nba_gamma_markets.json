@@ -1,0 +1,354 @@
+[
+ {
+  "slug": "nba-atl-cha-2026-10-23",
+  "question": "Hawks vs. Hornets",
+  "description": "In the upcoming NBA game, scheduled for October 23 at 7:00PM ET:\nIf the Hawks win, the market will resolve to \"Hawks\".\nIf the Hornets win, the market will resolve to \"Hornets\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods.",
+  "sportsMarketType": "moneyline",
+  "line": null,
+  "outcomes": "[\"Hawks\", \"Hornets\"]",
+  "gameStartTime": "2026-10-23 23:00:00+00",
+  "positionIds": [
+   "893884441871155268225034011327482558774771710017459859080932168857582305280",
+   "893884441871155268225034011327482558774771710017459859080932168857582305281"
+  ],
+  "clobTokenIds": "[\"68602827084745741252163785208896698402255839768496861645570686063472050673427\", \"13251206308876622769956056575396833509959170910715749767555553418687466537712\"]",
+  "conditionId": "0x253f9d35333e73f6529b62c1c8358076f9ebb0b2ab11e32d13fb36d8fb8dea55",
+  "id": "5792066",
+  "events": [
+   {
+    "slug": "nba-atl-cha-2026-10-23",
+    "title": "Hawks vs. Hornets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-atl-orl-2026-10-21-spread-home-2pt5",
+  "question": "Spread: Magic (-2.5)",
+  "description": "In the upcoming NBA game between Hawks and Magic, scheduled for October 21 at 7:00PM ET:\nIf Magic wins by more than 2.5 points, the market will resolve to \"Magic\".\nIf Hawks loses by fewer than 2.5 points, or wins the game outright, the market will resolve to \"Hawks\".\nIf the game is postponed, this market will remain open until completed.\nIf the game is canceled entirely, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods.",
+  "sportsMarketType": "spreads",
+  "line": -2.5,
+  "outcomes": "[\"Magic\", \"Hawks\"]",
+  "gameStartTime": "2026-10-21 23:00:00+00",
+  "positionIds": [
+   "704175329274582397965058668231036793734204083292522552735102874966674112512",
+   "704175329274582397965058668231036793734204083292522552735102874966674112513"
+  ],
+  "clobTokenIds": "[\"12900105872551484215116059894626052373630440704077882870058050615113677671284\", \"45358074235479496868465971305550850521380199495329324110763627360849406172127\"]",
+  "conditionId": "0x9ea7f5e6f4c2028ded37bfe0408c4a988e8c92a004fea230697fc5268f1481ec",
+  "id": "5716401",
+  "events": [
+   {
+    "slug": "nba-atl-orl-2026-10-21",
+    "title": "Hawks vs. Magic"
+   }
+  ]
+ },
+ {
+  "slug": "nba-bos-det-2026-10-20-spread-away-10pt5",
+  "question": "Spread: Celtics (-10.5)",
+  "description": "In the NBA game, scheduled for October 20 at 3:00 PM ET:\n\nThis market will resolve to \"Celtics\" if the Celtics win the game by 11 or more points.\n\nOtherwise, this market will resolve to \"Pistons\".\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "sportsMarketType": "spreads",
+  "line": -10.5,
+  "outcomes": "[\"Celtics\", \"Pistons\"]",
+  "gameStartTime": "2026-10-20 19:00:00+00",
+  "positionIds": [
+   "559062353524764860055918604859977480826014622768630952077253702743450714112",
+   "559062353524764860055918604859977480826014622768630952077253702743450714113"
+  ],
+  "clobTokenIds": "[\"40141781649597840811557536349999326851938890488194493064044365172263275914582\", \"24647994627964687440635888346306245942103709840004912234550497121596487926537\"]",
+  "conditionId": "0x3701b8bc3b234bd470f6ff9d6d4708eb3c6b0733ff91d7d883cc9855849950fd",
+  "id": "5991228",
+  "events": [
+   {
+    "slug": "nba-bos-det-2026-10-20",
+    "title": "Celtics vs. Pistons"
+   }
+  ]
+ },
+ {
+  "slug": "nba-atl-orl-2026-10-21-total-230pt5",
+  "question": "Hawks vs. Magic: O/U 230.5",
+  "description": "In the upcoming NBA game, scheduled for October 21 at 7:00 PM ET:\n\nThis market will resolve to \"Over\" if the Hawks and Magic combine to score 231 or more points in this game.\n\nIf the combined total is less than 231, this market will resolve to \"Under\".\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "sportsMarketType": "totals",
+  "line": 230.5,
+  "outcomes": "[\"Over\", \"Under\"]",
+  "gameStartTime": "2026-10-21 23:00:00+00",
+  "positionIds": [
+   "669193374827412443618146969015113659898291637623290251627092545565232201728",
+   "669193374827412443618146969015113659898291637623290251627092545565232201729"
+  ],
+  "clobTokenIds": "[\"56997704340246508751214904582505488351367440841297812711947135036110856964394\", \"109059909641992192628821094577596653603098447295009745708411697610671626885224\"]",
+  "conditionId": "0x617f835ea09536003283ca95110ed5607ac001d1aff4852030236f94cd6bcd87",
+  "id": "5716561",
+  "events": [
+   {
+    "slug": "nba-atl-orl-2026-10-21",
+    "title": "Hawks vs. Magic"
+   }
+  ]
+ },
+ {
+  "slug": "nba-dal-hou-2026-10-21-1h-moneyline",
+  "question": "Mavericks vs. Rockets: 1H Moneyline",
+  "description": "In the first half of the NBA game between Mavericks and Rockets, scheduled for October 21 at 8:30 PM ET:\n\nThis market will resolve to \"Mavericks\" if the Mavericks are winning at halftime.\n\nThis market will resolve to \"Rockets\" if the Rockets are winning at halftime.\n\nIf the score is tied at halftime, this market will resolve 50-50.\n\nThe result will be determined based on the score at halftime only.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nThis market may resolve only when the listed period of play has concluded and the result can be definitively determined by the listed resolution source(s).",
+  "sportsMarketType": "first_half_moneyline",
+  "line": null,
+  "outcomes": "[\"Mavericks\", \"Rockets\"]",
+  "gameStartTime": "2026-10-22 00:30:00+00",
+  "positionIds": [
+   "689879759684822526479098308514585263555299798445505780414875380449969963008",
+   "689879759684822526479098308514585263555299798445505780414875380449969963009"
+  ],
+  "clobTokenIds": "[\"52808387731973921295865054506251556680272631695054171190389644508308909509321\", \"104408709055160347951918380544913461920270948270601908806566523985195264764085\"]",
+  "conditionId": "0x086e186475a99e975c3d6b12a971ae838675467a84065a252422beba27762b76",
+  "id": "5914014",
+  "events": [
+   {
+    "slug": "nba-dal-hou-2026-10-21",
+    "title": "Mavericks vs. Rockets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-dal-hou-2026-10-21-1h-spread-home-5pt5",
+  "question": "1H Spread: Rockets (-5.5)",
+  "description": "In the first half of the NBA game between Mavericks and Rockets, scheduled for October 21 at 8:30 PM ET:\n\nThis market will resolve to \"Rockets\" if the Rockets are winning by 6 or more points at halftime.\n\nOtherwise, this market will resolve to \"Mavericks\".\n\nThe result will be determined based on the score at halftime only.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nThis market may resolve only when the listed period of play has concluded and the result can be definitively determined by the listed resolution source(s).",
+  "sportsMarketType": "first_half_spreads",
+  "line": -5.5,
+  "outcomes": "[\"Rockets\", \"Mavericks\"]",
+  "gameStartTime": "2026-10-22 00:30:00+00",
+  "positionIds": [
+   "572755894773712358642012448649462047501319921626485582714488331525639110656",
+   "572755894773712358642012448649462047501319921626485582714488331525639110657"
+  ],
+  "clobTokenIds": "[\"1934458104272896203567981638663331901466680036008644342093723152973568689700\", \"8490463834402602558278870490875583544140175576979468948705603834637346410765\"]",
+  "conditionId": "0x826e7f748ed3e6fca2bdeeb9ebd6454e442b18e09b680ba4ced9ebbc8d81a09c",
+  "id": "5914012",
+  "events": [
+   {
+    "slug": "nba-dal-hou-2026-10-21",
+    "title": "Mavericks vs. Rockets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-ind-nop-2026-10-21-1h-spread-away-1pt5",
+  "question": "1H Spread: Pacers (-1.5)",
+  "description": "In the first half of the NBA game between Pacers and Pelicans, scheduled for October 21 at 8:00 PM ET:\n\nThis market will resolve to \"Pacers\" if the Pacers are winning by 2 or more points at halftime.\n\nOtherwise, this market will resolve to \"Pelicans\".\n\nThe result will be determined based on the score at halftime only.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nThis market may resolve only when the listed period of play has concluded and the result can be definitively determined by the listed resolution source(s).",
+  "sportsMarketType": "first_half_spreads",
+  "line": -1.5,
+  "outcomes": "[\"Pacers\", \"Pelicans\"]",
+  "gameStartTime": "2026-10-22 00:00:00+00",
+  "positionIds": [
+   "866895806935477783807068984724919496014683855039356056784442811685200199680",
+   "866895806935477783807068984724919496014683855039356056784442811685200199681"
+  ],
+  "clobTokenIds": "[\"17605644035689170958903008915968055287500400908386010330136486380795687177869\", \"69509623074478040185845862573824001096201248915501813080756819106208783100093\"]",
+  "conditionId": "0x0cf27b273c629a213aafec7686e7414ceaa54897455c17fce4a98f41f5185ed5",
+  "id": "5914009",
+  "events": [
+   {
+    "slug": "nba-ind-nop-2026-10-21",
+    "title": "Pacers vs. Pelicans"
+   }
+  ]
+ },
+ {
+  "slug": "nba-dal-hou-2026-10-21-1h-total-118pt5",
+  "question": "Mavericks vs. Rockets: 1H O/U 118.5",
+  "description": "In the first half of the NBA game between Mavericks and Rockets, scheduled for October 21 at 8:30 PM ET:\n\nThis market will resolve to \"Over\" if the Mavericks and Rockets combine to score 119 or more points in the first half.\n\nIf the combined first half total is less than 119, this market will resolve to \"Under\".\n\nThe result will be determined based on the score at halftime only.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nThis market may resolve only when the listed period of play has concluded and the result can be definitively determined by the listed resolution source(s).",
+  "sportsMarketType": "first_half_totals",
+  "line": 118.5,
+  "outcomes": "[\"Over\", \"Under\"]",
+  "gameStartTime": "2026-10-22 00:30:00+00",
+  "positionIds": [
+   "745546929341251503565914630071767445551706079824219353773011806067733037056",
+   "745546929341251503565914630071767445551706079824219353773011806067733037057"
+  ],
+  "clobTokenIds": "[\"90084995798282277016688129878331519505619475597357620751509488459802117814791\", \"7230554187146135142978011378946010792707944746609321171091074601573933846735\"]",
+  "conditionId": "0x0478aa263c1278f97ba7d251de1f7616a5f6f08f33faebbcafdd59b9f1555de9",
+  "id": "5914013",
+  "events": [
+   {
+    "slug": "nba-dal-hou-2026-10-21",
+    "title": "Mavericks vs. Rockets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-atl-cha-2026-10-23-odd-even",
+  "question": "Hawks vs. Hornets: Odd/Even Score",
+  "description": "In the upcoming NBA game, scheduled for October 23 at 7:00PM ET: If the combined final score between the two participating teams equals an odd number, this market will resolve to \"Odd\". If the combined final score between the two participating teams equals an even number, this market will resolve to \"Even\". If the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50. The result will be determined based on the final score including any overtime periods.",
+  "sportsMarketType": "basketball_odd_even",
+  "line": null,
+  "outcomes": "[\"Odd\", \"Even\"]",
+  "gameStartTime": "2026-10-23 23:00:00+00",
+  "positionIds": [
+   "499454138347130215397640795204132936622728840467543092668888857318120226816",
+   "499454138347130215397640795204132936622728840467543092668888857318120226817"
+  ],
+  "clobTokenIds": "[\"111541125575208478981420571294710480011554352046151847329434989114931619308010\", \"73942765093641354971471541319519821076599797277164154224756659601250835601553\"]",
+  "conditionId": "0x8e21b84eb6e53bd9fbb7ed3960da57a21aae579e93445d6932577f4b214237b8",
+  "id": "5792068",
+  "events": [
+   {
+    "slug": "nba-atl-cha-2026-10-23",
+    "title": "Hawks vs. Hornets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-atl-cha-2026-10-23-team-to-score-first",
+  "question": "Hawks vs. Hornets: Team to Score First",
+  "description": "In the upcoming NBA game between Hawks and Hornets, scheduled for October 23 at 7:00PM ET:\nThis market will resolve to \"Hawks\" if the Hawks are the first to score a point, inclusive of free throws. This market will resolve to \"Hornets\" if the Hornets are the first to score a point, inclusive of free throws. The result will be determined based on the first point of the game scored only. If the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "sportsMarketType": "basketball_team_to_score_first",
+  "line": null,
+  "outcomes": "[\"Hawks\", \"Hornets\"]",
+  "gameStartTime": "2026-10-23 23:00:00+00",
+  "positionIds": [
+   "723795703972170614541611457644465006174720015860476135441595607646755356672",
+   "723795703972170614541611457644465006174720015860476135441595607646755356673"
+  ],
+  "clobTokenIds": "[\"1752434021572756552883780172707009685905294331739091968483656048529614314839\", \"44480296492153322874259481912003762236276831250382881215665153631939797414839\"]",
+  "conditionId": "0xb83fe9e5e2ceb4b57f5d6eea6d3ec85499a762c5285bcc6c5d3aa853d7af56d7",
+  "id": "5792067",
+  "events": [
+   {
+    "slug": "nba-atl-cha-2026-10-23",
+    "title": "Hawks vs. Hornets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-atl-orl-2026-10-21-assists-cj-mccollum-3pt5",
+  "question": "CJ McCollum: Assists O/U 3.5",
+  "description": "In the upcoming NBA game, scheduled for October 21 at 7:00 PM ET:\n\nThis market will resolve to \"Yes\" if CJ McCollum records more than 3.5 assists during the game.\n\nThis market will resolve to \"No\" if CJ McCollum records 3.5 assists or fewer during the game.\n\nThe entire game including all overtime periods will be considered.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nIf the player is listed as inactive or otherwise does not take the court at any point, the market will resolve \"No\".\n\nThe resolution source will be the official NBA box score as published on NBA.com.",
+  "sportsMarketType": "assists",
+  "line": 3.5,
+  "outcomes": "[\"Yes\", \"No\"]",
+  "gameStartTime": "2026-10-21 23:00:00+00",
+  "positionIds": [
+   "845545807709110407196224757265816857239457066173976053965945212788050755584",
+   "845545807709110407196224757265816857239457066173976053965945212788050755585"
+  ],
+  "clobTokenIds": "[\"83591920708707054850256253814981971893246407291975780736848349057870930298127\", \"29213750294181904845640510232981016963338437020635744616422931077815436136302\"]",
+  "conditionId": "0xd3500ce8d4f2804a90dfccd2ca6f115fde8fdd1b3ebb51d3cd52cfa7e099a128",
+  "id": "5909365",
+  "events": [
+   {
+    "slug": "nba-atl-orl-2026-10-21",
+    "title": "Hawks vs. Magic"
+   }
+  ]
+ },
+ {
+  "slug": "nba-bos-det-2026-10-20-rebounds-jalen-duren-10pt5",
+  "question": "Jalen Duren: Rebounds O/U 10.5",
+  "description": "In the upcoming NBA game, scheduled for October 20 at 3:00 PM ET:\n\nThis market will resolve to \"Yes\" if Jalen Duren records more than 10.5 total rebounds during the game.\n\nThis market will resolve to \"No\" if Jalen Duren records 10.5 rebounds or fewer during the game.\n\nThe entire game including all overtime periods will be considered.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nIf the player is listed as inactive or otherwise does not take the court at any point, the market will resolve \"No\".\n\nThe resolution source will be the official NBA box score as published on NBA.com.",
+  "sportsMarketType": "rebounds",
+  "line": 10.5,
+  "outcomes": "[\"Yes\", \"No\"]",
+  "gameStartTime": "2026-10-20 19:00:00+00",
+  "positionIds": [
+   "668156438018389575181027003228514416111855399665437339837598674519303651328",
+   "668156438018389575181027003228514416111855399665437339837598674519303651329"
+  ],
+  "clobTokenIds": "[\"29890738263881041076530858642269146545319021678051807643740990682715976647684\", \"85435113505550493907389701752101763594224285843589006843407959259067641911042\"]",
+  "conditionId": "0x5e8e68e89b4fad9169785203c1b463bc7a29c3b1f81bee4f392d915ed6031fa1",
+  "id": "5918979",
+  "events": [
+   {
+    "slug": "nba-bos-det-2026-10-20",
+    "title": "Celtics vs. Pistons"
+   }
+  ]
+ },
+ {
+  "slug": "nba-okc-sas-2026-10-20-points-deaaron-fox-14pt5",
+  "question": "De'Aaron Fox: Points O/U 14.5",
+  "description": "In the upcoming NBA game, scheduled for October 20 at 9:30 PM ET:\n\nThis market will resolve to \"Yes\" if De'Aaron Fox scores more than 14.5 points during the game.\n\nThis market will resolve to \"No\" if De'Aaron Fox scores 14.5 points or fewer during the game.\n\nThe entire game including all overtime periods will be considered.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nIf the player is listed as inactive or otherwise does not take the court at any point, the market will resolve \"No\".\n\nThe resolution source will be the official NBA box score as published on NBA.com.",
+  "sportsMarketType": "points",
+  "line": 14.5,
+  "outcomes": "[\"Yes\", \"No\"]",
+  "gameStartTime": "2026-10-21 01:30:00+00",
+  "positionIds": [
+   "864742645589438613417898993347072716737054429288148525993818656478515429376",
+   "864742645589438613417898993347072716737054429288148525993818656478515429377"
+  ],
+  "clobTokenIds": "[\"58345321210011671158203359927064042091488899844174720274511548088227234509560\", \"14436035468607784731508728187816279349144087235386561037044400427534897397572\"]",
+  "conditionId": "0x3348a4980c4015bb227260dead2e4af6e96d4f65d791e973b26821c4e07febd0",
+  "id": "5909357",
+  "events": [
+   {
+    "slug": "nba-okc-sas-2026-10-20",
+    "title": "Thunder vs. Spurs"
+   }
+  ]
+ },
+ {
+  "slug": "nba-gsw-lal-2026-10-21",
+  "question": "Warriors vs. Lakers",
+  "description": "In the upcoming NBA game, scheduled for October 21 at 10:00PM ET:\nIf the Warriors win, the market will resolve to \"Warriors\".\nIf the Lakers win, the market will resolve to \"Lakers\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods.",
+  "sportsMarketType": "moneyline",
+  "line": null,
+  "outcomes": "[\"Warriors\", \"Lakers\"]",
+  "gameStartTime": "2026-10-22 02:00:00+00",
+  "positionIds": [
+   "485492931737693834410980956660716624433243138442593911782744127086190919680",
+   "485492931737693834410980956660716624433243138442593911782744127086190919681"
+  ],
+  "clobTokenIds": "[\"80730637204578696425332924759165995147927212368472537832361698073482062305289\", \"32077427596348687645986457298945173410464971554983670989912723102826107714575\"]",
+  "conditionId": "0x74112dc67487ec5f08d44436bbaedd1512c77daf671e829187d995a29398da22",
+  "id": "5722990",
+  "events": [
+   {
+    "slug": "nba-gsw-lal-2026-10-21",
+    "title": "Warriors vs. Lakers"
+   }
+  ]
+ },
+ {
+  "slug": "nba-cha-bkn-2026-10-21-points-michael-porter-jr-21pt5",
+  "question": "Michael Porter Jr.: Points O/U 21.5",
+  "description": "In the upcoming NBA game, scheduled for October 21 at 7:30 PM ET:\n\nThis market will resolve to \"Yes\" if Michael Porter Jr. scores more than 21.5 points during the game.\n\nThis market will resolve to \"No\" if Michael Porter Jr. scores 21.5 points or fewer during the game.\n\nThe entire game including all overtime periods will be considered.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nIf the player is listed as inactive or otherwise does not take the court at any point, the market will resolve \"No\".\n\nThe resolution source will be the official NBA box score as published on NBA.com.",
+  "sportsMarketType": "points",
+  "line": 21.5,
+  "outcomes": "[\"Yes\", \"No\"]",
+  "gameStartTime": "2026-10-21 23:30:00+00",
+  "positionIds": [
+   "558100812012830096393938817715329966360996834016867162279334283259313913856",
+   "558100812012830096393938817715329966360996834016867162279334283259313913857"
+  ],
+  "clobTokenIds": "[\"31893808520753965122000961026496499188109720647389994987550351729829346111254\", \"77923046131424513574665274859417032709998305185938340254761459729652685397774\"]",
+  "conditionId": "0x6e719f96e9f351a7bcc2dd30a68e3ca53bdfb5a56e6f11d0850ae099eae15773",
+  "id": "5912616",
+  "events": [
+   {
+    "slug": "nba-cha-bkn-2026-10-21",
+    "title": "Hornets vs. Nets"
+   }
+  ]
+ },
+ {
+  "slug": "nba-dal-hou-2026-10-21-points-alperen-sengun-18pt5",
+  "question": "Alperen Seng\u00fcn: Points O/U 18.5",
+  "description": "In the upcoming NBA game, scheduled for October 21 at 8:30 PM ET:\n\nThis market will resolve to \"Yes\" if Alperen Seng\u00fcn scores more than 18.5 points during the game.\n\nThis market will resolve to \"No\" if Alperen Seng\u00fcn scores 18.5 points or fewer during the game.\n\nThe entire game including all overtime periods will be considered.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.\n\nIf the player is listed as inactive or otherwise does not take the court at any point, the market will resolve \"No\".\n\nThe resolution source will be the official NBA box score as published on NBA.com.",
+  "sportsMarketType": "points",
+  "line": 18.5,
+  "outcomes": "[\"Yes\", \"No\"]",
+  "gameStartTime": "2026-10-22 00:30:00+00",
+  "positionIds": [
+   "745473841329641270646136088334015480132673576156131432948086757513414836224",
+   "745473841329641270646136088334015480132673576156131432948086757513414836225"
+  ],
+  "clobTokenIds": "[\"92940517927671482197943015264452282663535984406162481543962533242076685421149\", \"35013335702361904635613270812927321462118046253379012454110367858478369030316\"]",
+  "conditionId": "0x07a4c5ad0ff6e4bebec2a70cfbe951aba5ec59930993060e0565787d97bc4245",
+  "id": "5865665",
+  "events": [
+   {
+    "slug": "nba-dal-hou-2026-10-21",
+    "title": "Mavericks vs. Rockets"
+   }
+  ]
+ }
+]

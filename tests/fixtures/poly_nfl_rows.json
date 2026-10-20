@@ -1,0 +1,740 @@
+[
+ {
+  "position_id": "554615200993983569591185857925388161917542750361007178022351960633172295680",
+  "market_id": "5647429",
+  "condition_id": "0xc138f7ba5966e0ec354a50479099578139e6ad25ddd6c3101aea81a3916aa43b",
+  "slug": "nfl-chi-sea-2026-11-03",
+  "title": "Bears vs. Seahawks",
+  "outcome": "Bears",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "554615200993983569591185857925388161917542750361007178022351960633172295681",
+  "market_id": "5647429",
+  "condition_id": "0xc138f7ba5966e0ec354a50479099578139e6ad25ddd6c3101aea81a3916aa43b",
+  "slug": "nfl-chi-sea-2026-11-03",
+  "title": "Bears vs. Seahawks",
+  "outcome": "Seahawks",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "817548165167316367923989313813236948631337845676638939952875384183193600000",
+  "market_id": "5658361",
+  "condition_id": "0x03fed4a46fad77f7c1db37f2885fade5ceb742d3c493625665195ca30e95cb9a",
+  "slug": "nfl-chi-sea-2026-11-03-spread-home-7pt5",
+  "title": "Spread: Seahawks (-7.5)",
+  "outcome": "Seahawks",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "817548165167316367923989313813236948631337845676638939952875384183193600001",
+  "market_id": "5658361",
+  "condition_id": "0x03fed4a46fad77f7c1db37f2885fade5ceb742d3c493625665195ca30e95cb9a",
+  "slug": "nfl-chi-sea-2026-11-03-spread-home-7pt5",
+  "title": "Spread: Seahawks (-7.5)",
+  "outcome": "Bears",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "579518205728644350459151424836931052004001496008191551166115000424775811072",
+  "market_id": "4589093",
+  "condition_id": "0x1a78f11b424a77ceb21eb0fd93193c2247fee4ee65c3002a00f8eec7479f3b1c",
+  "slug": "nfl-ind-min-2026-10-25-spread-home-7pt5",
+  "title": "Spread: Vikings (-7.5)",
+  "outcome": "Vikings",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "579518205728644350459151424836931052004001496008191551166115000424775811073",
+  "market_id": "4589093",
+  "condition_id": "0x1a78f11b424a77ceb21eb0fd93193c2247fee4ee65c3002a00f8eec7479f3b1c",
+  "slug": "nfl-ind-min-2026-10-25-spread-home-7pt5",
+  "title": "Spread: Vikings (-7.5)",
+  "outcome": "Colts",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "755172836608179564907710168452002386134628629801541730151162842710250881024",
+  "market_id": "4587000",
+  "condition_id": "0x2f09fe0648c3de76451cd4f46b0b873aab69a54dc543b64e0e7b0814836d1dc5",
+  "slug": "nfl-dal-phi-2026-10-27-spread-home-7pt5",
+  "title": "Spread: Eagles (-7.5)",
+  "outcome": "Eagles",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "755172836608179564907710168452002386134628629801541730151162842710250881025",
+  "market_id": "4587000",
+  "condition_id": "0x2f09fe0648c3de76451cd4f46b0b873aab69a54dc543b64e0e7b0814836d1dc5",
+  "slug": "nfl-dal-phi-2026-10-27-spread-home-7pt5",
+  "title": "Spread: Eagles (-7.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "619947546126716979408972365925946610510112424306659617988207650483180929024",
+  "market_id": "4586953",
+  "condition_id": "0x939516382f03ff9ed482e5b697b5cd8f5ee0bc8310547680259ab469d2c07532",
+  "slug": "nfl-dal-phi-2026-10-27-spread-away-7pt5",
+  "title": "Spread: Cowboys (-7.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "619947546126716979408972365925946610510112424306659617988207650483180929025",
+  "market_id": "4586953",
+  "condition_id": "0x939516382f03ff9ed482e5b697b5cd8f5ee0bc8310547680259ab469d2c07532",
+  "slug": "nfl-dal-phi-2026-10-27-spread-away-7pt5",
+  "title": "Spread: Cowboys (-7.5)",
+  "outcome": "Eagles",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "788575124677574508215939526182177156349180042150744476875016808743537999872",
+  "market_id": "4587248",
+  "condition_id": "0x0193cd8df6dcc7196678ac14a5c41333be515506ff34144d11934f88926318f2",
+  "slug": "nfl-dal-phi-2026-10-27-total-62pt5",
+  "title": "Cowboys vs. Eagles: O/U 62.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "788575124677574508215939526182177156349180042150744476875016808743537999873",
+  "market_id": "4587248",
+  "condition_id": "0x0193cd8df6dcc7196678ac14a5c41333be515506ff34144d11934f88926318f2",
+  "slug": "nfl-dal-phi-2026-10-27-total-62pt5",
+  "title": "Cowboys vs. Eagles: O/U 62.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "782238434537586760133921513875087284178884797798096751192292627192383275008",
+  "market_id": "5603324",
+  "condition_id": "0x4e47995cb0f17625ba2ab34b05af180cbabb34207d1e7f7c8516d84a7f0273d7",
+  "slug": "nfl-lac-la-2026-11-01",
+  "title": "Chargers vs. Rams",
+  "outcome": "Chargers",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "782238434537586760133921513875087284178884797798096751192292627192383275009",
+  "market_id": "5603324",
+  "condition_id": "0x4e47995cb0f17625ba2ab34b05af180cbabb34207d1e7f7c8516d84a7f0273d7",
+  "slug": "nfl-lac-la-2026-11-01",
+  "title": "Chargers vs. Rams",
+  "outcome": "Rams",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "452424854373020467973053424363417216227721062114055747404518803293784244224",
+  "market_id": "5603313",
+  "condition_id": "0xb781dbc8cb137cd2bb4fafcbb45b4bca00103a869084daa192dd2949ed9118a8",
+  "slug": "nfl-ind-jax-2026-11-01",
+  "title": "Colts vs. Jaguars",
+  "outcome": "Colts",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "452424854373020467973053424363417216227721062114055747404518803293784244225",
+  "market_id": "5603313",
+  "condition_id": "0xb781dbc8cb137cd2bb4fafcbb45b4bca00103a869084daa192dd2949ed9118a8",
+  "slug": "nfl-ind-jax-2026-11-01",
+  "title": "Colts vs. Jaguars",
+  "outcome": "Jaguars",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "673828186049847780807764830735337243765074747734372278370253685698299166720",
+  "market_id": "5892842",
+  "condition_id": "0x5364912087f6354c286971a9e70b720d7d5f8c85a38641fed714787cee8acefe",
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-tie",
+  "title": "Exact Margin: Tie",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "673828186049847780807764830735337243765074747734372278370253685698299166721",
+  "market_id": "5892842",
+  "condition_id": "0x5364912087f6354c286971a9e70b720d7d5f8c85a38641fed714787cee8acefe",
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-tie",
+  "title": "Exact Margin: Tie",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "529656413719743900875078474243596994087956349534432729256540492105334652928",
+  "market_id": "5892838",
+  "condition_id": "0x8f3fa07a47ac4f83951ac975cde094742bc6604673b6cac06792f5203998d574",
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-long-1-6",
+  "title": "Exact Margin: Bengals by 1-6",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "529656413719743900875078474243596994087956349534432729256540492105334652929",
+  "market_id": "5892838",
+  "condition_id": "0x8f3fa07a47ac4f83951ac975cde094742bc6604673b6cac06792f5203998d574",
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-long-1-6",
+  "title": "Exact Margin: Bengals by 1-6",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "655796416410426130940187236948794010348903714272400192540270464765251289088",
+  "market_id": "5892863",
+  "condition_id": "0xc4362c3dae88854cd246d7b1d1b33a5a732ae90373a2e563734b1e15c0027ccd",
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-short-21-plus",
+  "title": "Exact Margin: Ravens by 21+",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "655796416410426130940187236948794010348903714272400192540270464765251289089",
+  "market_id": "5892863",
+  "condition_id": "0xc4362c3dae88854cd246d7b1d1b33a5a732ae90373a2e563734b1e15c0027ccd",
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-short-21-plus",
+  "title": "Exact Margin: Ravens by 21+",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "742912939408249038635995623098240614459379565229389215512814313106931974144",
+  "market_id": "5938873",
+  "condition_id": "0x379f13167e8545f3714182d78c55837ca4794c715a423e0eef305ff853be584c",
+  "slug": "nfl-gb-det-2026-10-25-1h-moneyline",
+  "title": "Packers vs. Lions: 1H Moneyline",
+  "outcome": "Packers",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "742912939408249038635995623098240614459379565229389215512814313106931974145",
+  "market_id": "5938873",
+  "condition_id": "0x379f13167e8545f3714182d78c55837ca4794c715a423e0eef305ff853be584c",
+  "slug": "nfl-gb-det-2026-10-25-1h-moneyline",
+  "title": "Packers vs. Lions: 1H Moneyline",
+  "outcome": "Lions",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "545976558094565011815845038913826074891753014662413708738453963154988728320",
+  "market_id": "4587944",
+  "condition_id": "0x39bcb115d41a8354e84365e526ce6a1035030412fbd3ed2bd03634b0284253e6",
+  "slug": "nfl-gb-det-2026-10-25-1h-spread-away-7pt5",
+  "title": "1H Spread: Packers (-7.5)",
+  "outcome": "Packers",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "545976558094565011815845038913826074891753014662413708738453963154988728321",
+  "market_id": "4587944",
+  "condition_id": "0x39bcb115d41a8354e84365e526ce6a1035030412fbd3ed2bd03634b0284253e6",
+  "slug": "nfl-gb-det-2026-10-25-1h-spread-away-7pt5",
+  "title": "1H Spread: Packers (-7.5)",
+  "outcome": "Lions",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "551098573131923188397233092614703822810998382041832398640871084829393813504",
+  "market_id": "5765119",
+  "condition_id": "0xa09b34bf6aee8ef9ce51a71c15bd3ae437e9262bc4075ed19a976b7040a5c82d",
+  "slug": "nfl-ne-chi-2026-10-23-1q-btts-points",
+  "title": "Patriots vs. Bears: Both Teams to Score Points - 1Q",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "551098573131923188397233092614703822810998382041832398640871084829393813505",
+  "market_id": "5765119",
+  "condition_id": "0xa09b34bf6aee8ef9ce51a71c15bd3ae437e9262bc4075ed19a976b7040a5c82d",
+  "slug": "nfl-ne-chi-2026-10-23-1q-btts-points",
+  "title": "Patriots vs. Bears: Both Teams to Score Points - 1Q",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "854385574831248598291282298810726406403856164157650526961825251247519694848",
+  "market_id": "5765118",
+  "condition_id": "0xd34db63daccd033eeb25860c3da30c17e390aa4acf5f60ae768243c2873b47d8",
+  "slug": "nfl-ne-chi-2026-10-23-safety",
+  "title": "Patriots vs. Bears: Safety?",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "854385574831248598291282298810726406403856164157650526961825251247519694849",
+  "market_id": "5765118",
+  "condition_id": "0xd34db63daccd033eeb25860c3da30c17e390aa4acf5f60ae768243c2873b47d8",
+  "slug": "nfl-ne-chi-2026-10-23-safety",
+  "title": "Patriots vs. Bears: Safety?",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "486377774719729524002829060112596187150851158929166343724636851426358722560",
+  "market_id": "5765123",
+  "condition_id": "0xe783e9fefa2c3fb14897dd0cc00a5d7f1347b255e212240e32fd32d798aa23bb",
+  "slug": "nfl-ne-chi-2026-10-23-team-off-yards-ne-350pt5",
+  "title": "Patriots Total Offensive Yards: O/U 350.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "486377774719729524002829060112596187150851158929166343724636851426358722561",
+  "market_id": "5765123",
+  "condition_id": "0xe783e9fefa2c3fb14897dd0cc00a5d7f1347b255e212240e32fd32d798aa23bb",
+  "slug": "nfl-ne-chi-2026-10-23-team-off-yards-ne-350pt5",
+  "title": "Patriots Total Offensive Yards: O/U 350.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "771922795694584268452053044954357450934083685112649396996617565403789393920",
+  "market_id": "5656591",
+  "condition_id": "0xa0ad4fc52fb3cd1a3d9e967d7c7dd05cb4e48fd103a443a7e97d393ad65c1c1f",
+  "slug": "nfl-ari-dal-2026-11-01-1h-team-total-ari-10pt5",
+  "title": "Cardinals 1H Team Total: O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "771922795694584268452053044954357450934083685112649396996617565403789393921",
+  "market_id": "5656591",
+  "condition_id": "0xa0ad4fc52fb3cd1a3d9e967d7c7dd05cb4e48fd103a443a7e97d393ad65c1c1f",
+  "slug": "nfl-ari-dal-2026-11-01-1h-team-total-ari-10pt5",
+  "title": "Cardinals 1H Team Total: O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "496425253725648168680938581509440291417606167306867738480675547748199563264",
+  "market_id": "5656534",
+  "condition_id": "0x8db4b6caf61cbaeee2577c006e51649718f77c0b753838994c0fc8087d1b521b",
+  "slug": "nfl-ari-dal-2026-11-01-1h-total-16pt5",
+  "title": "Cardinals vs. Cowboys: 1H O/U 16.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "496425253725648168680938581509440291417606167306867738480675547748199563265",
+  "market_id": "5656534",
+  "condition_id": "0x8db4b6caf61cbaeee2577c006e51649718f77c0b753838994c0fc8087d1b521b",
+  "slug": "nfl-ari-dal-2026-11-01-1h-total-16pt5",
+  "title": "Cardinals vs. Cowboys: 1H O/U 16.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "847757278836849300649422013729285569888866359210462252419984266364893265920",
+  "market_id": "5656447",
+  "condition_id": "0xdbdfe1101823aa963a86e025d19fa62ddfd0492128021d276ed580c742b9c469",
+  "slug": "nfl-ari-dal-2026-11-01-1q-spread-away-10pt5",
+  "title": "1Q Spread: Cardinals (-10.5)",
+  "outcome": "Cardinals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "847757278836849300649422013729285569888866359210462252419984266364893265921",
+  "market_id": "5656447",
+  "condition_id": "0xdbdfe1101823aa963a86e025d19fa62ddfd0492128021d276ed580c742b9c469",
+  "slug": "nfl-ari-dal-2026-11-01-1q-spread-away-10pt5",
+  "title": "1Q Spread: Cardinals (-10.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "621525461543421619284765288156286207558290820543057327327488346594289385472",
+  "market_id": "5656547",
+  "condition_id": "0x24fcd8654ab85bd66bbaa1774ad7930e5fc55ca5ccd905f4aedf0238076b5fd0",
+  "slug": "nfl-ari-dal-2026-11-01-1q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 1Q O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "621525461543421619284765288156286207558290820543057327327488346594289385473",
+  "market_id": "5656547",
+  "condition_id": "0x24fcd8654ab85bd66bbaa1774ad7930e5fc55ca5ccd905f4aedf0238076b5fd0",
+  "slug": "nfl-ari-dal-2026-11-01-1q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 1Q O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "658267259369513764107145437367379220550463911287996024504191870153529491456",
+  "market_id": "5656418",
+  "condition_id": "0xf27292ecc6d4c18abed86a7a616712097490e9ac28aab17ffb7769c0888ac9c2",
+  "slug": "nfl-ari-dal-2026-11-01-2h-spread-away-10pt5",
+  "title": "2H Spread: Cardinals (-10.5)",
+  "outcome": "Cardinals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "658267259369513764107145437367379220550463911287996024504191870153529491457",
+  "market_id": "5656418",
+  "condition_id": "0xf27292ecc6d4c18abed86a7a616712097490e9ac28aab17ffb7769c0888ac9c2",
+  "slug": "nfl-ari-dal-2026-11-01-2h-spread-away-10pt5",
+  "title": "2H Spread: Cardinals (-10.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "688804432864405360169034388932169784842263022312316166818834071996470394880",
+  "market_id": "5656607",
+  "condition_id": "0x77000c618e32d6fd49ad9c06e6bdec5185d97863d7f75d77929a5fa7ca020c17",
+  "slug": "nfl-ari-dal-2026-11-01-2h-team-total-ari-10pt5",
+  "title": "Cardinals 2H Team Total: O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "688804432864405360169034388932169784842263022312316166818834071996470394881",
+  "market_id": "5656607",
+  "condition_id": "0x77000c618e32d6fd49ad9c06e6bdec5185d97863d7f75d77929a5fa7ca020c17",
+  "slug": "nfl-ari-dal-2026-11-01-2h-team-total-ari-10pt5",
+  "title": "Cardinals 2H Team Total: O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "562304394977109498622716648014928191938707797721536999830132170393449922560",
+  "market_id": "5656539",
+  "condition_id": "0x7b5629d394e7956efb2d1a0bb4d00a483e40c5343e5dd2fdd420b320948448c7",
+  "slug": "nfl-ari-dal-2026-11-01-2h-total-16pt5",
+  "title": "Cardinals vs. Cowboys: 2H O/U 16.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "562304394977109498622716648014928191938707797721536999830132170393449922561",
+  "market_id": "5656539",
+  "condition_id": "0x7b5629d394e7956efb2d1a0bb4d00a483e40c5343e5dd2fdd420b320948448c7",
+  "slug": "nfl-ari-dal-2026-11-01-2h-total-16pt5",
+  "title": "Cardinals vs. Cowboys: 2H O/U 16.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "484625605271663935417114087864753608339143900613846718649264914294317776896",
+  "market_id": "5656465",
+  "condition_id": "0xd21ce41b5d9a7dc22fbd1933c1d443931249d2c22fdac5cb79134bebb6d923dd",
+  "slug": "nfl-ari-dal-2026-11-01-2q-spread-away-10pt5",
+  "title": "2Q Spread: Cardinals (-10.5)",
+  "outcome": "Cardinals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "484625605271663935417114087864753608339143900613846718649264914294317776897",
+  "market_id": "5656465",
+  "condition_id": "0xd21ce41b5d9a7dc22fbd1933c1d443931249d2c22fdac5cb79134bebb6d923dd",
+  "slug": "nfl-ari-dal-2026-11-01-2q-spread-away-10pt5",
+  "title": "2Q Spread: Cardinals (-10.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "454270728178820638172941615141999423829496166464659435401575626970562035712",
+  "market_id": "5656553",
+  "condition_id": "0x6c1bc64aaf6366ea6539f9cfec68dee4011badca566eab40b7a799f30e9d8e21",
+  "slug": "nfl-ari-dal-2026-11-01-2q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 2Q O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "454270728178820638172941615141999423829496166464659435401575626970562035713",
+  "market_id": "5656553",
+  "condition_id": "0x6c1bc64aaf6366ea6539f9cfec68dee4011badca566eab40b7a799f30e9d8e21",
+  "slug": "nfl-ari-dal-2026-11-01-2q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 2Q O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "454195696184611873362291365141110338585571455739145745565779996894652530688",
+  "market_id": "5656483",
+  "condition_id": "0xf4080b652aa74b9e6b5ae82a0841763a0110ceb2f419b73afe107daec45dee96",
+  "slug": "nfl-ari-dal-2026-11-01-3q-spread-away-10pt5",
+  "title": "3Q Spread: Cardinals (-10.5)",
+  "outcome": "Cardinals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "454195696184611873362291365141110338585571455739145745565779996894652530689",
+  "market_id": "5656483",
+  "condition_id": "0xf4080b652aa74b9e6b5ae82a0841763a0110ceb2f419b73afe107daec45dee96",
+  "slug": "nfl-ari-dal-2026-11-01-3q-spread-away-10pt5",
+  "title": "3Q Spread: Cardinals (-10.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "493718810036805424455715484447462870511265115385921491871270933106668863488",
+  "market_id": "5656559",
+  "condition_id": "0x674c2c794d0fbb7ab1c7caf2cb3270dd176f58780f764b7551175ca1d7f7c2de",
+  "slug": "nfl-ari-dal-2026-11-01-3q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 3Q O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "493718810036805424455715484447462870511265115385921491871270933106668863489",
+  "market_id": "5656559",
+  "condition_id": "0x674c2c794d0fbb7ab1c7caf2cb3270dd176f58780f764b7551175ca1d7f7c2de",
+  "slug": "nfl-ari-dal-2026-11-01-3q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 3Q O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "810664165069514940232216035221760493714370897376567734128612418860204687360",
+  "market_id": "5656501",
+  "condition_id": "0x0dbdb8036d3cbfbee4f6a7ac23c9fa1fcad1d5127a35cbdacc14aaaa736e710e",
+  "slug": "nfl-ari-dal-2026-11-01-4q-spread-away-10pt5",
+  "title": "4Q Spread: Cardinals (-10.5)",
+  "outcome": "Cardinals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "810664165069514940232216035221760493714370897376567734128612418860204687361",
+  "market_id": "5656501",
+  "condition_id": "0x0dbdb8036d3cbfbee4f6a7ac23c9fa1fcad1d5127a35cbdacc14aaaa736e710e",
+  "slug": "nfl-ari-dal-2026-11-01-4q-spread-away-10pt5",
+  "title": "4Q Spread: Cardinals (-10.5)",
+  "outcome": "Cowboys",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "805660267632178429954288765464980185463256787934571062218173088729275564032",
+  "market_id": "5656565",
+  "condition_id": "0x173cc8e81070dbfd1cfb44ba40244184c7fcd0335e4a43b3ed902769d3315f25",
+  "slug": "nfl-ari-dal-2026-11-01-4q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 4Q O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "805660267632178429954288765464980185463256787934571062218173088729275564033",
+  "market_id": "5656565",
+  "condition_id": "0x173cc8e81070dbfd1cfb44ba40244184c7fcd0335e4a43b3ed902769d3315f25",
+  "slug": "nfl-ari-dal-2026-11-01-4q-total-10pt5",
+  "title": "Cardinals vs. Cowboys: 4Q O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "880938973431870161006378052234365866621714098497893083231706842160785522688",
+  "market_id": "5656568",
+  "condition_id": "0x98d1003ac96af7bcf99f453ac586c67af29802961a37d79b09058021bd545e7b",
+  "slug": "nfl-ari-dal-2026-11-01-team-total-ari-10pt5",
+  "title": "Cardinals Team Total: O/U 10.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "880938973431870161006378052234365866621714098497893083231706842160785522689",
+  "market_id": "5656568",
+  "condition_id": "0x98d1003ac96af7bcf99f453ac586c67af29802961a37d79b09058021bd545e7b",
+  "slug": "nfl-ari-dal-2026-11-01-team-total-ari-10pt5",
+  "title": "Cardinals Team Total: O/U 10.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "534914402481469994939106091407104001738692228798815033438975589478242975744",
+  "market_id": "5933904",
+  "condition_id": "0x1e681bd3e3219f8798f2863c6b2aa40c2ec035eaf20728b1f18378395ac44e59",
+  "slug": "nfl-cin-bal-2026-10-25-1q-moneyline",
+  "title": "Bengals vs. Ravens: 1Q Moneyline",
+  "outcome": "Bengals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "534914402481469994939106091407104001738692228798815033438975589478242975745",
+  "market_id": "5933904",
+  "condition_id": "0x1e681bd3e3219f8798f2863c6b2aa40c2ec035eaf20728b1f18378395ac44e59",
+  "slug": "nfl-cin-bal-2026-10-25-1q-moneyline",
+  "title": "Bengals vs. Ravens: 1Q Moneyline",
+  "outcome": "Ravens",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "572992051842721152326187337863463575304017494438910935677365141341151952896",
+  "market_id": "5892817",
+  "condition_id": "0x8e13a3c26c0b2df230c2c8d09342d28a444d506e0df1b56607275f06e182f470",
+  "slug": "nfl-cin-bal-2026-10-25-2h-moneyline",
+  "title": "Bengals vs. Ravens: 2H Moneyline",
+  "outcome": "Bengals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "572992051842721152326187337863463575304017494438910935677365141341151952897",
+  "market_id": "5892817",
+  "condition_id": "0x8e13a3c26c0b2df230c2c8d09342d28a444d506e0df1b56607275f06e182f470",
+  "slug": "nfl-cin-bal-2026-10-25-2h-moneyline",
+  "title": "Bengals vs. Ravens: 2H Moneyline",
+  "outcome": "Ravens",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "640526007279753724704350003479434901544519037898131636451178851004825206784",
+  "market_id": "5892875",
+  "condition_id": "0x59aaaea8c36345067d038d489857cc226a865e0f0bc26e1b1c88bb7aa1f43844",
+  "slug": "nfl-cin-bal-2026-10-25-2q-btts-points",
+  "title": "Bengals vs. Ravens: Both Teams to Score Points - 2Q",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "640526007279753724704350003479434901544519037898131636451178851004825206785",
+  "market_id": "5892875",
+  "condition_id": "0x59aaaea8c36345067d038d489857cc226a865e0f0bc26e1b1c88bb7aa1f43844",
+  "slug": "nfl-cin-bal-2026-10-25-2q-btts-points",
+  "title": "Bengals vs. Ravens: Both Teams to Score Points - 2Q",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "786804064728820447602463619224122753992212176682510054704146539310185709568",
+  "market_id": "5938937",
+  "condition_id": "0x442183faa6141f125b2a46b0014750a2bd50b8c3458da15c0d66f339f75f11ca",
+  "slug": "nfl-cin-bal-2026-10-25-2q-moneyline",
+  "title": "Bengals vs. Ravens: 2Q Moneyline",
+  "outcome": "Bengals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "786804064728820447602463619224122753992212176682510054704146539310185709569",
+  "market_id": "5938937",
+  "condition_id": "0x442183faa6141f125b2a46b0014750a2bd50b8c3458da15c0d66f339f75f11ca",
+  "slug": "nfl-cin-bal-2026-10-25-2q-moneyline",
+  "title": "Bengals vs. Ravens: 2Q Moneyline",
+  "outcome": "Ravens",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "710482167715713869625772049689308629214544697266539731613639212398551236608",
+  "market_id": "5892877",
+  "condition_id": "0xb08e567dd9475865ea72a69ce7b0a500921e6043b2e6f16b5bbfade69d5eb28f",
+  "slug": "nfl-cin-bal-2026-10-25-3q-btts-points",
+  "title": "Bengals vs. Ravens: Both Teams to Score Points - 3Q",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "710482167715713869625772049689308629214544697266539731613639212398551236609",
+  "market_id": "5892877",
+  "condition_id": "0xb08e567dd9475865ea72a69ce7b0a500921e6043b2e6f16b5bbfade69d5eb28f",
+  "slug": "nfl-cin-bal-2026-10-25-3q-btts-points",
+  "title": "Bengals vs. Ravens: Both Teams to Score Points - 3Q",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "519763017704159099547350246388326700608595297093321957089633478952108425216",
+  "market_id": "5938938",
+  "condition_id": "0x1f8550a12d92a7ad9cc288a8b3ede8ef262ce9d259b350c68f54c18205442c9d",
+  "slug": "nfl-cin-bal-2026-10-25-3q-moneyline",
+  "title": "Bengals vs. Ravens: 3Q Moneyline",
+  "outcome": "Bengals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "519763017704159099547350246388326700608595297093321957089633478952108425217",
+  "market_id": "5938938",
+  "condition_id": "0x1f8550a12d92a7ad9cc288a8b3ede8ef262ce9d259b350c68f54c18205442c9d",
+  "slug": "nfl-cin-bal-2026-10-25-3q-moneyline",
+  "title": "Bengals vs. Ravens: 3Q Moneyline",
+  "outcome": "Ravens",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "476004008628316645863762210490825864564009614163084401401254033868145557504",
+  "market_id": "5892879",
+  "condition_id": "0xad2aa24a30de146ab80781af967ec7b60d68a1f72ef41ee394e440b8498c8fd3",
+  "slug": "nfl-cin-bal-2026-10-25-4q-btts-points",
+  "title": "Bengals vs. Ravens: Both Teams to Score Points - 4Q",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "476004008628316645863762210490825864564009614163084401401254033868145557505",
+  "market_id": "5892879",
+  "condition_id": "0xad2aa24a30de146ab80781af967ec7b60d68a1f72ef41ee394e440b8498c8fd3",
+  "slug": "nfl-cin-bal-2026-10-25-4q-btts-points",
+  "title": "Bengals vs. Ravens: Both Teams to Score Points - 4Q",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "595289011229832400283055916942608577483565197715890018598701453416201191424",
+  "market_id": "5938939",
+  "condition_id": "0x65307e47d8a179b3bc6437c33a1af17650ebf09e7071fa6163f1553c2653344b",
+  "slug": "nfl-cin-bal-2026-10-25-4q-moneyline",
+  "title": "Bengals vs. Ravens: 4Q Moneyline",
+  "outcome": "Bengals",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "595289011229832400283055916942608577483565197715890018598701453416201191425",
+  "market_id": "5938939",
+  "condition_id": "0x65307e47d8a179b3bc6437c33a1af17650ebf09e7071fa6163f1553c2653344b",
+  "slug": "nfl-cin-bal-2026-10-25-4q-moneyline",
+  "title": "Bengals vs. Ravens: 4Q Moneyline",
+  "outcome": "Ravens",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "1269313066877196133387090196637064542576284672027390195266143946051193668608",
+  "market_id": "5893131",
+  "condition_id": "0x5b0f9f6c58ca6436f8f95c67911498d8151697fa60107b0c626132ec92017a82",
+  "slug": "nfl-cin-bal-2026-10-25-highest-scoring-quarter-other",
+  "title": "Bengals vs. Ravens: Highest Scoring Quarter - Other",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "1269313066877196133387090196637064542576284672027390195266143946051193668609",
+  "market_id": "5893131",
+  "condition_id": "0x5b0f9f6c58ca6436f8f95c67911498d8151697fa60107b0c626132ec92017a82",
+  "slug": "nfl-cin-bal-2026-10-25-highest-scoring-quarter-other",
+  "title": "Bengals vs. Ravens: Highest Scoring Quarter - Other",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "536010441666317796584998240554002730476631453582240027633440342041694306304",
+  "market_id": "5973012",
+  "condition_id": "0xe8cec4b3917f12285406febb645e6ac32f5f044546f364a3f6ea4ff242fc5e4a",
+  "slug": "nfl-cin-bal-2026-10-25-team-tds-bal-3pt5",
+  "title": "Ravens Total Touchdowns: O/U 3.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "536010441666317796584998240554002730476631453582240027633440342041694306305",
+  "market_id": "5973012",
+  "condition_id": "0xe8cec4b3917f12285406febb645e6ac32f5f044546f364a3f6ea4ff242fc5e4a",
+  "slug": "nfl-cin-bal-2026-10-25-team-tds-bal-3pt5",
+  "title": "Ravens Total Touchdowns: O/U 3.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "715853549524980663814658033789596818270569004050131974467062343610348339200",
+  "market_id": "5892885",
+  "condition_id": "0xf1507252aa0a331162962dfced1b32ae9528a3e38e9c360f92c416749be832c4",
+  "slug": "nfl-cin-bal-2026-10-25-two-pt-conversions-0pt5",
+  "title": "Bengals vs. Ravens: Total Two-Point Conversions O/U 0.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "715853549524980663814658033789596818270569004050131974467062343610348339201",
+  "market_id": "5892885",
+  "condition_id": "0xf1507252aa0a331162962dfced1b32ae9528a3e38e9c360f92c416749be832c4",
+  "slug": "nfl-cin-bal-2026-10-25-two-pt-conversions-0pt5",
+  "title": "Bengals vs. Ravens: Total Two-Point Conversions O/U 0.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ }
+]

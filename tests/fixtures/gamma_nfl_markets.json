@@ -1,0 +1,178 @@
+[
+ {
+  "slug": "nfl-chi-sea-2026-11-03",
+  "question": "Bears vs. Seahawks",
+  "outcomes": "[\"Bears\", \"Seahawks\"]",
+  "sportsMarketType": "moneyline",
+  "line": null,
+  "gameStartTime": "2026-11-03 01:15:00+00",
+  "description": "In the upcoming NFL football game between Bears and Seahawks, scheduled for November 2 at 8:15PM ET:\nThis market will resolve to \"Bears\" if Bears win the game.\nThis market will resolve to \"Seahawks\" if Seahawks win the game.\nOvertime is included if played.\nIf the game ends in a tie, this market will resolve 50-50.\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "554615200993983569591185857925388161917542750361007178022351960633172295680",
+   "554615200993983569591185857925388161917542750361007178022351960633172295681"
+  ],
+  "clobTokenIds": "[\"8944870674701118814978227503356799838117152732928321689754751616721517203594\", \"44521319203158591521031668143480241023486376025390679689039355329189495838630\"]",
+  "negRisk": false,
+  "conditionId": "0xc138f7ba5966e0ec354a50479099578139e6ad25ddd6c3101aea81a3916aa43b"
+ },
+ {
+  "slug": "nfl-chi-sea-2026-11-03-spread-away-7pt5",
+  "question": "Spread: Bears (-7.5)",
+  "outcomes": "[\"Bears\", \"Seahawks\"]",
+  "sportsMarketType": "spreads",
+  "line": -7.5,
+  "gameStartTime": "2026-11-03 01:15:00+00",
+  "description": "In the upcoming NFL football game between Bears and Seahawks, scheduled for November 2 at 8:15 PM ET:\n\nThis market will resolve to \"Bears\" if the Bears win the game by 8 or more points.\n\nOtherwise, this market will resolve to \"Seahawks\".\n\nOvertime is included if played.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "903486267025742532758234761807625808890238515549764264401366407389988782080",
+   "903486267025742532758234761807625808890238515549764264401366407389988782081"
+  ],
+  "clobTokenIds": "[\"84196789751138679865607587670833096313046126532905589473878297892691487711972\", \"85516904293746226869075771445204895348909831467878638449344388583197111726575\"]",
+  "negRisk": false,
+  "conditionId": "0x1081c1d250cac718513507f6768493d3ff5ae82fe814af1a90886ecaa6231d50"
+ },
+ {
+  "slug": "nfl-chi-sea-2026-11-03-spread-home-7pt5",
+  "question": "Spread: Seahawks (-7.5)",
+  "outcomes": "[\"Seahawks\", \"Bears\"]",
+  "sportsMarketType": "spreads",
+  "line": -7.5,
+  "gameStartTime": "2026-11-03 01:15:00+00",
+  "description": "In the upcoming NFL football game between Bears and Seahawks, scheduled for November 2 at 8:15 PM ET:\n\nThis market will resolve to \"Seahawks\" if the Seahawks win the game by 8 or more points.\n\nOtherwise, this market will resolve to \"Bears\".\n\nOvertime is included if played.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "817548165167316367923989313813236948631337845676638939952875384183193600000",
+   "817548165167316367923989313813236948631337845676638939952875384183193600001"
+  ],
+  "clobTokenIds": "[\"89627506142353594365879010309619463481507827073184555579944932033775444818922\", \"25834070795007758643132673738879539640816248096104432876134833306338782044783\"]",
+  "negRisk": false,
+  "conditionId": "0x03fed4a46fad77f7c1db37f2885fade5ceb742d3c493625665195ca30e95cb9a"
+ },
+ {
+  "slug": "nfl-chi-sea-2026-11-03-4q-spread-home-3pt5",
+  "question": "4Q Spread: Seahawks (-3.5)",
+  "outcomes": "[\"Seahawks\", \"Bears\"]",
+  "sportsMarketType": "q4_spreads",
+  "line": -3.5,
+  "gameStartTime": "2026-11-03 01:15:00+00",
+  "description": "In the fourth quarter of the NFL game between Bears and Seahawks, scheduled for November 2 at 8:15 PM ET:\n\nThis market will resolve to \"Seahawks\" if the Seahawks outscore the Bears by 4 or more points in the fourth quarter.\n\nOtherwise, this market will resolve to \"Bears\".\n\nOnly points scored during that period count; overtime is not included.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "754810828312197170132187389550528294704470965406965057705426595643993882624",
+   "754810828312197170132187389550528294704470965406965057705426595643993882625"
+  ],
+  "clobTokenIds": "[\"51286508459690648106906912261676071343686772106814538727273584569336258126232\", \"43833789830791874266633230952255898036108280273200508493842726369775427408035\"]",
+  "negRisk": false,
+  "conditionId": "0x16ae06114bf5535cfbe3530804420fbaab3531ab78b69ebb274d0b7bafde576c"
+ },
+ {
+  "slug": "nfl-chi-sea-2026-11-03-total-44pt5",
+  "question": "Bears vs. Seahawks: O/U 44.5",
+  "outcomes": "[\"Over\", \"Under\"]",
+  "sportsMarketType": "totals",
+  "line": 44.5,
+  "gameStartTime": "2026-11-03 01:15:00+00",
+  "description": "In the upcoming NFL game, scheduled for November 2 at 8:15 PM ET:\n\nThis market will resolve to \"Over\" if the Bears and Seahawks combine to score 45 or more points in this game.\n\nIf the combined total is less than 45, this market will resolve to \"Under\".\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "522085051851951040452183808865415386084548270399113575222925001800726609920",
+   "522085051851951040452183808865415386084548270399113575222925001800726609921"
+  ],
+  "clobTokenIds": "[\"83758672974217272076070006513220718566229636509802941337830902823954354293823\", \"70439251041597856566739470893077049276037272513705282407605436101294304457235\"]",
+  "negRisk": false,
+  "conditionId": "0x87e21e6b94b9ea5783ed8f1dce113808277d5adae8a1c49a71797023a0185cbb"
+ },
+ {
+  "slug": "nfl-cin-bal-2026-10-25-team-total-cin-10pt5",
+  "question": "Bengals Team Total: O/U 10.5",
+  "outcomes": "[\"Over\", \"Under\"]",
+  "sportsMarketType": "team_totals",
+  "line": 10.5,
+  "gameStartTime": "2026-10-25 17:00:00+00",
+  "description": "In the upcoming NFL game between Bengals and Ravens, scheduled for October 25 at 1:00 PM ET:\n\nThis market will resolve to \"Over\" if the Bengals score 11 or more points in this game.\n\nIf the Bengals score less than 11 points, this market will resolve to \"Under\".\n\nThis market is based solely on the Bengals's score, not the combined score of both teams.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "789226805494187287183343041910857152881258219298265733885511544440824528896",
+   "789226805494187287183343041910857152881258219298265733885511544440824528897"
+  ],
+  "clobTokenIds": "[\"95631930136659734246839739886088076656912265865503578377388579119549357635376\", \"102290762737810655263007386278271894582039854348529115808779050270688820570329\"]",
+  "negRisk": false,
+  "conditionId": "0xd3ecec60180c3ab3d613028509aea3cfbeafc13656f31d389862aceaa950bf35"
+ },
+ {
+  "slug": "nfl-cin-bal-2026-10-25-exact-margin-long-1-6",
+  "question": "Exact Margin: Bengals by 1-6",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "sportsMarketType": "exact_margin",
+  "line": null,
+  "gameStartTime": "2026-10-25 17:00:00+00",
+  "description": "In the upcoming NFL game between Bengals and Ravens, scheduled for October 25 at 1:00 PM ET:\n\nThis market will resolve to \"Yes\" if the Bengals win by 1 to 6 points.\n\nOtherwise, this market will resolve to \"No\".\n\nThe margin is the final score difference. Overtime is included if played. All outcomes are based on the official NFL game book as published on NFL.com.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "529656413719743900875078474243596994087956349534432729256540492105334652928",
+   "529656413719743900875078474243596994087956349534432729256540492105334652929"
+  ],
+  "clobTokenIds": "[\"57575999593002726225645069771023626035513566482647867849706260353221766339675\", \"80989221900609754582323282321770003896858184581674430798935702412733945996924\"]",
+  "negRisk": false,
+  "conditionId": "0x8f3fa07a47ac4f83951ac975cde094742bc6604673b6cac06792f5203998d574"
+ },
+ {
+  "slug": "nfl-cin-bal-2026-10-25-safety",
+  "question": "Bengals vs. Ravens: Safety?",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "sportsMarketType": "safety",
+  "line": null,
+  "gameStartTime": "2026-10-25 17:00:00+00",
+  "description": "In the upcoming NFL football game between Bengals and Ravens, scheduled for October 25 at 1:00 PM ET: This market will resolve to \"Yes\" if either team is awarded at least one safety at any point in this game. Otherwise, this market will resolve to \"No\". Overtime is included if played. All outcomes are based on the official NFL game book as published on NFL.com. If the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "636112117557458563609036401858449581156678154534558051128315882103971512320",
+   "636112117557458563609036401858449581156678154534558051128315882103971512321"
+  ],
+  "clobTokenIds": "[\"28137493073516997800039470550482171066564138092169844886809338052321181943746\", \"28296264756180457025307847040164140752290693125297367561046519946347353103758\"]",
+  "negRisk": false,
+  "conditionId": "0x347ed3817aea812b590490e9e09833ea6806d5ca2a62b961c6b5841ee7d99e55"
+ },
+ {
+  "slug": "nfl-cin-bal-2026-10-25-1q-btts-points",
+  "question": "Bengals vs. Ravens: Both Teams to Score Points - 1Q",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "sportsMarketType": "q1_both_teams_to_score_points",
+  "line": null,
+  "gameStartTime": "2026-10-25 17:00:00+00",
+  "description": "In the upcoming NFL game between Bengals and Ravens, scheduled for October 25 at 1:00 PM ET:\n\nThis market will resolve to \"Yes\" if the Bengals and the Ravens each score at least one point in the first quarter.\n\nOtherwise, this market will resolve to \"No\".\n\nOnly points scored during that period count; overtime is not included. All outcomes are based on the official NFL game book as published on NFL.com.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "874286465463675352390253638794169628574460969344490720300810606991332343808",
+   "874286465463675352390253638794169628574460969344490720300810606991332343809"
+  ],
+  "clobTokenIds": "[\"90746852816875920074142798924312714925611546941174248894850112632275903395827\", \"68824269430458397804150488750378726664033148918164229635151785558951479633146\"]",
+  "negRisk": false,
+  "conditionId": "0x543d6ffa101dbd2e56834651084a34e3eed41f5a02deea228a01718942656c69"
+ },
+ {
+  "slug": "nfl-cin-bal-2026-10-25-team-off-yards-cin-350pt5",
+  "question": "Bengals Total Offensive Yards: O/U 350.5",
+  "outcomes": "[\"Over\", \"Under\"]",
+  "sportsMarketType": "team_offensive_yards",
+  "line": 350.5,
+  "gameStartTime": "2026-10-25 17:00:00+00",
+  "description": "In the upcoming NFL game between Bengals and Ravens, scheduled for October 25 at 1:00 PM ET:\n\nThis market will resolve to \"Over\" if the Bengals record 351 or more total offensive yards in this game.\n\nThis market will resolve to \"Under\" if the Bengals record fewer than 351 total offensive yards.\n\nOvertime is included if played. All statistics are based on the official NFL game book as published on NFL.com.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+  "positionIds": [
+   "461633034915579489254785335614772062803532951402023336499883777494951657472",
+   "461633034915579489254785335614772062803532951402023336499883777494951657473"
+  ],
+  "clobTokenIds": "[\"992097885383728119868959779062201417926497142695753075066531939633719568009\", \"21953520951799673251609936590867393777168420441916877951484676846866565365489\"]",
+  "negRisk": false,
+  "conditionId": "0xdc7f9ff758c1111841861834fc7bad4e054668ecb8b9b3e2313120403ef9c3cf"
+ },
+ {
+  "slug": "nfl-cin-bal-2026-10-25-highest-scoring-quarter-q1",
+  "question": "Bengals vs. Ravens: Highest Scoring Quarter - Q1",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "sportsMarketType": "highest_scoring_quarter",
+  "line": null,
+  "gameStartTime": "2026-10-25 17:00:00+00",
+  "description": "In the upcoming NFL football game between Bengals and Ravens, scheduled for October 25, 2026 at 1:00 PM ET: This market is one outcome in a neg-risk group covering the four quarters of regulation plus \"Other\". This market will resolve to \"Yes\" if the first quarter is the quarter in which the most total points are scored by both teams combined. Otherwise, this market will resolve to \"No\". Only points scored in the four regulation quarters count; overtime is not included. If two or more quarters tie for the most points scored, or if no points are scored in the game, the \"Other\" outcome resolves \"Yes\". All outcomes are based on the official NFL game book as published on NFL.com. Exactly one outcome in the group resolves \"Yes\". If the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, the \"Other\" outcome resolves \"Yes\".",
+  "positionIds": [
+   "1269313066877196133387090196637064542576284672027390195266143946051193667584",
+   "1269313066877196133387090196637064542576284672027390195266143946051193667585"
+  ],
+  "clobTokenIds": "[\"35655537271351403551793402764086149129883348545636981249581410864252863546288\", \"42323262224949880062431003227685627365175526391088976427579946515861017492652\"]",
+  "negRisk": true,
+  "conditionId": "0xe06ff13a1dce01995e9099b80fe9298ea33d157bcc897efaee401d04124abf06"
+ }
+]

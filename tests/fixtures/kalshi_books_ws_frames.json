@@ -1,0 +1,231 @@
+[
+ {
+  "type": "subscribed",
+  "id": 1,
+  "msg": {
+   "channel": "ticker",
+   "sid": 1
+  },
+  "sending_ts_ms": 1792535588836
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a153c9-7ab3-7491-9602-f0843621b712",
+   "market_ticker": "KXNBA2HTOTAL-26OCT20OKCSAS-137",
+   "price_dollars": "0.0000",
+   "yes_bid_dollars": "0.0500",
+   "yes_ask_dollars": "0.1100",
+   "volume_fp": "0.00",
+   "open_interest_fp": "0.00",
+   "dollar_volume": 0,
+   "dollar_open_interest": 0,
+   "yes_bid_size_fp": "38.00",
+   "yes_ask_size_fp": "13.00",
+   "last_trade_size_fp": "0.00",
+   "ts": 1792535588,
+   "ts_ms": 1792535588803,
+   "time": "2026-10-20T22:33:08.803158Z"
+  },
+  "sending_ts_ms": 1792535589846
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a1513f-98e5-7dce-a981-ca732a1fd77a",
+   "market_ticker": "KXNBA1HSPREAD-26OCT20PHINYK-NYK2",
+   "price_dollars": "0.5400",
+   "yes_bid_dollars": "0.5300",
+   "yes_ask_dollars": "0.5400",
+   "volume_fp": "35506.96",
+   "open_interest_fp": "32101.54",
+   "dollar_volume": 17753,
+   "dollar_open_interest": 16050,
+   "yes_bid_size_fp": "332.62",
+   "yes_ask_size_fp": "170.09",
+   "last_trade_size_fp": "26.91",
+   "ts": 1792535588,
+   "ts_ms": 1792535588812,
+   "time": "2026-10-20T22:33:08.81215Z"
+  },
+  "sending_ts_ms": 1792535589846
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a14669-cfcb-725e-9631-8f8b87453573",
+   "market_ticker": "KXNBATOTAL-26OCT21CHABKN-236",
+   "price_dollars": "0.0000",
+   "yes_bid_dollars": "0.1600",
+   "yes_ask_dollars": "0.2000",
+   "volume_fp": "0.00",
+   "open_interest_fp": "0.00",
+   "dollar_volume": 0,
+   "dollar_open_interest": 0,
+   "yes_bid_size_fp": "15.00",
+   "yes_ask_size_fp": "7.00",
+   "last_trade_size_fp": "0.00",
+   "ts": 1792535588,
+   "ts_ms": 1792535588814,
+   "time": "2026-10-20T22:33:08.814887Z"
+  },
+  "sending_ts_ms": 1792535589846
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a146a0-f915-7bbd-8fa5-59574ef61f07",
+   "market_ticker": "KXNBAPTS-26OCT20PHINYK-NYKMBRIDGES25-25",
+   "price_dollars": "0.0500",
+   "yes_bid_dollars": "0.0400",
+   "yes_ask_dollars": "0.0500",
+   "volume_fp": "1061.92",
+   "open_interest_fp": "1061.92",
+   "dollar_volume": 530,
+   "dollar_open_interest": 530,
+   "yes_bid_size_fp": "31.00",
+   "yes_ask_size_fp": "24995.16",
+   "last_trade_size_fp": "0.93",
+   "ts": 1792535588,
+   "ts_ms": 1792535588880,
+   "time": "2026-10-20T22:33:08.880168Z"
+  },
+  "sending_ts_ms": 1792535589846
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a146a1-3c18-73d7-a922-48bf819657db",
+   "market_ticker": "KXNBA2D-26OCT20PHINYK-PHIJBROWN7",
+   "price_dollars": "0.2100",
+   "yes_bid_dollars": "0.1000",
+   "yes_ask_dollars": "0.1300",
+   "volume_fp": "8320.76",
+   "open_interest_fp": "6356.58",
+   "dollar_volume": 4160,
+   "dollar_open_interest": 3178,
+   "yes_bid_size_fp": "2.00",
+   "yes_ask_size_fp": "92.15",
+   "last_trade_size_fp": "125.85",
+   "ts": 1792535588,
+   "ts_ms": 1792535588888,
+   "time": "2026-10-20T22:33:08.8887Z"
+  },
+  "sending_ts_ms": 1792535589846
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a1513f-c40c-7740-8fa3-5db8f9cf57ac",
+   "market_ticker": "KXNBAOT-26OCT20PHINYK-1",
+   "price_dollars": "0.0700",
+   "yes_bid_dollars": "0.0500",
+   "yes_ask_dollars": "0.0600",
+   "volume_fp": "12206.76",
+   "open_interest_fp": "11776.26",
+   "dollar_volume": 6103,
+   "dollar_open_interest": 5888,
+   "yes_bid_size_fp": "399.00",
+   "yes_ask_size_fp": "30.00",
+   "last_trade_size_fp": "40.37",
+   "ts": 1792535588,
+   "ts_ms": 1792535588983,
+   "time": "2026-10-20T22:33:08.983128Z"
+  },
+  "sending_ts_ms": 1792535589846
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a15b70-7ab5-78cc-9749-267cbf932522",
+   "market_ticker": "KXMVECROSSCATEGORY-S2026MMVAZR3P23ZZSBBR-ABHJB4EPQ",
+   "price_dollars": "0.0000",
+   "yes_bid_dollars": "0.0000",
+   "yes_ask_dollars": "1.0000",
+   "volume_fp": "0.00",
+   "open_interest_fp": "0.00",
+   "dollar_volume": 0,
+   "dollar_open_interest": 0,
+   "yes_bid_size_fp": "0.00",
+   "yes_ask_size_fp": "0.00",
+   "last_trade_size_fp": "0.00",
+   "ts": 1792535588,
+   "ts_ms": 1792535588782,
+   "time": "2026-10-20T22:33:08.782419Z"
+  },
+  "sending_ts_ms": 1792535589839
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a15b72-4c34-7ae8-baeb-99dd690e2dec",
+   "market_ticker": "KXMVECROSSCATEGORY-S2026ZHE5EAK5H3P5XL45-XNSWZDVM3",
+   "price_dollars": "0.0000",
+   "yes_bid_dollars": "0.0000",
+   "yes_ask_dollars": "0.0170",
+   "volume_fp": "0.00",
+   "open_interest_fp": "0.00",
+   "dollar_volume": 0,
+   "dollar_open_interest": 0,
+   "yes_bid_size_fp": "0.00",
+   "yes_ask_size_fp": "120.00",
+   "last_trade_size_fp": "0.00",
+   "ts": 1792535588,
+   "ts_ms": 1792535588793,
+   "time": "2026-10-20T22:33:08.793703Z"
+  },
+  "sending_ts_ms": 1792535589839
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a15b6f-8d16-750b-95b9-eeff2eb0623a",
+   "market_ticker": "KXMVECROSSCATEGORY-S2026SJXMIMPEK7GGN4C2-BST3TEABU",
+   "price_dollars": "0.0000",
+   "yes_bid_dollars": "0.0000",
+   "yes_ask_dollars": "0.3580",
+   "volume_fp": "0.00",
+   "open_interest_fp": "0.00",
+   "dollar_volume": 0,
+   "dollar_open_interest": 0,
+   "yes_bid_size_fp": "0.00",
+   "yes_ask_size_fp": "69.00",
+   "last_trade_size_fp": "0.00",
+   "ts": 1792535588,
+   "ts_ms": 1792535588802,
+   "time": "2026-10-20T22:33:08.80235Z"
+  },
+  "sending_ts_ms": 1792535589839
+ },
+ {
+  "type": "ticker",
+  "sid": 1,
+  "msg": {
+   "market_id": "01a15b65-e1b2-7ef4-aa20-c1326cdf5158",
+   "market_ticker": "KXMVECROSSCATEGORY-S2026L4OW7MH2TQSR2UBK-XR4LIMYCQ",
+   "price_dollars": "0.0000",
+   "yes_bid_dollars": "0.0000",
+   "yes_ask_dollars": "1.0000",
+   "volume_fp": "0.00",
+   "open_interest_fp": "0.00",
+   "dollar_volume": 0,
+   "dollar_open_interest": 0,
+   "yes_bid_size_fp": "0.00",
+   "yes_ask_size_fp": "0.00",
+   "last_trade_size_fp": "0.00",
+   "ts": 1792535588,
+   "ts_ms": 1792535588803,
+   "time": "2026-10-20T22:33:08.803017Z"
+  },
+  "sending_ts_ms": 1792535589839
+ }
+]

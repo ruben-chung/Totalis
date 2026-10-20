@@ -1,0 +1,68 @@
+[
+ {
+  "condition_id": "0x00034dbb60950603b9222718e44c9c1bd6d725783557719e40252e396854178f",
+  "slug": "nba-dal-uta-2026-01-08-assists-lauri-markkanen-2pt5",
+  "title": "Lauri Markkanen: Assists Over 2.5",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "position_ids": "[]",
+  "sports_market_type": "assists",
+  "line": 2.5,
+  "outcome_prices": "[\"1\", \"0\"]",
+  "resolved": 1
+ },
+ {
+  "condition_id": "0x000b3e61f8ffa544224c2ae6b460398658c772756bd8748106a68124752b8d30",
+  "slug": "nba-mia-bkn-2025-12-18-points-nicolas-claxton-13pt5",
+  "title": "Nicolas Claxton: Points Over 13.5",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "position_ids": "[]",
+  "sports_market_type": "points",
+  "line": 13.5,
+  "outcome_prices": "[\"1\", \"0\"]",
+  "resolved": 1
+ },
+ {
+  "condition_id": "0x002aa03b5f30780879b84d67ab39802eaf9d7d0e511ea6892884d340f58c6b7f",
+  "slug": "nba-phx-nop-2025-12-26-rebounds-zion-williamson-4pt5",
+  "title": "Zion Williamson: Rebounds Over 4.5",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "position_ids": "[]",
+  "sports_market_type": "rebounds",
+  "line": 4.5,
+  "outcome_prices": "[\"1\", \"0\"]",
+  "resolved": 1
+ },
+ {
+  "condition_id": "0x00a20d296b026fff6f800b91e1ef8bf54a936cf828951e6a810c0696928e773b",
+  "slug": "nba-nop-orl-2026-01-11-points-wendell-carter-jr-13pt5",
+  "title": "Wendell Carter Jr.: Points Over 13.5",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "position_ids": "[]",
+  "sports_market_type": "points",
+  "line": 13.5,
+  "outcome_prices": "[\"0\", \"1\"]",
+  "resolved": 1
+ },
+ {
+  "condition_id": "0x0171571fbe6593a746d6bcdcaad15860876586aa3d0d278f4c3870eac66868c3",
+  "slug": "nba-por-nop-2025-12-11-points-trey-murphy-iii-22pt5",
+  "title": "Trey Murphy III: Points Over 22.5",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "position_ids": "[]",
+  "sports_market_type": "points",
+  "line": 22.5,
+  "outcome_prices": "[\"1\", \"0\"]",
+  "resolved": 1
+ },
+ {
+  "condition_id": "0x07829c5e3a3871521ab032c72b98b48f810f360b1af501e6d4dfb5711fe3e8d6",
+  "slug": "nba-atl-nyk-2026-01-02-assists-nickeil-alexander-walker-2pt5",
+  "title": "Nickeil Alexander-Walker: Assists Over 2.5",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "position_ids": "[]",
+  "sports_market_type": "assists",
+  "line": 2.5,
+  "outcome_prices": "[\"1\", \"0\"]",
+  "resolved": 1
+ }
+]

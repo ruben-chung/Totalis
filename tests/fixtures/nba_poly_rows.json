@@ -1,0 +1,470 @@
+[
+ {
+  "position_id": "893884441871155268225034011327482558774771710017459859080932168857582305280",
+  "market_id": "5792066",
+  "condition_id": "0x253f9d35333e73f6529b62c1c8358076f9ebb0b2ab11e32d13fb36d8fb8dea55",
+  "slug": "nba-atl-cha-2026-10-23",
+  "title": "Hawks vs. Hornets",
+  "outcome": "Hawks",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "893884441871155268225034011327482558774771710017459859080932168857582305281",
+  "market_id": "5792066",
+  "condition_id": "0x253f9d35333e73f6529b62c1c8358076f9ebb0b2ab11e32d13fb36d8fb8dea55",
+  "slug": "nba-atl-cha-2026-10-23",
+  "title": "Hawks vs. Hornets",
+  "outcome": "Hornets",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "485492931737693834410980956660716624433243138442593911782744127086190919680",
+  "market_id": "5722990",
+  "condition_id": "0x74112dc67487ec5f08d44436bbaedd1512c77daf671e829187d995a29398da22",
+  "slug": "nba-gsw-lal-2026-10-21",
+  "title": "Warriors vs. Lakers",
+  "outcome": "Warriors",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "485492931737693834410980956660716624433243138442593911782744127086190919681",
+  "market_id": "5722990",
+  "condition_id": "0x74112dc67487ec5f08d44436bbaedd1512c77daf671e829187d995a29398da22",
+  "slug": "nba-gsw-lal-2026-10-21",
+  "title": "Warriors vs. Lakers",
+  "outcome": "Lakers",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "704175329274582397965058668231036793734204083292522552735102874966674112512",
+  "market_id": "5716401",
+  "condition_id": "0x9ea7f5e6f4c2028ded37bfe0408c4a988e8c92a004fea230697fc5268f1481ec",
+  "slug": "nba-atl-orl-2026-10-21-spread-home-2pt5",
+  "title": "Spread: Magic (-2.5)",
+  "outcome": "Magic",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "704175329274582397965058668231036793734204083292522552735102874966674112513",
+  "market_id": "5716401",
+  "condition_id": "0x9ea7f5e6f4c2028ded37bfe0408c4a988e8c92a004fea230697fc5268f1481ec",
+  "slug": "nba-atl-orl-2026-10-21-spread-home-2pt5",
+  "title": "Spread: Magic (-2.5)",
+  "outcome": "Hawks",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "559062353524764860055918604859977480826014622768630952077253702743450714112",
+  "market_id": "5991228",
+  "condition_id": "0x3701b8bc3b234bd470f6ff9d6d4708eb3c6b0733ff91d7d883cc9855849950fd",
+  "slug": "nba-bos-det-2026-10-20-spread-away-10pt5",
+  "title": "Spread: Celtics (-10.5)",
+  "outcome": "Celtics",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "559062353524764860055918604859977480826014622768630952077253702743450714113",
+  "market_id": "5991228",
+  "condition_id": "0x3701b8bc3b234bd470f6ff9d6d4708eb3c6b0733ff91d7d883cc9855849950fd",
+  "slug": "nba-bos-det-2026-10-20-spread-away-10pt5",
+  "title": "Spread: Celtics (-10.5)",
+  "outcome": "Pistons",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "669193374827412443618146969015113659898291637623290251627092545565232201728",
+  "market_id": "5716561",
+  "condition_id": "0x617f835ea09536003283ca95110ed5607ac001d1aff4852030236f94cd6bcd87",
+  "slug": "nba-atl-orl-2026-10-21-total-230pt5",
+  "title": "Hawks vs. Magic: O/U 230.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "669193374827412443618146969015113659898291637623290251627092545565232201729",
+  "market_id": "5716561",
+  "condition_id": "0x617f835ea09536003283ca95110ed5607ac001d1aff4852030236f94cd6bcd87",
+  "slug": "nba-atl-orl-2026-10-21-total-230pt5",
+  "title": "Hawks vs. Magic: O/U 230.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "689879759684822526479098308514585263555299798445505780414875380449969963008",
+  "market_id": "5914014",
+  "condition_id": "0x086e186475a99e975c3d6b12a971ae838675467a84065a252422beba27762b76",
+  "slug": "nba-dal-hou-2026-10-21-1h-moneyline",
+  "title": "Mavericks vs. Rockets: 1H Moneyline",
+  "outcome": "Mavericks",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "689879759684822526479098308514585263555299798445505780414875380449969963009",
+  "market_id": "5914014",
+  "condition_id": "0x086e186475a99e975c3d6b12a971ae838675467a84065a252422beba27762b76",
+  "slug": "nba-dal-hou-2026-10-21-1h-moneyline",
+  "title": "Mavericks vs. Rockets: 1H Moneyline",
+  "outcome": "Rockets",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "572755894773712358642012448649462047501319921626485582714488331525639110656",
+  "market_id": "5914012",
+  "condition_id": "0x826e7f748ed3e6fca2bdeeb9ebd6454e442b18e09b680ba4ced9ebbc8d81a09c",
+  "slug": "nba-dal-hou-2026-10-21-1h-spread-home-5pt5",
+  "title": "1H Spread: Rockets (-5.5)",
+  "outcome": "Rockets",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "572755894773712358642012448649462047501319921626485582714488331525639110657",
+  "market_id": "5914012",
+  "condition_id": "0x826e7f748ed3e6fca2bdeeb9ebd6454e442b18e09b680ba4ced9ebbc8d81a09c",
+  "slug": "nba-dal-hou-2026-10-21-1h-spread-home-5pt5",
+  "title": "1H Spread: Rockets (-5.5)",
+  "outcome": "Mavericks",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "866895806935477783807068984724919496014683855039356056784442811685200199680",
+  "market_id": "5914009",
+  "condition_id": "0x0cf27b273c629a213aafec7686e7414ceaa54897455c17fce4a98f41f5185ed5",
+  "slug": "nba-ind-nop-2026-10-21-1h-spread-away-1pt5",
+  "title": "1H Spread: Pacers (-1.5)",
+  "outcome": "Pacers",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "866895806935477783807068984724919496014683855039356056784442811685200199681",
+  "market_id": "5914009",
+  "condition_id": "0x0cf27b273c629a213aafec7686e7414ceaa54897455c17fce4a98f41f5185ed5",
+  "slug": "nba-ind-nop-2026-10-21-1h-spread-away-1pt5",
+  "title": "1H Spread: Pacers (-1.5)",
+  "outcome": "Pelicans",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "745546929341251503565914630071767445551706079824219353773011806067733037056",
+  "market_id": "5914013",
+  "condition_id": "0x0478aa263c1278f97ba7d251de1f7616a5f6f08f33faebbcafdd59b9f1555de9",
+  "slug": "nba-dal-hou-2026-10-21-1h-total-118pt5",
+  "title": "Mavericks vs. Rockets: 1H O/U 118.5",
+  "outcome": "Over",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "745546929341251503565914630071767445551706079824219353773011806067733037057",
+  "market_id": "5914013",
+  "condition_id": "0x0478aa263c1278f97ba7d251de1f7616a5f6f08f33faebbcafdd59b9f1555de9",
+  "slug": "nba-dal-hou-2026-10-21-1h-total-118pt5",
+  "title": "Mavericks vs. Rockets: 1H O/U 118.5",
+  "outcome": "Under",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "499454138347130215397640795204132936622728840467543092668888857318120226816",
+  "market_id": "5792068",
+  "condition_id": "0x8e21b84eb6e53bd9fbb7ed3960da57a21aae579e93445d6932577f4b214237b8",
+  "slug": "nba-atl-cha-2026-10-23-odd-even",
+  "title": "Hawks vs. Hornets: Odd/Even Score",
+  "outcome": "Odd",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "499454138347130215397640795204132936622728840467543092668888857318120226817",
+  "market_id": "5792068",
+  "condition_id": "0x8e21b84eb6e53bd9fbb7ed3960da57a21aae579e93445d6932577f4b214237b8",
+  "slug": "nba-atl-cha-2026-10-23-odd-even",
+  "title": "Hawks vs. Hornets: Odd/Even Score",
+  "outcome": "Even",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "723795703972170614541611457644465006174720015860476135441595607646755356672",
+  "market_id": "5792067",
+  "condition_id": "0xb83fe9e5e2ceb4b57f5d6eea6d3ec85499a762c5285bcc6c5d3aa853d7af56d7",
+  "slug": "nba-atl-cha-2026-10-23-team-to-score-first",
+  "title": "Hawks vs. Hornets: Team to Score First",
+  "outcome": "Hawks",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "723795703972170614541611457644465006174720015860476135441595607646755356673",
+  "market_id": "5792067",
+  "condition_id": "0xb83fe9e5e2ceb4b57f5d6eea6d3ec85499a762c5285bcc6c5d3aa853d7af56d7",
+  "slug": "nba-atl-cha-2026-10-23-team-to-score-first",
+  "title": "Hawks vs. Hornets: Team to Score First",
+  "outcome": "Hornets",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "845545807709110407196224757265816857239457066173976053965945212788050755584",
+  "market_id": "5909365",
+  "condition_id": "0xd3500ce8d4f2804a90dfccd2ca6f115fde8fdd1b3ebb51d3cd52cfa7e099a128",
+  "slug": "nba-atl-orl-2026-10-21-assists-cj-mccollum-3pt5",
+  "title": "CJ McCollum: Assists O/U 3.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "845545807709110407196224757265816857239457066173976053965945212788050755585",
+  "market_id": "5909365",
+  "condition_id": "0xd3500ce8d4f2804a90dfccd2ca6f115fde8fdd1b3ebb51d3cd52cfa7e099a128",
+  "slug": "nba-atl-orl-2026-10-21-assists-cj-mccollum-3pt5",
+  "title": "CJ McCollum: Assists O/U 3.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "668156438018389575181027003228514416111855399665437339837598674519303651328",
+  "market_id": "5918979",
+  "condition_id": "0x5e8e68e89b4fad9169785203c1b463bc7a29c3b1f81bee4f392d915ed6031fa1",
+  "slug": "nba-bos-det-2026-10-20-rebounds-jalen-duren-10pt5",
+  "title": "Jalen Duren: Rebounds O/U 10.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "668156438018389575181027003228514416111855399665437339837598674519303651329",
+  "market_id": "5918979",
+  "condition_id": "0x5e8e68e89b4fad9169785203c1b463bc7a29c3b1f81bee4f392d915ed6031fa1",
+  "slug": "nba-bos-det-2026-10-20-rebounds-jalen-duren-10pt5",
+  "title": "Jalen Duren: Rebounds O/U 10.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "864742645589438613417898993347072716737054429288148525993818656478515429376",
+  "market_id": "5909357",
+  "condition_id": "0x3348a4980c4015bb227260dead2e4af6e96d4f65d791e973b26821c4e07febd0",
+  "slug": "nba-okc-sas-2026-10-20-points-deaaron-fox-14pt5",
+  "title": "De'Aaron Fox: Points O/U 14.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "864742645589438613417898993347072716737054429288148525993818656478515429377",
+  "market_id": "5909357",
+  "condition_id": "0x3348a4980c4015bb227260dead2e4af6e96d4f65d791e973b26821c4e07febd0",
+  "slug": "nba-okc-sas-2026-10-20-points-deaaron-fox-14pt5",
+  "title": "De'Aaron Fox: Points O/U 14.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "558100812012830096393938817715329966360996834016867162279334283259313913856",
+  "market_id": "5912616",
+  "condition_id": "0x6e719f96e9f351a7bcc2dd30a68e3ca53bdfb5a56e6f11d0850ae099eae15773",
+  "slug": "nba-cha-bkn-2026-10-21-points-michael-porter-jr-21pt5",
+  "title": "Michael Porter Jr.: Points O/U 21.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "558100812012830096393938817715329966360996834016867162279334283259313913857",
+  "market_id": "5912616",
+  "condition_id": "0x6e719f96e9f351a7bcc2dd30a68e3ca53bdfb5a56e6f11d0850ae099eae15773",
+  "slug": "nba-cha-bkn-2026-10-21-points-michael-porter-jr-21pt5",
+  "title": "Michael Porter Jr.: Points O/U 21.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "745473841329641270646136088334015480132673576156131432948086757513414836224",
+  "market_id": "5865665",
+  "condition_id": "0x07a4c5ad0ff6e4bebec2a70cfbe951aba5ec59930993060e0565787d97bc4245",
+  "slug": "nba-dal-hou-2026-10-21-points-alperen-sengun-18pt5",
+  "title": "Alperen Seng\u00fcn: Points O/U 18.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "745473841329641270646136088334015480132673576156131432948086757513414836225",
+  "market_id": "5865665",
+  "condition_id": "0x07a4c5ad0ff6e4bebec2a70cfbe951aba5ec59930993060e0565787d97bc4245",
+  "slug": "nba-dal-hou-2026-10-21-points-alperen-sengun-18pt5",
+  "title": "Alperen Seng\u00fcn: Points O/U 18.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "540795954265261281302531153476213565798285659291644910426002599402704732160",
+  "market_id": "5680538",
+  "condition_id": "0x5e2b5c3f81ce09f325276126c41aeccf321464cc5bcd9f1c082ddf6bba52f998",
+  "slug": "nba-okc-sas-2026-10-20-assists-shai-gilgeous-alexander-5pt5",
+  "title": "Shai Gilgeous-Alexander: Assists O/U 5.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "540795954265261281302531153476213565798285659291644910426002599402704732161",
+  "market_id": "5680538",
+  "condition_id": "0x5e2b5c3f81ce09f325276126c41aeccf321464cc5bcd9f1c082ddf6bba52f998",
+  "slug": "nba-okc-sas-2026-10-20-assists-shai-gilgeous-alexander-5pt5",
+  "title": "Shai Gilgeous-Alexander: Assists O/U 5.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "657801719080011342847072139821078849645316638655279435393221032860513730560",
+  "market_id": "5863845",
+  "condition_id": "0x317d149b3ba86e475195390f5c9c399b744d75d2cd2f58c2a6cea4acffbce4b5",
+  "slug": "nba-gsw-lal-2026-10-21-rebounds-luka-doncic-7pt5",
+  "title": "Luka Don\u010di\u0107: Rebounds O/U 7.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "657801719080011342847072139821078849645316638655279435393221032860513730561",
+  "market_id": "5863845",
+  "condition_id": "0x317d149b3ba86e475195390f5c9c399b744d75d2cd2f58c2a6cea4acffbce4b5",
+  "slug": "nba-gsw-lal-2026-10-21-rebounds-luka-doncic-7pt5",
+  "title": "Luka Don\u010di\u0107: Rebounds O/U 7.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "615371675388704634307400900521685134416847766797687861326262940956943712256",
+  "market_id": "5877961",
+  "condition_id": "0x33c05994917d9b29deb286d708d2e3a65c49bc0879a39b54acfa813d743381f8",
+  "slug": "nba-ind-nop-2026-10-21-assists-trey-murphy-iii-3pt5",
+  "title": "Trey Murphy III: Assists O/U 3.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "615371675388704634307400900521685134416847766797687861326262940956943712257",
+  "market_id": "5877961",
+  "condition_id": "0x33c05994917d9b29deb286d708d2e3a65c49bc0879a39b54acfa813d743381f8",
+  "slug": "nba-ind-nop-2026-10-21-assists-trey-murphy-iii-3pt5",
+  "title": "Trey Murphy III: Assists O/U 3.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "742583650509288506818528639258301458439515907987697438081025780595193544704",
+  "market_id": "5909366",
+  "condition_id": "0x1c2fed4498c3ebc68451ec7ddfa8416ea44996704df81898e3abe3071f9746e0",
+  "slug": "nba-atl-orl-2026-10-21-assists-nickeil-alexander-walker-3pt5",
+  "title": "Nickeil Alexander-Walker: Assists O/U 3.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "742583650509288506818528639258301458439515907987697438081025780595193544705",
+  "market_id": "5909366",
+  "condition_id": "0x1c2fed4498c3ebc68451ec7ddfa8416ea44996704df81898e3abe3071f9746e0",
+  "slug": "nba-atl-orl-2026-10-21-assists-nickeil-alexander-walker-3pt5",
+  "title": "Nickeil Alexander-Walker: Assists O/U 3.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "691547703674068902402421479939506632975390054956730836425595093003844714496",
+  "market_id": "5828792",
+  "condition_id": "0x1971fbd135c362b22209c266797982f58766f1f5a96809b0a1ad608e88210b48",
+  "slug": "nba-phi-nyk-2026-10-20-assists-karl-anthony-towns-4pt5",
+  "title": "Karl-Anthony Towns: Assists O/U 4.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "691547703674068902402421479939506632975390054956730836425595093003844714497",
+  "market_id": "5828792",
+  "condition_id": "0x1971fbd135c362b22209c266797982f58766f1f5a96809b0a1ad608e88210b48",
+  "slug": "nba-phi-nyk-2026-10-20-assists-karl-anthony-towns-4pt5",
+  "title": "Karl-Anthony Towns: Assists O/U 4.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "875702448573775574836866126284102005300327209156567788048570229330848776192",
+  "market_id": "5911962",
+  "condition_id": "0x2a53f6e93199ee670ee82b529ca27c35efa149158f5d9dd4df78ef7d5436aae8",
+  "slug": "nba-dal-hou-2026-10-21-points-pj-washington-13pt5",
+  "title": "P.J. Washington: Points O/U 13.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "875702448573775574836866126284102005300327209156567788048570229330848776193",
+  "market_id": "5911962",
+  "condition_id": "0x2a53f6e93199ee670ee82b529ca27c35efa149158f5d9dd4df78ef7d5436aae8",
+  "slug": "nba-dal-hou-2026-10-21-points-pj-washington-13pt5",
+  "title": "P.J. Washington: Points O/U 13.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "864579424491099029401542811995085032759724864540222077137094948861195059200",
+  "market_id": "5828794",
+  "condition_id": "0xef498c065afcec6bf14e214e30cbdebce955a930d86242de5ab214e4668e06bf",
+  "slug": "nba-phi-nyk-2026-10-20-assists-og-anunoby-1pt5",
+  "title": "OG Anunoby: Assists O/U 1.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "864579424491099029401542811995085032759724864540222077137094948861195059201",
+  "market_id": "5828794",
+  "condition_id": "0xef498c065afcec6bf14e214e30cbdebce955a930d86242de5ab214e4668e06bf",
+  "slug": "nba-phi-nyk-2026-10-20-assists-og-anunoby-1pt5",
+  "title": "OG Anunoby: Assists O/U 1.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "561833260527795616351399210724550800478803287281543927795084442317457719296",
+  "market_id": "5912631",
+  "condition_id": "0x60b50109c0c305bd71703842b2116eff3dfc81db29ad202c7f133fb8df913596",
+  "slug": "nba-cha-bkn-2026-10-21-assists-dayron-sharpe-2pt5",
+  "title": "Day'Ron Sharpe: Assists O/U 2.5",
+  "outcome": "Yes",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "561833260527795616351399210724550800478803287281543927795084442317457719297",
+  "market_id": "5912631",
+  "condition_id": "0x60b50109c0c305bd71703842b2116eff3dfc81db29ad202c7f133fb8df913596",
+  "slug": "nba-cha-bkn-2026-10-21-assists-dayron-sharpe-2pt5",
+  "title": "Day'Ron Sharpe: Assists O/U 2.5",
+  "outcome": "No",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "902035134305283535108089035484857269812454076908791459538017778972963635200",
+  "market_id": "5722993",
+  "condition_id": "0x01179dec7271755254eb8bca5787eb66fe88a6aed9f2a12f20f79e09bd039f78",
+  "slug": "nba-phx-por-2026-10-21",
+  "title": "Suns vs. Trail Blazers",
+  "outcome": "Suns",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "902035134305283535108089035484857269812454076908791459538017778972963635201",
+  "market_id": "5722993",
+  "condition_id": "0x01179dec7271755254eb8bca5787eb66fe88a6aed9f2a12f20f79e09bd039f78",
+  "slug": "nba-phx-por-2026-10-21",
+  "title": "Suns vs. Trail Blazers",
+  "outcome": "Trail Blazers",
+  "outcome_index": 1
+ },
+ {
+  "position_id": "494432088026114895012896450180472548395277809254358325375579591193263079424",
+  "market_id": "5765055",
+  "condition_id": "0xfa657d6b58e1b7cb79969d206b46093a17d6b16b8789c9308f46e4b87d7da056",
+  "slug": "nba-cle-phi-2026-10-22",
+  "title": "Cavaliers vs. 76ers",
+  "outcome": "Cavaliers",
+  "outcome_index": 0
+ },
+ {
+  "position_id": "494432088026114895012896450180472548395277809254358325375579591193263079425",
+  "market_id": "5765055",
+  "condition_id": "0xfa657d6b58e1b7cb79969d206b46093a17d6b16b8789c9308f46e4b87d7da056",
+  "slug": "nba-cle-phi-2026-10-22",
+  "title": "Cavaliers vs. 76ers",
+  "outcome": "76ers",
+  "outcome_index": 1
+ }
+]
