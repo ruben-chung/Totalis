@@ -254,3 +254,67 @@ What the per-pair view shows that the groups hid:
 The out-of-sample gain over the pooled fit is small in Brier (unchanged at 4 decimals) and
 visible in log-loss (0.4035 -> 0.4026) and bucket residual (0.0102 -> 0.0099): the information is
 in a handful of large pairs, and the shrinkage protects the rest.
+
+## Round 4 (2026-10-20, later): game-clustered evidence and market-pinned couplings
+
+Change request: rows within a game share the game's outcome, so the effective sample for any
+coupling question is the number of games (93), and row-count shrinkage (round 3, n0 = 10,000
+rows) trusted a pair like spread/FG x total/FG about a hundred times more than its evidence
+supports. New rules in `calibrate.py`:
+
+1. Every pair's lambda and tail-map parameters carry a **game-clustered** standard error
+   (sandwich estimator with game clusters); the report shows `lam_pair` with its 95% interval
+   and the number of games behind it.
+2. Shrinkage is by precision: `lambda_used = (lambda_pair / var_pair + lambda_group / var_group)
+   / (1/var_pair + 1/var_group)` with clustered variances; same per tail-map parameter on the
+   tail rows.
+3. Pair classes: `market_pinned` (both legs full game on different score variables; the
+   coupling is read from the four FG ladders) keep lambda = 1.0 unless the clustered 95%
+   interval excludes 1.0 (`uninformative` vs `informative`, in which case rule 2 applies);
+   `structural` (both legs full game on the same variable: two spreads, spread x moneyline,
+   exact margin x spread, two totals) are fixed at 1.0; `prior` (any half leg; the coupling is the
+   engine's halves prior) shrink freely under rule 2. `JointQuote` exposes `coupling_kind` and
+   `lambda_status`; `calibration_level` (pair | group | none) is unchanged.
+
+Result (v2 scores, 91 games, 141,819 pairs, 5-fold CV by game, out of sample): Brier engine
+0.1302, pooled-group 0.1302, per-pair 0.1302; log-loss 0.4055 -> 0.4035 (pooled) -> 0.4031
+(per-pair); bucket residual 0.0147 -> 0.0108. Status mix over the 67 pairs seen: 7 market-pinned,
+all `uninformative`; 6 structural `fixed`; 23 prior `shrunk`; 31 prior pairs seen in one game
+only, on the group value.
+
+| family pair | kind | n | games | lam_pair [95% CI] | lam_group | lam_used | status |
+|---|---|---|---|---|---|---|---|
+| spread/2H x spread/FG | prior | 18,099 | 89 | 1.05 [+0.61, +1.49] | 0.80 | 0.84 | shrunk |
+| spread/FG x total/FG | market_pinned | 17,573 | 90 | 0.28 [-0.72, +1.28] | 1.00 | **1.00** | uninformative |
+| spread/1H x spread/FG | prior | 16,646 | 89 | 0.68 [+0.42, +0.93] | 0.80 | 0.76 | shrunk |
+| spread/FG x team_total/FG | market_pinned | 11,796 | 89 | 1.02 [+0.78, +1.27] | 1.00 | 1.00 | uninformative |
+| spread/FG x spread/FG | structural | 9,208 | 87 | 0.94 [+0.74, +1.14] | 1.00 | 1.00 | fixed |
+| spread/FG x team_total/2H | prior | 9,137 | 85 | 1.14 [+0.44, +1.85] | 0.80 | 0.82 | shrunk |
+| spread/FG x team_total/1H | prior | 8,992 | 87 | 0.57 [+0.19, +0.96] | 0.80 | 0.77 | shrunk |
+| spread/2H x total/FG | prior | 6,820 | 80 | 0.61 [-0.48, +1.70] | 0.80 | 0.80 | shrunk |
+| spread/1H x total/FG | prior | 6,751 | 80 | 0.62 [-0.79, +2.02] | 0.80 | 0.80 | shrunk |
+| total/FG x total/FG | structural | 5,196 | 80 | 1.25 [+0.99, +1.51] | 1.00 | 1.00 | fixed |
+| exact_margin/FG x spread/FG | structural | 4,989 | 78 | 0.99 [+0.51, +1.47] | 1.00 | 1.00 | fixed |
+| team_total/FG x total/FG | market_pinned | 4,591 | 80 | 1.21 [+0.90, +1.53] | 1.00 | 1.00 | uninformative |
+| team_total/1H x total/FG | prior | 3,529 | 78 | 1.15 [+0.49, +1.81] | 0.80 | 0.83 | shrunk |
+| spread/FG x total/2H | prior | 3,344 | 68 | 0.00 [-1.02, +1.02] | 0.80 | 0.78 | shrunk |
+| team_total/2H x total/FG | prior | 3,281 | 77 | 1.13 [+0.51, +1.74] | 0.80 | 0.83 | shrunk |
+| spread/FG x total/1H | prior | 2,978 | 65 | 0.00 [-1.59, +1.59] | 0.80 | 0.80 | shrunk |
+| exact_margin/FG x total/FG | market_pinned | 1,916 | 72 | 0.50 [-3.89, +4.88] | 1.00 | 1.00 | uninformative |
+| moneyline/1H x spread/FG | prior | 498 | 15 | 0.44 [-0.45, +1.32] | 0.80 | 0.79 | shrunk |
+| moneyline/2H x spread/FG | prior | 448 | 18 | 1.82 [+1.05, +2.59] | 0.80 | 0.85 | shrunk |
+
+As expected: spread/FG x total/FG returns to 1.0, marked uninformative (its 0.28 came with a
+clustered interval of [-0.72, +1.28]; 90 games cannot confirm or reject a correlation of ~0.12);
+the first-half pairs keep a real shrink (0.68 -> 0.76, 0.57 -> 0.77, intervals that exclude 1.0);
+nested pairs are unchanged at 1.0. The two "lambda 0" pairs of round 3 (half totals against the
+full-game spread) have intervals of +/-1 or wider and sit on the group value. The remaining
+moneyline pairs have 14-18 games and intervals a full unit wide; they stay close to the group
+and keep the largest model error (0.04-0.09) in their interval.
+
+Two things the clustered view makes explicit: with 93 games nothing finer than the group-level
+first-half shrink (0.80 +/- 0.09) is really measured, and the group's own clustered variance is
+an estimation variance, not a between-pair heterogeneity (a proper empirical-Bayes prior
+variance); with it as the prior, a pair with a precise own estimate (spread/2H x spread/FG,
+1.05 +/- 0.22) still lands near the group (0.84). Estimating the between-pair variance needs
+more games than we have; noted as future work.

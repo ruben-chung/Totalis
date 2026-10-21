@@ -4,7 +4,7 @@ import sqlite3
 import numpy as np
 import pytest
 
-from rfqbot.pricing.calibrate import Calibration, PairParams, TailMap, family_pair_key, fit, format_metrics, group_of, set_default_calibration
+from rfqbot.pricing.calibrate import Calibration, PairParams, TailMap, family_pair_key, fit, format_metrics, group_of, pair_kind, set_default_calibration
 from rfqbot.pricing.joint import build_game
 from rfqbot.pricing.joint_nfl import EngineConfig
 from rfqbot.pricing.synthetic import make_truth, quotes_from_truth
@@ -32,23 +32,27 @@ def test_apply_levels_and_tails():
 
 
 def test_load_save_roundtrip(tmp_path):
-    c = Calibration(pairs={"a/FG x b/FG": PairParams(0.7, TailMap(0.05, 0.0, 1.0), None, 0.02, 500, 40, 0, 0.6, 0.9, "within_FG")},
-                    groups={"within_FG": PairParams(0.9, None, TailMap(0.8, -0.1, 1.1), 0.01, 10000, 0, 300, None, 0.9, "within_FG")},
-                    n0=300, n0_tail=100, meta={"x": 1}, identity=False)
+    c = Calibration(pairs={"a/FG x b/FG": PairParams(0.7, TailMap(0.05, 0.0, 1.0), None, 0.02, 500, 40, 30, 0, 0.6, 0.1, 0.9, "within_FG", "market_pinned", "informative")},
+                    groups={"within_FG": PairParams(0.9, None, TailMap(0.8, -0.1, 1.1), 0.01, 10000, 90, 0, 300, None, None, 0.9, "within_FG", "group", "group")},
+                    meta={"x": 1}, identity=False)
     c.save(tmp_path / "c.json")
     d = Calibration.load(tmp_path / "c.json")
-    assert not d.identity and d.n0 == 300 and d.pairs["a/FG x b/FG"].lam == 0.7 and d.pairs["a/FG x b/FG"].lo.b == 1.0
-    assert d.groups["within_FG"].hi.a == -0.1 and d.pairs["a/FG x b/FG"].lam_pair == 0.6
+    pp = d.pairs["a/FG x b/FG"]
+    assert not d.identity and pp.lam == 0.7 and pp.lo.b == 1.0 and pp.kind == "market_pinned" and pp.lam_status == "informative"
+    assert pp.n_games == 40 and pp.lam_ci == pytest.approx((0.6 - 1.96 * 0.1, 0.6 + 1.96 * 0.1))
+    assert d.groups["within_FG"].hi.a == -0.1 and pp.lam_pair == 0.6
     assert Calibration.load(tmp_path / "missing.json").identity
     json.loads(d.to_json())
 
 
-def _scores_db(path, rng, n_games=25, per_game=600):
-    """Synthetic scores: two cross pairs with different true lambdas (0.4 and 0.9), one rare pair, one FG pair."""
+def _scores_db(path, rng, n_games=40, per_game=600):
+    """Synthetic scores: two prior pairs with different true lambdas (0.4, 0.9), one rare prior pair,
+    one market-pinned pair whose true lambda is 1.0, one structural pair."""
     c = sqlite3.connect(path)
     c.executescript(SCHEMA)
     rows = []
-    pairs = [("spread/FG x total/2H", 0.4, 300), ("spread/1H x spread/FG", 0.9, 280), ("moneyline/2H x total/FG", 0.4, 5), ("spread/FG x total/FG", 1.0, 15)]
+    pairs = [("spread/FG x total/2H", 0.4, 220), ("spread/1H x spread/FG", 0.9, 220), ("moneyline/2H x total/FG", 0.4, 4),
+             ("spread/FG x total/FG", 1.0, 120), ("spread/FG x spread/FG", 0.7, 36)]
     for g in range(n_games):
         i = 0
         for fp, lam, k in pairs:
@@ -62,19 +66,49 @@ def _scores_db(path, rng, n_games=25, per_game=600):
     c.commit(); c.close()
 
 
-def test_fit_is_hierarchical(tmp_path):
+def test_pair_kinds():
+    assert pair_kind("spread/FG x total/FG") == "market_pinned" and pair_kind("spread/FG x team_total/FG") == "market_pinned"
+    assert pair_kind("spread/FG x spread/FG") == "structural" and pair_kind("exact_margin/FG x spread/FG") == "structural"
+    assert pair_kind("total/FG x total/FG") == "structural" and pair_kind("moneyline/FG x spread/FG") == "structural"
+    assert pair_kind("spread/1H x spread/FG") == "prior" and pair_kind("spread/1H x spread/1H") == "prior"
+
+
+def test_fit_is_hierarchical_and_rule_based(tmp_path):
     rng = np.random.default_rng(5)
     db = tmp_path / "scores.db"
     _scores_db(db, rng)
-    cal, m = fit(db, 15, folds=4, n0_grid=(100, 1000, 10000), n0_tail_grid=(100, 1000))
-    big_a, big_b, rare = cal.pairs["spread/FG x total/2H"], cal.pairs["spread/1H x spread/FG"], cal.pairs["moneyline/2H x total/FG"]
-    assert abs(big_a.lam - 0.4) < 0.15 and abs(big_b.lam - 0.9) < 0.15          # well-sampled pairs keep their own lambda
-    assert abs(rare.lam - cal.groups["cross"].lam) < abs((rare.lam_pair or rare.lam) - cal.groups["cross"].lam) + 1e-9  # rare pair shrinks to the group
-    assert big_a.group == "cross" and rare.n == 125 and cal.n0 in (100, 1000, 10000)
+    cal, m = fit(db, 15, folds=4)
+    a, b, rare = cal.pairs["spread/FG x total/2H"], cal.pairs["spread/1H x spread/FG"], cal.pairs["moneyline/2H x total/FG"]
+    pinned, struct = cal.pairs["spread/FG x total/FG"], cal.pairs["spread/FG x spread/FG"]
+    # precision shrink: the used value lies between the pair's own estimate and the group's
+    assert a.kind == "prior" and a.lam_status == "shrunk" and min(a.lam_pair, a.lam_group) - 1e-9 <= a.lam <= max(a.lam_pair, a.lam_group) + 1e-9
+    assert abs(a.lam_pair - 0.4) < 0.12 and abs(b.lam_pair - 0.9) < 0.12 and a.lam_se is not None and a.n_games == 40
+    assert a.lam < b.lam                                                 # the ordering of the pairs survives the shrink
+    assert rare.lam_status == "shrunk" and abs(rare.lam - cal.groups["cross"].lam) < abs(rare.lam_pair - cal.groups["cross"].lam)
+    assert pinned.kind == "market_pinned" and pinned.lam_status == "uninformative" and pinned.lam == 1.0    # CI contains 1
+    assert struct.kind == "structural" and struct.lam_status == "fixed" and struct.lam == 1.0                # never moved
+    lo, hi = pinned.lam_ci
+    assert lo <= 1.0 <= hi
     o = m["overall"]
-    assert o["logloss_pair_oos"] < o["logloss_group_oos"] < o["logloss_engine"]     # per-pair beats pooled beats raw
-    assert "lam_used" in format_metrics(m) and m["pairs"]["spread/FG x total/2H"]["lambda_pair"] is not None
-    assert cal.pairs["spread/FG x total/2H"].resid >= 0
+    assert o["logloss_pair_oos"] < o["logloss_engine"]
+    assert "lam_used" in format_metrics(m) and m["pairs"]["spread/FG x total/2H"]["lambda_ci"] is not None
+    json.loads(cal.to_json())
+
+
+def test_market_pinned_moves_only_when_ci_excludes_one(tmp_path):
+    rng = np.random.default_rng(9)
+    db = tmp_path / "scores.db"
+    c = sqlite3.connect(db); c.executescript(SCHEMA)
+    rows = []
+    for g in range(60):
+        for i in range(150):            # a pinned pair whose realized coupling is clearly absent (true lambda 0)
+            pi = rng.uniform(0.1, 0.5); pj = float(np.clip(pi + rng.normal(0, 0.15), 0.01, 0.9))
+            won = float(rng.random() < pi)
+            rows.append((f"nfl-g{g}", 15, f"a{i}", f"b{i}", "spread/FG x team_total/FG", pj, pi, np.sqrt(pi), np.sqrt(pi), 0.5, 0.5, pj, pj, won, 1.0, won))
+    c.executemany("INSERT INTO hist_pair_scores VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows); c.commit(); c.close()
+    cal, _ = fit(db, 15, folds=3)
+    pp = cal.pairs["spread/FG x team_total/FG"]
+    assert pp.lam_status == "informative" and pp.lam < 0.5 and pp.lam_ci[1] < 1.0
 
 
 def test_joint_quote_carries_pair_calibration():

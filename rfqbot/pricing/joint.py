@@ -77,6 +77,8 @@ class JointQuote:
     model_error: float = 0.0           # residual model error of the pair (group fallback), added to the interval
     calibrated: bool = False           # False when running without a calibration file (p_cal == p_joint)
     calibration_level: str = "none"    # pair | group | none
+    coupling_kind: str | None = None   # market_pinned | structural | prior (calibrate.pair_kind)
+    lambda_status: str | None = None   # fixed | uninformative | informative | shrunk | group
 
 
 INFORMATIVE_ERR = 0.05      # legs with a wider error (book spread > ~0.1) are placeholders, reported separately
@@ -191,9 +193,13 @@ class GameModel:
         for pl in supported:
             p_eng_ind *= pl
         logical = p <= fr_lo + 1e-9 or p >= fr_hi - 1e-9     # impossible / nested combos are exact, not calibrated
+        kind = lam_status = None
         if len(supported) > 1 and not logical:
             p_cal, level = cal.apply(fp, group, p, p_eng_ind)
             model_err = cal.model_error(fp, group)
+            pp, _ = cal.lookup(fp, group)
+            if pp is not None:
+                kind, lam_status = pp.kind, pp.lam_status
         else:
             p_cal, level, model_err = p, "none", 0.0
         shift = p_cal - p
@@ -204,7 +210,8 @@ class GameModel:
                           p_legs=p_legs, max_marginal_error=max(errs) if errs else None, unsupported=unsupported,
                           flags=list(self.flags), n_scenarios=self.scen.n, built_at=self.built_at, shocked=shocked,
                           keys=[canonical_key(s) for s in specs], p_cal=float(min(max(p_cal, 0.0), 1.0)), group=group,
-                          family_pair=fp, model_error=model_err, calibrated=not cal.identity, calibration_level=level)
+                          family_pair=fp, model_error=model_err, calibrated=not cal.identity, calibration_level=level,
+                          coupling_kind=kind, lambda_status=lam_status)
 
     def shocked(self, shock: Shock) -> "GameModel":
         if shock.name not in self._shocked:

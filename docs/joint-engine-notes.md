@@ -99,7 +99,9 @@ halves coupling data-driven instead of prior-driven); regulation-vs-OT split; re
   prior is independent increments with the 2H marginal instead of the Gaussian copula; otherwise
   the flags say so and the copula prior is used. Missing 1H/2H margin or total ladders are flags.
 * `JointQuote.p_cal`: calibrated probability from `calibrate.py` (lambda and tail maps per family
-  pair, shrunk toward the pair's group with weight n / (n + n0); `calibration_level` pair | group | none), fitted on resolved games
+  pair with game-clustered standard errors, precision-shrunk toward the group; market-pinned
+  couplings stay at 1.0 unless the clustered interval excludes it; `calibration_level`,
+  `coupling_kind`, `lambda_status`), fitted on resolved games
   (`joint-calibrate`, `rfqbot/pricing/calibration.json`); the interval is widened by the group's
   out-of-sample model error. Numbers in docs/engine-validation-notes.md, round 2.
 * `fair_from_quote`: a sizeless quote at exactly 0.50 is a placeholder (err 0.25).
