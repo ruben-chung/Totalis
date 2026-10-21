@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Register this Claude Code session under an owner label for .claude/hooks/ownership.py.
+# Usage: scripts/claim-owner <nfl|nba|data|props|planning>
+set -euo pipefail
+label="${1:?usage: scripts/claim-owner <label>}"
+root="$(cd "$(dirname "$0")/.." && pwd)"
+sid="${CLAUDE_CODE_SESSION_ID:-}"
+[ -n "$sid" ] || { echo "CLAUDE_CODE_SESSION_ID not set; run this from inside a Claude Code session" >&2; exit 1; }
+f="$root/.claude/session-owners.json"
+python3 - "$f" "$sid" "$label" <<'PY'
+import json, sys, os
+f, sid, label = sys.argv[1:]
+d = {}
+if os.path.exists(f):
+    try: d = json.load(open(f))
+    except Exception: d = {}
+d[sid] = label
+json.dump(d, open(f, "w"), indent=1, sort_keys=True)
+print(f"session {sid[:8]}... registered as '{label}' in {os.path.relpath(f)}")
+PY

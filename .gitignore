@@ -20,3 +20,9 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+
+# Claude Code: machine-local session -> owner label map for .claude/hooks/ownership.py
+.claude/session-owners.json
+
+# Pytest
+.pytest_cache/
