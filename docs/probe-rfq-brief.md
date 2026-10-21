@@ -19,6 +19,16 @@ then back the price out by dividing by the extra leg's probability.
 Live sending is blocked on credentials (below). Build everything up to the send in dry-run mode, with
 the gateway client behind an interface and a fake gateway in tests, so the switch to live is config.
 
+## Correction (NBA session, 2026-10-21, after reading the docs itself)
+
+docs.polymarket.com/trading/combos/requesters documents a separate Requester API at
+`https://combos-rfq-gateway-requester-api.polymarket.com`, `POST /v1/requester/rfq/requests`, CLOB L2
+account headers only: no builder onboarding, no builder headers. Limits: 15 creates per rolling minute
+per maker_address, 5 s acceptance window. The Builder Gateway below is for builder-attributed orders
+only. Live needs `POLYMARKET_API_PASSPHRASE`, `POLYMARKET_SIGNER_ADDRESS`, `POLYMARKET_MAKER_ADDRESS`
+(deposit wallet, signature_type 3) and the account EOA (`PROBE_POLY_ADDRESS`, defaults to the signer).
+The first bullet under Verified facts is therefore wrong as a statement of the only path.
+
 ## Verified facts (checked 2026-10-21 against docs.polymarket.com and the repo)
 
 - **The only documented requester path is the Builder Gateway**, for approved builders:

@@ -50,21 +50,17 @@ Paper runs: The bot quotes the live feed and logs every decision. Before caps, w
 
 What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
 
-| flow | margin at fill (pt) | drift after fill (pt, positive is good) | net (pt) |
+| flow | margin at fill (pt) | drift after fill (pt, positive is good) | net (mean) |
 |---|---|---|---|
 | we sell, 3+ legs independent | 0.5-0.75  | 0-0.4 | ~+0.8 |
 | we sell, same-game | 2.7 | +0.5 | ~+3.2 |
 | we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.8 |
 
-Round trips: 47 in one hour against one maker selling 22% under fair and being sold back to at fair; hence never quote below fair on independent combos.
+Wallet block rule: 22% false positives at 90% confidence (sequential test), 3.5% at 95% ( we would rather wrongly block neutral wallets than let sharps trade w us)
 
-Margin table, first night: P(fill) at zero margin is 0.4 to 0.8% per request; optimal margin 0.5 pt on the one populated NBA cell, 2.5 pt pooled; 15 counterfactual wins, so a first reading. Wallet block rule: 22% false positives at 90% confidence (sequential test), 3.5% at 95%.
+Probe RFQs (dry-run build): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Never put into live production. 
 
-Backtest: Replay the raw log through the live quoting code on a pinned clock, books read as of each RFQ, fills from recorded prints, settlement from resolutions, P&L attributed per margin term. Then the same window under each switch: joint vs independence, caps on/off, fixed edge vs margin table. Harness built; reference run in progress. Realized P&L needs resolutions over the week.
 
-Probe RFQs (dry-run build): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Needs builder credentials to go live.
-
-- 378 tests. Built with one planning session plus peer Claude Code sessions; briefs and notes under `docs/`.
 
 ## Design decisions worth stating
 
