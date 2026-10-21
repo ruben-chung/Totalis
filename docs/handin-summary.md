@@ -15,7 +15,7 @@ Each Polymarket leg is matched to its Kalshi market. We calcalate the marginal f
 
 The error on each fair becomes part of the margin: less confident price, wider quote.
 
-Dependence: Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). Legs in the same game are priced off the market's own implied joint distribution of the score (spread, total ladders). Fitting all of these at once into a score grid gives us the joint distribution. 
+**Dependence:** Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). Legs in the same game are priced off the market's own implied joint distribution of the score (spread, total ladders). Fitting all of these at once into a score grid gives us the joint distribution. 
 
 Comparing our dependence model against resolves games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overstated.
 
@@ -25,28 +25,28 @@ We sample 50k scores from the score grid and read any combo off as the fraction 
 
 ### Stage 3: inventory and risk
 
-Exposure: Every position, filled/pending, is run through the same 50k scores (above). For each outcome/game-state (team wins, over hits) we define Delta "how much our P&L moves if it happens vs not". A ML has delta 1 to its own team winning. From the same scores we can calculate drawdown and risk metrics. 
+**Exposure:** Every position, filled/pending, is run through the same 50k scores (above). For each outcome/game-state (team wins, over hits) we define Delta "how much our P&L moves if it happens vs not". A ML has delta 1 to its own team winning. From the same scores we can calculate drawdown and risk metrics. 
 
-Sizing: Min(Volume Asked, Exposure Budget Remaining, Quarter Kelly)
+**Sizing:** Min(Volume Asked, Exposure Budget Remaining, Quarter Kelly)
 
-Margin. We want the margin that maximises expected profit per RFQ = P(fill at margin m) x EV(fill at m). The optimzer picks m to maximise this. 
+**Margin:** We want the margin that maximises expected profit per RFQ = P(fill at margin m) x EV(fill at m). The optimzer picks m to maximise this. 
 P(fill) is the fill curve: we compare our logged paper quotes to the actual prints and count how often we would have won at each margin. 
 
 EV per fill is margin minus two costs. (1) Winner's curse: we get filled more precisely when our price is wrong. So conditional on a fill our fair is wrong against us, by more when it is less certain. The cost is that expected error given a fill. (2) Price Drift (Adverse Selection): Implied Fair price moving away from us after fill. 
 So EV = Margin - curse - drift.
 
-Wallets: on top, each requester gets a profit score from our fills against them. Consistently -EV ones get a premium, or are blocked.
+**Wallets:** on top, each requester gets a profit score from our fills against them. Consistently -EV ones get a premium, or are blocked.
 
-Skew. If a quote is +corr to our exposure the margin widens; and vice versa. This skew cannot make us cross FV though. 
+**Skew:** If a quote is +corr to our exposure the margin widens; and vice versa. This skew cannot make us cross FV though. 
 
 
 ### Stage 4: evaluation
 
-Validation: The dependence engine is scored on resolved games. On 93 NFL games Brier is 0.130 vs 0.140 asuuming 100% independence. 
+**Validation:** The dependence engine is scored on resolved games. On 93 NFL games Brier is 0.130 vs 0.140 asuuming 100% independence. 
 
-Venues: On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid. 
+**Venues:** On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid. 
 
-What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
+**What the prints say:** P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
 
 | flow | margin at fill (pt) | drift after fill (pt, positive is good) | net (mean) |
 |---|---|---|---|
@@ -54,11 +54,11 @@ What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of
 | we sell, same-game | 2.7 | +0.5 | ~+3.2 |
 | we buy (requester SELL) | 1.2 | -0.2 to -0.6 (first hour, n 65); -1.4 to -3.0 (7 h, n 16-25) | +0.8 on the first hour; negative on the longer sample |
 
-Wallet block rule: 3.5% flase positives at 95% confidence ( we would rather wrongly block neutral wallets than let sharps trade w us)
+**Wallet block rule:** 3.5% flase positives at 95% confidence ( we would rather wrongly block neutral wallets than let sharps trade w us)
 
-Probe RFQs (built, dry-run only): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Dry-run on 3 h of prints: 26 triggers, 20 request bodies built, 18 disguised with a 0.99 leg from another game, 0 sent. Live needs the API passphrase and deposit-wallet addresses; never run in production here.
+**Probe RFQs (built, dry-run only):** request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Dry-run on 3 h of prints: 26 triggers, 20 request bodies built, 18 disguised with a 0.99 leg from another game, 0 sent. Live needs the API passphrase and deposit-wallet addresses; never run in production here.
 
-Paper runs: one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,062 for risk. Worst drawdown (bottom 1% of outcomes) less than 7.5k.
+**Paper runs:** one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,062 for risk. Worst drawdown (bottom 1% of outcomes) less than 7.5k.
 
 
 ## Design decisions worth stating
