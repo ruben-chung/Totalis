@@ -11,15 +11,16 @@ Calculate Fair value of each marginal, then estimate dependence to find the join
 
 ### Stage 2: pricing and correlation (NFL and NBA only)
 
-Each Polymarket leg is matched to its Kalshi market. We calcalate the marginal fairs using a precision weighted price (of Poly and Kalshi). Essentially we track change in variance of both venues (these are both tracking the same true probability) - in any window the change in midprice = true change + venues noise. So comparing the two venues gives each venues noise/variance.
+**Fair Value Estimation**: Each Polymarket leg is matched to its Kalshi market. We calcalate the marginal fairs using a precision weighted price (of Poly and Kalshi). Essentially we track change in variance of both venues (these are both tracking the same true probability) - in any window the change in midprice = true change + venues noise. So comparing the two venues gives each venues noise/variance. The error on each fair becomes part of the margin: less confident price, wider quote.
 
-The error on each fair becomes part of the margin: less confident price, wider quote.
+**Dependence:** 
+- Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). 
+- Legs in the same game are priced off a joint distribution of the final score, reconstructed from the market: the spread ladder gives the margin, the total ladder gives the points, the team-total ladders tie the two team scores together. Fitting all of them at once onto a home-away score grid gives one joint that reproduces every quoted line.
+- The fitted grid is a probability table over scores. We draw 50k scores from it and price any combo as the fraction of draws where every leg wins (our dependece value)
 
-**Dependence:** Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). Legs in the same game are priced off the market's own implied joint distribution of the score (spread, total ladders). Fitting all of these at once into a score grid gives us the joint distribution. 
+Comparing our dependence model against resolved games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overestimated.
 
-Comparing our dependence model against resolves games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overstated.
 
-We sample 50k scores from the score grid and read any combo off as the fraction of scores where every leg wins. 
 
 - Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for independence; direction right, magnitude ~25% overstated; tails calibrated; 1H coupling overstated. 
 
