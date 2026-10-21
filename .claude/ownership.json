@@ -38,6 +38,9 @@
     ".claude/**": "planning",
     "scripts/**": "planning",
     "rfqbot/risk/**": "nfl",
-    "tests/test_risk_*.py": "nfl"
+    "tests/test_risk_*.py": "nfl",
+    "rfqbot/edge/**": "nba",
+    "tests/test_edge_*.py": "nba",
+    "docs/margin-optimizer-notes.md": "nba"
   }
 }
