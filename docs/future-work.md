@@ -78,6 +78,19 @@ Items marked **(idea only)** were explicitly scoped out by decision, not forgott
 - **Requester profiling.** 2,000+ requesters with no concentration; cluster by behaviour
   (poll rate, combo structure, direction) and size quotes accordingly.
 - **Size as a function of confidence** beyond the tier table; and quoting both directions.
+- **Per-RFQ competitor gap.** The margin optimiser's delta (gap between the print and our fair) is a
+  per-segment mean because the feed shows only the winning print, never the losing quotes. A live
+  best-competing-quote estimate, and a two-sided curse that includes our size relative to the print,
+  would make the curse term per RFQ.
+- **Always-valid block rule.** The wallet block is a fixed-level bound re-tested after every fill
+  (~30 looks), so its false-positive rate at 90% confidence is 22% on neutral wallets (3.5% at 95%).
+  Replace it with a mixture confidence sequence so the error rate holds under continuous monitoring.
+- **Joint-engine later fair in the markout monitor.** Markouts for NFL same-game combos use the product of
+  leg fairs as the later reference; the joint engine should price them.
+- **Fill curves from real fills.** The counterfactual win rule (we win iff our margin is at or below the
+  print's gap) ignores size priority and quotes that arrived after the print; a live maker's own fills
+  would replace it. Tables need ~40 quoted-sport prints per hour to fill; SELL and NFL nodes had none
+  on the first night and fall back to the default edge.
 - **Real submission.** Signing, maker onboarding with Polymarket, passphrase and addresses;
   the paper path is complete up to the signed frame.
 - **Hedging.** Lay off leg exposure on the CLOB or on Kalshi when a combo fills; requires the
