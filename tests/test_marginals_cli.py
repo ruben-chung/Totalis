@@ -197,5 +197,5 @@ def test_config_from_env():
     cfg = load_config(env={})
     assert cfg == MarginalConfig() and cfg.prior_for("nfl") == 2.0 and cfg.prior_for("mlb") == 1.0 and cfg.prior_for(None) == 1.0
     cfg = load_config(env={"MARGINAL_C_THIN": "0.5", "MARGINAL_GAP_SKIP": "0.2", "MARGINAL_KALSHI_PRIOR": "nfl=3, mlb=1.5"})
-    assert cfg.c_thin == 0.5 and cfg.gap_skip == 0.2 and cfg.prior_for("nfl") == 3.0 and cfg.prior_for("nba") == 2.0
+    assert cfg.c_thin == 0.5 and cfg.gap_skip == 0.2 and cfg.prior_for("nfl") == 3.0 and cfg.prior_for("nba") == 1.0
     assert cfg.prior_for("mlb") == 1.5 and '"gap_skip": 0.2' in cfg.to_json()

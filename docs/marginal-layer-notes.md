@@ -34,14 +34,14 @@ this, 258 of 622 NE@CHI legs were tier `stale` on quiet books an hour before any
   `depth_v = min(bid_depth, ask_depth)` (sizes at best as fallback), `staleness_v` = seconds since
   the quote was last confirmed (above), `c_stale` switches from pregame to in-play once
   `game_start_time <= now`.
-* `precision_v = 1 / sigma_v^2`; Kalshi x `KALSHI_PRIOR[sport]` (nfl, nba 2.0; else 1.0) and
+* `precision_v = 1 / sigma_v^2`; Kalshi x `KALSHI_PRIOR[sport]` (nfl 2.0; nba and else 1.0, see docs/venue-weight-notes.md) and
   x 0.25 for `rules_differ`. `shifted_line` / `none` never combine.
 * `p = sum(prec * p_v) / sum(prec)`, `err = 1 / sqrt(sum(prec))`, floored at 0.005 (0.02 when
   degenerate), capped at 0.5 (an absolute probability error above that carries no information).
 * Disagreement `|p_poly - p_kalshi| > hs_poly + hs_kalshi`: no averaging, `p = p_poly`,
   `err >= gap`, tier `disagree`; gap > 0.10: tier `skip` (p still reported).
 
-Defaults (`rfqbot/marginals/config.py`, env `MARGINAL_<KEY>`; `MARGINAL_KALSHI_PRIOR=nfl=2,nba=2`):
+Defaults (`rfqbot/marginals/config.py`, env `MARGINAL_<KEY>`; `MARGINAL_KALSHI_PRIOR=nfl=2,nba=1`):
 c_thin 1.0, D0 500 sh, D_min 50 sh, c_stale 3e-6/s pregame (1 pt/h) and 1e-3/s in play (1 pt/10 s),
 stale warn/drop 600/3600 s pregame and 15/60 s in play, inplay_fresh 15 s, wide when spread >
 0.2 p(1-p) + 0.02, one_sided_sigma 0.15, gap_skip 0.10. All placeholders for the backtest.
@@ -107,3 +107,11 @@ the moneyline (prior 2.0, 620k contracts vs 173k shares). The disagree rule find
 
 Calibration of any constant; fee handling; Kalshi real data (adapter and tests only); no
 edits outside `rfqbot/marginals/*`, `tests/test_marginals_*`, this note.
+
+## Venue prior revised (2026-10-21)
+
+The Kalshi prior default is now `nfl 2.0, nba 1.0` (was 2.0 for both). The NFL session measured the venue weight on 4.4 h of
+matched pre-game books (`docs/venue-weight-notes.md`): tight-quote precision ratio var_poly / var_kalshi is 0.90 for NBA
+(interval 0.72 to 1.13, so no evidence Kalshi deserves extra weight) and 2.2 for NFL (1.5 to 3.7). The env override is unchanged.
+Backtest runs started before this change used 2.0 for NBA; the run configs store the marginal config only through this file,
+so compare runs made on either side of the change are not comparable.

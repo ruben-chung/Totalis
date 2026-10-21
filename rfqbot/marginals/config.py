@@ -40,7 +40,7 @@ class MarginalConfig:
     wide_floor: float = 0.02
     d_min: float = 50.0            # thin:<venue> when depth < d_min shares
     # --- venue prior and match confidence ---
-    kalshi_prior: dict[str, float] = field(default_factory=lambda: {"nfl": 2.0, "nba": 2.0})
+    kalshi_prior: dict[str, float] = field(default_factory=lambda: {"nfl": 2.0, "nba": 1.0})
     kalshi_prior_default: float = 1.0
     rules_differ_scale: float = 0.25
     # --- combination / error ---
@@ -69,7 +69,7 @@ _FLOAT_KEYS = (
 
 
 def load_config(env_file: str | os.PathLike | None = ".env", env: dict[str, str] | None = None) -> MarginalConfig:
-    """Defaults overridden by MARGINAL_<UPPER_KEY> variables; MARGINAL_KALSHI_PRIOR is `nfl=2,nba=2`."""
+    """Defaults overridden by MARGINAL_<UPPER_KEY> variables; MARGINAL_KALSHI_PRIOR is `nfl=2,nba=1`."""
     if env is None:
         if env_file is not None and Path(env_file).exists():
             load_dotenv(env_file, override=False)
