@@ -16,7 +16,7 @@ Calculate Fair value of each marginal, then estimate dependence to find the join
 **Dependence:** 
 - Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). 
 - Legs in the same game are priced off a joint distribution of the final score, reconstructed from the market: the spread ladder gives the margin, the total ladder gives the points, the team-total ladders tie the two team scores together. Fitting all of them at once onto a home-away score grid gives one joint that reproduces every quoted line.
-- The fitted grid is a probability table over scores. We draw 50k scores from it and price any combo as the fraction of draws where every leg wins (our dependece value). Example of one game's fitted grid and where it departs from independence: `docs/img/joint-grid-cin-bal.png`
+- The fitted grid is a probability table over scores. We draw 50k scores from it and price any combo as the fraction of draws where every leg wins (our dependece value). See Appendix A for one game's fitted grid.
 
 Comparing our dependence model against resolved games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overestimated.
 
@@ -94,3 +94,9 @@ Fills fall steeply with the edge (39, 21, 10, 1 at 0, 0.5, 1, 2 pt). Caps cost n
 6. Probe RFQs live once credentials exist; per-RFQ competitor gap into the optimiser.
 7. Hedging with singles; strategic feedback damping.
 8. Full list: `docs/future-work.md`.
+
+## Appendix A: a fitted joint score grid
+
+![Joint score grid, Bengals at Ravens](img/joint-grid-cin-bal.png)
+
+Bengals at Ravens, 2026-10-25, pre-game Polymarket ladders. Left: market-implied probability of each final score, Ravens points vertical, Bengals points horizontal; dashed line is margin equal to the market spread, dotted line is total equal to the market total. Right: the same grid minus the product of the two team marginals. Red along the spread diagonal and in the high-high and low-low corners is the positive dependence (correlation of team scores +0.24): when one team scores more, so does the other, so favourite-covers-and-over prices above the product. The fit is per integer score; the figure averages over 3 points for display.
