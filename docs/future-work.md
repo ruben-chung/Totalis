@@ -87,6 +87,15 @@ Items marked **(idea only)** were explicitly scoped out by decision, not forgott
   Replace it with a mixture confidence sequence so the error rate holds under continuous monitoring.
 - **Joint-engine later fair in the markout monitor.** Markouts for NFL same-game combos use the product of
   leg fairs as the later reference; the joint engine should price them.
+- **Probe RFQs for combo-level markouts and competitor quotes.** Markouts today are the move in the
+  leg-book fair after a print, because a combo has no continuous market. As a requester we can send
+  our own RFQ on the exact combo we just quoted or filled, read the makers' quotes through the
+  authenticated requester channel, and never accept: that gives the combo's own price seconds after
+  our fill (a direct EV measure that includes the other makers' view of the dependence) and the best
+  competing quote per RFQ, which the margin optimiser currently replaces with a per-segment mean.
+  Needs the requester credentials (passphrase missing today), a budget of probes per hour so the
+  pattern does not read as spam, both directions per probe, and a check that the probe itself does
+  not move makers (requests are public on the feed). Live only; it cannot be backtested.
 - **Fill curves from real fills.** The counterfactual win rule (we win iff our margin is at or below the
   print's gap) ignores size priority and quotes that arrived after the print; a live maker's own fills
   would replace it. Tables need ~40 quoted-sport prints per hour to fill; SELL and NFL nodes had none
