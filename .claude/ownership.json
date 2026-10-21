@@ -41,6 +41,9 @@
     "tests/test_risk_*.py": "nfl",
     "rfqbot/edge/**": "nba",
     "tests/test_edge_*.py": "nba",
-    "docs/margin-optimizer-notes.md": "nba"
+    "docs/margin-optimizer-notes.md": "nba",
+    "rfqbot/backtest/**": "backtest",
+    "tests/test_backtest_*.py": "backtest",
+    "docs/backtest-notes.md": "backtest"
   }
 }
