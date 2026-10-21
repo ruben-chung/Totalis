@@ -1,35 +1,19 @@
-# Idea (not developed in this project): environment-stratified realized coupling study
+# Idea, not developed: environment-stratified coupling study
 
-Recorded 2026-10-20 from planning. Ruben's decision: this is a complex problem and will **not**
-be developed fully here; the note exists so the idea is on record and can be picked up later.
+Recorded 2026-10-20. Ruben's decision: out of scope for this project; on record for later.
 
-## The question
+**Question.** The engine reads each game's margin-to-total coupling from its ladders. Validating
+that against realized outcomes on 93 games is underpowered for a correlation of ~0.1.
 
-The joint engine reads each game's margin-to-total coupling from the market (the spread,
-total and team-total ladders pin it). Validating that coupling against realized outcomes on
-Polymarket history is underpowered: 93 games cannot confirm or reject a correlation of ~0.1,
-whatever the row count. The right test is conditional and needs decades of data.
+**Study.** Final scores plus closing spread and total for every NFL game over many seasons.
+Stratify by spread bucket x total bucket (and favourite side). Per bucket: realized correlation of
+margin and total, joint frequency of (favourite covers, over) against the product of marginals,
+same for team totals and halves; one game is one observation.
 
-## The study
+**Output.** A table coupling(spread, total) with intervals, used to flag live games whose fitted
+coupling departs from their environment, as a prior for thin team-total ladders, and as the halves
+prior, which today is ours rather than the market's.
 
-1. Data: final scores plus closing spread and total for every NFL game over many seasons
-   (public datasets exist; a few thousand games per environment bucket). Halves and quarters
-   if available.
-2. Stratify by environment: closing spread bucket x closing total bucket (and home/away
-   favorite). Within each bucket measure the realized correlation of margin and total, the
-   realized joint frequencies of (favorite covers, game goes over) against the product of the
-   marginals, and the same for team totals; with proper confidence intervals (one game = one
-   observation).
-3. Output: a reference table coupling(spread bucket, total bucket) with intervals. Uses:
-   (a) compare the engine's ladder-fitted coupling for a live game against the table for its
-   environment and flag large departures; (b) a prior for games whose team-total ladders are
-   thin or placeholders; (c) the same for the halves coupling, which is where our own prior,
-   not the market, currently carries the weight.
-
-## Why it is deferred
-
-The coupling plausibly varies with environment and with era (rule changes, scoring levels),
-the half/quarter line history is harder to source, and doing it properly is its own project.
-For this bot the market-pinned coupling is kept at face value (calibration lambda = 1.0 unless
-game-clustered evidence rejects it), and realized-outcome calibration is used only where it is
-powered: structural pairs, tails, and our own fallback priors.
+**Why deferred.** Coupling varies with environment and era, half and quarter line history is hard
+to source, and it is its own project. The bot keeps market-pinned coupling at lambda 1.0 unless
+game-clustered evidence rejects it.

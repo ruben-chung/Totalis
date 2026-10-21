@@ -58,9 +58,12 @@ def cmd_listen(args: argparse.Namespace) -> int:
                 n = inventory.load(decisions_path)
                 logging.getLogger("rfqbot").info("inventory: %d pending quotes rebuilt from %s", n, decisions_path)
         assembler = Assembler(cache, qcfg, decisions=DecisionLog(decisions_path), inventory=inventory, horizon_ms=horizon)
-        logging.getLogger("rfqbot").info("quoting ON (paper=%s) decisions=%s base_edge=%s max_size_usd=%s risk=%s caps=%s",
+        if qcfg.edge:
+            cache.on_refresh.append(assembler.reload_edge_table)   # a refit by `python -m rfqbot.edge monitor` lands without a restart
+        logging.getLogger("rfqbot").info("quoting ON (paper=%s) decisions=%s base_edge=%s max_size_usd=%s risk=%s caps=%s edge_table=%s",
                                          settings.paper_trading, assembler.decisions.path, qcfg.base_edge, qcfg.max_size_usd,
-                                         qcfg.risk, inventory.caps.as_dict() if inventory else None)
+                                         qcfg.risk, inventory.caps.as_dict() if inventory else None,
+                                         assembler.edge_table_fitted_at if qcfg.edge else "off")
     listener = Listener(settings, store, catalog=catalog, rawlog=rawlog, socket=sock,
                         **({"on_rfq": assembler.handle} if assembler else {}))
     logging.getLogger("rfqbot").info("db=%s raw_log=%s raw_db_types=%s paper=%s", store.path,

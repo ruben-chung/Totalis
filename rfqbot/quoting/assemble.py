@@ -19,6 +19,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
+from ..edge import MarginTerms, Segment, load_edge_config, load_table, margin_for
 from ..marginals import Marginal
 from ..normalizer import PaperQuote
 from ..sports.legspec import canonical_key
@@ -135,6 +136,14 @@ class Decision:
     book: dict[str, Any] | None = None
     assessment: Assessment | None = field(default=None, repr=False, compare=False)
     position: Any = field(default=None, repr=False, compare=False)
+    # margin optimiser (rfqbot.edge): which node priced the margin
+    edge_segment: str | None = None
+    edge_level: int | None = None
+    edge_source: str | None = None
+    edge_n: int | None = None
+    curse_mult: float | None = None
+    info_premium: float | None = None
+    wallet_premium: float | None = None
 
     @property
     def quoted(self) -> bool:
@@ -157,6 +166,11 @@ class Assembler:
         self.decisions = decisions
         self.inventory = inventory          # live book + caps + skew (None or cfg.risk False: stage 2 behaviour)
         self.horizon_ms = horizon_ms        # acceptance + last look + grace after the submission deadline
+        self._sigma_cuts = load_edge_config().sigma_cuts
+        self._edge_table = None             # rfqbot.edge margin table, reloaded off the hot path (reload_edge_table)
+        self.edge_table_fitted_at: int | None = None
+        if self.cfg.edge:
+            self.reload_edge_table()
         self._now = now_ms or (lambda: int(time.time() * 1000))
         self._config_json = self.cfg.to_json()
         self.latencies: deque[float] = deque(maxlen=20_000)
@@ -164,6 +178,28 @@ class Assembler:
         self._recent: deque[tuple[int, str, str, str, int]] = deque(maxlen=5_000)   # (at_ms, requester, condition, direction, size)
         self.round_trip_window_ms = round_trip_window_ms
         self.samples: deque[str] = deque(maxlen=50)
+
+    # -- margin table (refresh thread) ------------------------------------------------
+    def reload_edge_table(self) -> bool:
+        """Re-read rfqbot/edge's margin table when its mtime changed (a refit by the edge monitor);
+        hook this on GameCache.on_refresh so the hot path never stats the file. Returns True on a change."""
+        t = load_table(self.cfg.edge_table, max_age_s=0.0)
+        changed = (t.fitted_at_ms if t is not None else None) != self.edge_table_fitted_at or (t is None) != (self._edge_table is None)
+        self._edge_table = t
+        self.edge_table_fitted_at = t.fitted_at_ms if t is not None else None
+        if changed:
+            log.info("margin table %s", f"loaded (fitted_at={self.edge_table_fitted_at}, {len(t.nodes)} nodes)" if t else "absent: base_edge fallback")
+        return changed
+
+    def _margin_terms(self, d: "Decision", now: int):
+        sports = {l.game_key.split("-")[0] for l in d.legs if l.game_key}
+        sport = "mixed" if len(sports) > 1 else (next(iter(sports)) if sports else "")
+        same_game = any(len(c.position_ids) > 1 for c in d.clusters)
+        sigma = (d.u_m or 0.0) + (d.u_d or 0.0)
+        seg = Segment.of(sport, d.n_legs, d.direction, same_game, sigma, self._sigma_cuts)
+        if self._edge_table is None:        # no table file: margin_for would fall back to the default path, so answer here
+            return seg, MarginTerms(self.cfg.base_edge, 0.0, 0.0, 0.0, False)
+        return seg, margin_for(seg, requester=d.requester or None, table=self._edge_table, default_edge=self.cfg.base_edge, now_ms=now)
 
     # -- entry point ------------------------------------------------------------------
     def handle(self, rfq: Any, store: Any) -> PaperQuote | None:
@@ -309,7 +345,20 @@ class Assembler:
         d.u_m = p_fair * math.sqrt(rel_m2)
         d.u_d = p_fair * math.sqrt(rel_d2)
         d.e_b, d.e_i = self.cfg.base_edge, self.cfg.inventory_skew
-        margin0 = self.cfg.k_m * d.u_m + self.cfg.k_d * d.u_d + d.e_b
+        margin0 = self.cfg.k_m * d.u_m + self.cfg.k_d * d.u_d + d.e_b          # stage 2 formula = fallback
+        if self.cfg.edge:
+            seg, terms = self._margin_terms(d, now)
+            d.edge_segment, d.edge_level, d.edge_source, d.edge_n = terms.segment or seg.key, terms.level, terms.source, terms.n
+            d.curse_mult, d.info_premium, d.wallet_premium = terms.curse_mult, terms.info_premium, terms.wallet_premium
+            if terms.blocked:
+                return d.skip("wallet_blocked", f"{d.requester[:12]} {terms.block_reason or 'blocked'}")
+            if terms.source in ("model", "measured"):
+                # fitted node: its base and winner's-curse multiplier replace base_edge and k_m = k_d = 1
+                d.e_b = terms.base
+                margin0 = terms.margin(d.u_m + d.u_d)
+            else:
+                # default / no_prints / no_data: no fitted curse term, keep the stage 2 margin; carry the premiums
+                margin0 += terms.info_premium + terms.wallet_premium
         # 4. inventory: caps and skew against the live book (hot path, closed forms; off -> stage 2)
         inv = self.inventory if (self.inventory is not None and self.cfg.risk) else None
         if inv is not None:

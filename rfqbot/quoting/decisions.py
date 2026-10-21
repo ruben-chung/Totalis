@@ -45,7 +45,14 @@ CREATE TABLE IF NOT EXISTS decisions (
     d_es1_per_share REAL,
     pending_same_combo INTEGER,
     pending_requesters INTEGER,
-    book_json       TEXT
+    book_json       TEXT,
+    edge_segment    TEXT,
+    edge_level      INTEGER,
+    edge_source     TEXT,
+    edge_n          INTEGER,
+    curse_mult      REAL,
+    info_premium    REAL,
+    wallet_premium  REAL
 );
 CREATE INDEX IF NOT EXISTS ix_decisions_rfq ON decisions(rfq_id);
 CREATE INDEX IF NOT EXISTS ix_decisions_at ON decisions(at_ms);
@@ -54,12 +61,14 @@ COLS = ("rfq_id", "at_ms", "direction", "side", "requested_unit", "requested_e6"
         "certified", "p_fair", "u_m", "u_d", "e_b", "e_i", "margin", "maker_action", "price_e6", "size_e6", "decision",
         "reason", "latency_ms", "model_built_at", "config_json", "requester", "condition_id", "deadline_ms", "expires_ms",
         "requested_shares", "kelly_size", "allowed_size", "binding_cap", "headroom_json", "d_es1_per_share",
-        "pending_same_combo", "pending_requesters", "book_json")
-# columns added by stage 3 (migrated in place on open; older rows keep NULLs)
+        "pending_same_combo", "pending_requesters", "book_json", "edge_segment", "edge_level", "edge_source", "edge_n",
+        "curse_mult", "info_premium", "wallet_premium")
+# columns added after stage 2 (migrated in place on open; older rows keep NULLs)
 STAGE3_COLS = {"requester": "TEXT", "condition_id": "TEXT", "deadline_ms": "INTEGER", "expires_ms": "INTEGER",
                "requested_shares": "REAL", "kelly_size": "REAL", "allowed_size": "REAL", "binding_cap": "TEXT",
                "headroom_json": "TEXT", "d_es1_per_share": "REAL", "pending_same_combo": "INTEGER",
-               "pending_requesters": "INTEGER", "book_json": "TEXT"}
+               "pending_requesters": "INTEGER", "book_json": "TEXT", "edge_segment": "TEXT", "edge_level": "INTEGER",
+               "edge_source": "TEXT", "edge_n": "INTEGER", "curse_mult": "REAL", "info_premium": "REAL", "wallet_premium": "REAL"}
 
 
 class DecisionLog:
@@ -112,4 +121,6 @@ def decision_row(d: Any, config_json: str) -> dict[str, Any]:
         "headroom_json": json.dumps(d.headroom) if d.headroom is not None else None,
         "d_es1_per_share": d.d_es1_per_share, "pending_same_combo": d.pending_same_combo,
         "pending_requesters": d.pending_requesters, "book_json": json.dumps(d.book) if d.book is not None else None,
+        "edge_segment": d.edge_segment, "edge_level": d.edge_level, "edge_source": d.edge_source, "edge_n": d.edge_n,
+        "curse_mult": d.curse_mult, "info_premium": d.info_premium, "wallet_premium": d.wallet_premium,
     }

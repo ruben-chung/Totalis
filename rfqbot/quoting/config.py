@@ -19,6 +19,8 @@ class QuoteConfig:
     kelly_fraction: float = 0.25            # size <= fraction x capital x margin / (p(1-p)) shares
     k_inv: float = 0.04                     # e_i = k_inv x dES1/ds (loss per share in the tail) x outcome-cap usage; 1 pt at corr 1, usage 0.5
     risk_refresh_sec: float = 2.0           # live book / exposure rebuild period (refresh thread)
+    edge: bool = True                       # margin from rfqbot.edge's fitted table (QUOTE_EDGE=0: base_edge + k_m u_m + k_d u_d)
+    edge_table: Path | None = None          # margin table path (default rfqbot/edge/margin_table.json); reloaded on the refresh thread
     max_size_usd: float = 500.0             # per quote, notional at our price
     min_size_usd: float = 5.0               # below this: skip
     tick: float = 0.001                     # price rounding, away from fair
@@ -40,6 +42,7 @@ class QuoteConfig:
     def to_json(self) -> str:
         d = asdict(self)
         d["decisions_db"] = str(self.decisions_db)
+        d["edge_table"] = None if self.edge_table is None else str(self.edge_table)
         return json.dumps(d, sort_keys=True, default=str)
 
 
@@ -70,6 +73,8 @@ def load_quote_config(env_file: str | os.PathLike | None = ".env", env: dict[str
         risk=(env.get("QUOTE_RISK") or "1").strip().lower() not in ("0", "false", "no", "off"),
         kelly_fraction=_f(env, "KELLY_FRACTION", base.kelly_fraction), k_inv=_f(env, "K_INV", base.k_inv),
         risk_refresh_sec=_f(env, "RISK_REFRESH_SEC", base.risk_refresh_sec),
+        edge=(env.get("QUOTE_EDGE") or "1").strip().lower() not in ("0", "false", "no", "off"),
+        edge_table=Path(env["QUOTE_EDGE_TABLE"]) if env.get("QUOTE_EDGE_TABLE") else None,
         max_size_usd=_f(env, "MAX_SIZE_USD", base.max_size_usd), min_size_usd=_f(env, "MIN_SIZE_USD", base.min_size_usd),
         tick=_f(env, "TICK", base.tick), price_min=_f(env, "PRICE_MIN", base.price_min), price_max=_f(env, "PRICE_MAX", base.price_max),
         buy_safety_max=_f(env, "BUY_SAFETY_MAX", base.buy_safety_max), tier_size_mult=tiers, legs_size_mult=legs,
