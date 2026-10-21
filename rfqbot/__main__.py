@@ -8,7 +8,7 @@ import signal
 import sys
 from pathlib import Path
 
-from .config import ConfigError, load_settings
+from .config import ACCEPTANCE_WINDOW_MS, LAST_LOOK_WINDOW_MS, ConfigError, load_settings
 from .store import Store
 
 
@@ -46,9 +46,21 @@ def cmd_listen(args: argparse.Namespace) -> int:
         from .quoting.decisions import DecisionLog
         qcfg = load_quote_config(args.env)
         cache = GameCache(qcfg)
-        assembler = Assembler(cache, qcfg, decisions=DecisionLog(args.decisions_db or qcfg.decisions_db))
-        logging.getLogger("rfqbot").info("quoting ON (paper=%s) decisions=%s base_edge=%s max_size_usd=%s",
-                                         settings.paper_trading, assembler.decisions.path, qcfg.base_edge, qcfg.max_size_usd)
+        inventory = None
+        horizon = ACCEPTANCE_WINDOW_MS + LAST_LOOK_WINDOW_MS + settings.expiry_grace_ms
+        decisions_path = args.decisions_db or qcfg.decisions_db
+        if qcfg.risk:
+            from .quoting.inventory import Inventory
+            from .risk.caps import Caps
+            inventory = Inventory(cache, qcfg, Caps.from_env(), store_path=store.path, horizon_ms=horizon)
+            cache.on_refresh.append(inventory.refresh)
+            if Path(decisions_path).exists():
+                n = inventory.load(decisions_path)
+                logging.getLogger("rfqbot").info("inventory: %d pending quotes rebuilt from %s", n, decisions_path)
+        assembler = Assembler(cache, qcfg, decisions=DecisionLog(decisions_path), inventory=inventory, horizon_ms=horizon)
+        logging.getLogger("rfqbot").info("quoting ON (paper=%s) decisions=%s base_edge=%s max_size_usd=%s risk=%s caps=%s",
+                                         settings.paper_trading, assembler.decisions.path, qcfg.base_edge, qcfg.max_size_usd,
+                                         qcfg.risk, inventory.caps.as_dict() if inventory else None)
     listener = Listener(settings, store, catalog=catalog, rawlog=rawlog, socket=sock,
                         **({"on_rfq": assembler.handle} if assembler else {}))
     logging.getLogger("rfqbot").info("db=%s raw_log=%s raw_db_types=%s paper=%s", store.path,
@@ -102,6 +114,12 @@ def _print_quote_stats(assembler) -> None:
           f"games cached {st['games']}  cache {st['cache']}")
     for k, v in st["counts"].items():
         print(f"  {k:<44} {v:>8}")
+    inv = st.get("inventory")
+    if inv:
+        print(f"inventory: {inv['positions']} active ({inv['pending']} pending) notional ${inv['notional']:,.0f} ES1 ${inv['es1']:,.0f} "
+              f"= {inv['es1_frac'] if inv['es1_frac'] is not None else float('nan'):.1%} of capital; stats {inv['stats']}; "
+              f"refresh {inv['refresh_ms']} ms; assess p50={inv['assess_p50_ms'] and round(inv['assess_p50_ms'], 2)} ms "
+              f"p99={inv['assess_p99_ms'] and round(inv['assess_p99_ms'], 2)} ms; e_i {inv['e_i']}")
     if assembler.samples:
         print("sample reasons:")
         for r in list(assembler.samples)[-10:]:

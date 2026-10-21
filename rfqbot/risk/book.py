@@ -57,6 +57,8 @@ class Position:
     clusters: list[tuple[str | None, tuple[str, ...], float | None]] = field(default_factory=list)   # (game_key, pids, p) at quote time
     realized: float | None = None   # P&L once settled
     source: str = ""
+    requester: str = ""             # who asked (for the repeated-request log)
+    condition_id: str = ""          # the combo's condition id
 
     def __post_init__(self) -> None:
         if self.sign not in (1, -1):
@@ -104,6 +106,7 @@ class Position:
     def as_dict(self) -> dict[str, Any]:
         return {"rfq_id": self.rfq_id, "sign": self.sign, "size": self.size, "price": self.price, "status": self.status,
                 "at_ms": self.at_ms, "expires_ms": self.expires_ms, "realized": self.realized, "source": self.source,
+                "requester": self.requester, "condition_id": self.condition_id,
                 "legs": [{"position_id": l.position_id, "key": l.key, "p": l.p, "game": l.game, "slug": l.slug,
                           "outcome": l.outcome, "condition_id": l.condition_id} for l in self.legs]}
 
@@ -195,9 +198,9 @@ class Book:
                        pending_window_ms: int = DEFAULT_PENDING_WINDOW_MS) -> "Book":
         """The paper book: every quoted decision (latest row per rfq_id) becomes a position.
 
-        ``assume_filled``: count every quote as executed. Otherwise a quote is pending for
-        ``pending_window_ms`` after its decision (the log has no deadline) and dropped once expired
-        at ``now_ms``. ``rfq_db`` (read-only) supplies the catalog rows so legs get full LegSpecs
+        ``assume_filled``: count every quote as executed. Otherwise a quote is pending until the
+        logged ``expires_ms`` (rows written by the caps-aware quoter), else for ``pending_window_ms``
+        after its decision, and dropped once expired at ``now_ms``. ``rfq_db`` (read-only) supplies the catalog rows so legs get full LegSpecs
         (rules, condition ids, outcomes); without it specs come from the canonical keys alone.
         """
         now = int(time.time() * 1000) if now_ms is None else now_ms
@@ -223,7 +226,8 @@ class Book:
             if assume_filled:
                 pos.status = FILLED
             else:
-                pos.expires_ms = pos.at_ms + pending_window_ms
+                if pos.expires_ms is None:
+                    pos.expires_ms = pos.at_ms + pending_window_ms
                 if pos.expires_ms <= now:
                     continue
             book.add(pos)
@@ -337,5 +341,9 @@ def position_from_decision(r: Mapping[str, Any], cat: _Catalog | None = None) ->
                                 m["outcome"] if m is not None else l.get("outcome"), m["condition_id"] if m is not None else None))
     clusters = [(c.get("game_key"), tuple(c["position_ids"]), c.get("p")) for c in json.loads(r["clusters_json"])]
     sign = -1 if r["maker_action"] == "sell_yes" else 1
+    keys = r.keys() if hasattr(r, "keys") else ()
+    expires = r["expires_ms"] if "expires_ms" in keys else None
     return Position(r["rfq_id"], legs, sign, r["size_e6"] / SHARE_E6, r["price_e6"] / SHARE_E6, PENDING,
-                    int(r["at_ms"]), None, clusters, source="decisions")
+                    int(r["at_ms"]), int(expires) if expires is not None else None, clusters, source="decisions",
+                    requester=(r["requester"] if "requester" in keys else None) or "",
+                    condition_id=(r["condition_id"] if "condition_id" in keys else None) or "")

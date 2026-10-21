@@ -105,6 +105,14 @@ def _env(name: str, default: str | None = None) -> str:
     return os.environ.get(name, default if default is not None else "").strip()
 
 
+def _raw_log_dir(value: str | None) -> Path | None:
+    """RAW_LOG_DIR: "none" (any case) turns the raw log off; empty falls back to ./data/raw like the other fields."""
+    v = (value or "").strip()
+    if v.lower() == "none":
+        return None
+    return Path(v or "./data/raw")
+
+
 def load_settings(env_file: str | os.PathLike | None = ".env", *, require_auth: bool = False) -> Settings:
     if env_file is not None and Path(env_file).exists():
         load_dotenv(env_file, override=False)
@@ -132,7 +140,7 @@ def load_settings(env_file: str | os.PathLike | None = ".env", *, require_auth: 
         ws_url=_env("POLYMARKET_RFQ_WS_URL", DEFAULT_WS_URL) or DEFAULT_WS_URL,
         rfq_api_url=_env("POLYMARKET_COMBOS_RFQ_API_URL", DEFAULT_RFQ_API_URL) or DEFAULT_RFQ_API_URL,
         db_path=Path(_env("RFQ_DB_PATH", "./data/rfq.db") or "./data/rfq.db"),
-        raw_log_dir=(Path(_env("RAW_LOG_DIR", "./data/raw")) if _env("RAW_LOG_DIR", "./data/raw").lower() != "none" else None),
+        raw_log_dir=_raw_log_dir(_env("RAW_LOG_DIR", "./data/raw")),
         raw_db_types=_env("RAW_DB_TYPES", "non_request").lower() or "non_request",
         paper_trading=paper,
         initial_capital_usd=float(_env("INITIAL_CAPITAL_USD", "50000") or 50000),

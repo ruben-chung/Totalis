@@ -52,7 +52,7 @@ def test_outcome_cap_solves_in_closed_form(models):
     cand = pos("c", [leg(ml("DAL"))], 1, 1000.0, 0.5)
     r = check(book, cand, models, caps=caps)
     assert r.binding_cap == "outcome" and r.allowed_size == pytest.approx(400.0, abs=1e-6) and not r.ok
-    assert r.detail["outcome"].endswith("DAL win") and r.headroom_by_cap["game"] == float("inf")
+    assert r.detail["outcome"].endswith("DAL win") and r.headroom_by_cap["game"] > 1e9
     # the opposite side reduces the book: allowed through zero to -500 (600 shares), then it binds
     r2 = check(book, Position("c", [leg(ml("DAL"))], -1, 1000.0, 0.5, "filled"), models, caps=caps)
     assert r2.allowed_size == pytest.approx(600.0, abs=1e-6)

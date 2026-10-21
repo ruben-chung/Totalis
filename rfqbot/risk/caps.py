@@ -26,7 +26,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from .book import Book, Position
-from .exposure import Exposure, ModelPool, canonical_outcomes, es_at
+from .exposure import Exposure, ModelPool, deltas_on, es_at, outcome_matrix
 
 CAP_NAMES = ("outcome", "game", "es1", "sport", "day")
 INF = float("inf")
@@ -118,11 +118,11 @@ def bisect_limit(feasible, start: float, *, iters: int = 60, s_max: float = 1e9)
     """Largest s in [0, s_max] with feasible(s), for a feasible set that is an interval containing 0."""
     if not feasible(1e-9):
         return 0.0
-    hi = max(start, 1.0)
+    hi = min(max(start, 1.0), s_max)
     while feasible(hi):
-        hi *= 2
         if hi >= s_max:
-            return INF
+            return INF if s_max >= 1e9 else s_max
+        hi = min(hi * 2, s_max)
     lo = 0.0
     for _ in range(iters):
         mid = (lo + hi) / 2
@@ -137,66 +137,89 @@ def _exposure(book: Book, models: Any, exposure: Exposure | None, n_draws: int, 
     return exposure if exposure is not None else Exposure(book, models, n_draws=n_draws, seed=seed)
 
 
-def check(book: Book, candidate: Position, models: ModelPool | Mapping[str, Any] | None = None, *, caps: Caps | None = None,
-          exposure: Exposure | None = None, n_draws: int = 20_000, seed: int = 0) -> CapResult:
-    """Largest size of ``candidate`` (same legs, sign and price) that keeps every cap satisfied."""
-    caps = caps or Caps.from_env()
-    base = _exposure(book, models, exposure, n_draws, seed)
-    cand = base.derive([replace(candidate, size=1.0)])          # per-share vectors
-    head: dict[str, float] = {}
-    detail: dict[str, str] = {}
-
-    # outcome deltas (linear in s)
-    L = caps.limit("outcome")
-    best, label = INF, ""
-    if L is not None:
-        for g in cand.game_vec:
-            model = base.pool.get(g)
-            if model is None:
+# -- per-cap solvers on a book exposure and a per-share candidate exposure --------------------
+def outcome_limit(base: Exposure, cand: Exposure, limit: float | None) -> tuple[float, str, float]:
+    """(largest size, binding outcome label, usage): |b + s c| <= limit over the canonical outcomes of
+    every modeled game the candidate touches and every factor it touches. ``usage`` is the book's
+    largest |b| / limit among the outcomes the candidate *adds to* (same sign), for the skew."""
+    best, label, use = INF, "", 0.0
+    if limit is None:
+        return best, label, use
+    for g, vc in cand.game_vec.items():
+        model = base.pool.get(g)
+        if model is None:
+            continue
+        outs, O, m = outcome_matrix(model)
+        if not outs:
+            continue
+        cs = deltas_on(vc, O, m)
+        vb = base.game_vec.get(g)
+        bs = deltas_on(vb, O, m) if vb is not None else np.zeros(len(outs))
+        for i, (lbl, _) in enumerate(outs):
+            c, b = float(cs[i]), float(bs[i])
+            if np.isnan(c) or np.isnan(b):
                 continue
-            for lbl, spec in canonical_outcomes(model):
-                c = cand.delta(g, spec)
-                if c is None:
-                    continue
-                b = base.delta(g, spec) if g in base.game_vec else 0.0
-                s = linear_limit(b or 0.0, c, L)
-                if s < best:
-                    best, label = s, f"{g} {lbl}"
-        for k, c in cand.factor_delta.items():
-            s = linear_limit(base.factor_delta.get(k, 0.0), c, L)
+            s = linear_limit(b, c, limit)
             if s < best:
-                best, label = s, cand.factors[k].label
-    head["outcome"], detail["outcome"] = best, label
+                best, label = s, f"{g} {lbl}"
+            if c != 0:
+                use = max(use, abs(b) / limit)
+    for k, c in cand.factor_delta.items():
+        b = base.factor_delta.get(k, 0.0)
+        s = linear_limit(b, c, limit)
+        if s < best:
+            best, label = s, cand.factors[k].label
+        if c != 0:
+            use = max(use, abs(b) / limit)
+    return best, label, use
 
-    # per-game worst scenario (concave in s)
-    L = caps.limit("game")
+
+def game_limit(base: Exposure, cand: Exposure, limit: float | None) -> tuple[float, str]:
+    """Largest s with min_i(vb_i + s vc_i) >= floor, floor = min(-limit, min vb) (no worse than now).
+    Closed form: only scenarios where the candidate loses constrain s."""
     best, label = INF, ""
-    if L is not None:
-        for g, vc in cand.game_vec.items():
-            vb = base.game_vec.get(g)
-            vb = np.zeros_like(vc) if vb is None else vb
-            floor = min(-L, float(vb.min()))
+    if limit is None:
+        return best, label
+    for g, vc in cand.game_vec.items():
+        vb = base.game_vec.get(g)
+        vb = np.zeros_like(vc) if vb is None else vb
+        floor = min(-limit, float(vb.min()))
+        neg = vc < 0
+        if not neg.any():
+            continue
+        s = float(((vb[neg] - floor) / (-vc[neg])).min())
+        s = 0.0 if s < 1e-6 else s
+        if s < best:
+            best, label = s, g
+    return best, label
 
-            def feasible(s: float, vb=vb, vc=vc, floor=floor) -> bool:
-                return float((vb + s * vc).min()) >= floor - 1e-9
-            s = bisect_limit(feasible, candidate.size)
-            if s < best:
-                best, label = s, g
-    head["game"], detail["game"] = best, label
 
-    # portfolio ES1 (convex in s)
-    L = caps.limit("es1")
-    best = INF
-    if L is not None and (cand.game_vec or cand.factor_delta):
-        pb, pc = base.pnl_draws(), cand.pnl_draws()
-        ceiling = max(L, es_at(pb, 0.01))
+def es1_limit(base: Exposure, cand: Exposure, limit: float | None, start: float) -> tuple[float, float]:
+    """(largest s with ES1(book + s cand) <= max(limit, ES1 now), tail mean per share).
+    ES1 is convex in s; its slope at 0 is the candidate's mean loss in the book's tail, so the
+    linearised size is an upper bound. It is checked exactly and bisected only when it fails."""
+    if limit is None or not (cand.game_vec or cand.factor_delta):
+        return INF, 0.0
+    pb, pc = base.pnl_draws(), cand.pnl_draws()
+    tail = base.tail_index(0.01)
+    slope = float(-pc[tail].mean())                   # dES1/ds at s -> 0 (loss per share in the tail)
+    es0 = float(-pb[tail].mean())
+    ceiling = max(limit, es0)
+    if slope <= 1e-12:
+        return INF, slope                             # hedges the tail: this cap never binds
+    s_lin = max(0.0, (ceiling - es0) / slope)
+    if s_lin == 0.0:
+        return 0.0, slope
+    if es_at(pb + s_lin * pc, 0.01) <= ceiling + 1e-9:
+        return s_lin, slope
 
-        def feasible_es(s: float) -> bool:
-            return es_at(pb + s * pc, 0.01) <= ceiling + 1e-9
-        best = bisect_limit(feasible_es, candidate.size)
-    head["es1"], detail["es1"] = best, "portfolio"
+    def feasible(s: float) -> bool:
+        return es_at(pb + s * pc, 0.01) <= ceiling + 1e-9
+    return bisect_limit(feasible, min(start, s_lin), iters=30, s_max=s_lin), slope
 
-    # notional by sport / day (linear)
+
+def notional_limits(book: Book, candidate: Position, caps: Caps) -> dict[str, tuple[float, str]]:
+    out: dict[str, tuple[float, str]] = {}
     per_share = candidate.max_loss_per_share
     for cap, what, keys in (("sport", "sport", [candidate.sport or "?"]), ("day", "date", candidate.game_dates or ["?"])):
         L = caps.limit(cap)
@@ -207,14 +230,33 @@ def check(book: Book, candidate: Position, models: ModelPool | Mapping[str, Any]
                 s = max(0.0, (L - used.get(k, 0.0)) / per_share)
                 if s < best:
                     best, label = s, k
-        head[cap], detail[cap] = best, label
+        out[cap] = (best, label)
+    return out
 
+
+def solve(base: Exposure, cand: Exposure, book: Book, candidate: Position, caps: Caps) -> CapResult:
+    """All caps for a per-share candidate exposure ``cand`` against the book exposure ``base``."""
+    head: dict[str, float] = {}
+    detail: dict[str, str] = {}
+    head["outcome"], detail["outcome"], _ = outcome_limit(base, cand, caps.limit("outcome"))
+    head["game"], detail["game"] = game_limit(base, cand, caps.limit("game"))
+    head["es1"], _ = es1_limit(base, cand, caps.limit("es1"), candidate.size)
+    detail["es1"] = "portfolio"
+    for cap, (s, lbl) in notional_limits(book, candidate, caps).items():
+        head[cap], detail[cap] = s, lbl
     cap_size = min(head.values())
-    binding = None
-    if cap_size < candidate.size - 1e-9:
-        binding = min(head, key=head.get)   # type: ignore[arg-type]
+    binding = min(head, key=head.get) if cap_size < candidate.size - 1e-9 else None   # type: ignore[arg-type]
     return CapResult(candidate.size, min(candidate.size, cap_size), cap_size, binding, head,
                      {k: v for k, v in detail.items() if v})
+
+
+def check(book: Book, candidate: Position, models: ModelPool | Mapping[str, Any] | None = None, *, caps: Caps | None = None,
+          exposure: Exposure | None = None, n_draws: int = 20_000, seed: int = 0) -> CapResult:
+    """Largest size of ``candidate`` (same legs, sign and price) that keeps every cap satisfied."""
+    caps = caps or Caps.from_env()
+    base = _exposure(book, models, exposure, n_draws, seed)
+    cand = base.derive([replace(candidate, size=1.0)])          # per-share vectors
+    return solve(base, cand, book, candidate, caps)
 
 
 def marginal_risk(book: Book, candidate: Position, models: ModelPool | Mapping[str, Any] | None = None, *,
@@ -227,8 +269,7 @@ def marginal_risk(book: Book, candidate: Position, models: ModelPool | Mapping[s
     es0 = es_at(pb, 0.01)
     size = candidate.size if candidate.size > 0 else 1.0
     es1 = es_at(pb + size * pc, 0.01)
-    k = max(1, int(round(0.01 * pb.shape[0])))
-    tail = np.argpartition(pb, k - 1)[:k]
+    tail = base.tail_index(0.01)
     cov: dict[str, float] = {}
     corr: dict[str, float] = {}
     for g, vc in cand.game_vec.items():

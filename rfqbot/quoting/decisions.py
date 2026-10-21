@@ -32,14 +32,34 @@ CREATE TABLE IF NOT EXISTS decisions (
     reason          TEXT,
     latency_ms      REAL,
     model_built_at  REAL,
-    config_json     TEXT
+    config_json     TEXT,
+    requester       TEXT,
+    condition_id    TEXT,
+    deadline_ms     INTEGER,
+    expires_ms      INTEGER,
+    requested_shares REAL,
+    kelly_size      REAL,
+    allowed_size    REAL,
+    binding_cap     TEXT,
+    headroom_json   TEXT,
+    d_es1_per_share REAL,
+    pending_same_combo INTEGER,
+    pending_requesters INTEGER,
+    book_json       TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_decisions_rfq ON decisions(rfq_id);
 CREATE INDEX IF NOT EXISTS ix_decisions_at ON decisions(at_ms);
 """
 COLS = ("rfq_id", "at_ms", "direction", "side", "requested_unit", "requested_e6", "n_legs", "legs_json", "clusters_json",
         "certified", "p_fair", "u_m", "u_d", "e_b", "e_i", "margin", "maker_action", "price_e6", "size_e6", "decision",
-        "reason", "latency_ms", "model_built_at", "config_json")
+        "reason", "latency_ms", "model_built_at", "config_json", "requester", "condition_id", "deadline_ms", "expires_ms",
+        "requested_shares", "kelly_size", "allowed_size", "binding_cap", "headroom_json", "d_es1_per_share",
+        "pending_same_combo", "pending_requesters", "book_json")
+# columns added by stage 3 (migrated in place on open; older rows keep NULLs)
+STAGE3_COLS = {"requester": "TEXT", "condition_id": "TEXT", "deadline_ms": "INTEGER", "expires_ms": "INTEGER",
+               "requested_shares": "REAL", "kelly_size": "REAL", "allowed_size": "REAL", "binding_cap": "TEXT",
+               "headroom_json": "TEXT", "d_es1_per_share": "REAL", "pending_same_combo": "INTEGER",
+               "pending_requesters": "INTEGER", "book_json": "TEXT"}
 
 
 class DecisionLog:
@@ -53,6 +73,10 @@ class DecisionLog:
             self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
+        have = {r[1] for r in self.conn.execute("PRAGMA table_info(decisions)")}
+        for col, typ in STAGE3_COLS.items():
+            if col not in have:
+                self.conn.execute(f"ALTER TABLE decisions ADD COLUMN {col} {typ}")
         self._sql = f"INSERT INTO decisions({', '.join(COLS)}) VALUES ({', '.join(':' + c for c in COLS)})"
         self.written = 0
 
@@ -82,4 +106,10 @@ def decision_row(d: Any, config_json: str) -> dict[str, Any]:
         "e_b": d.e_b, "e_i": d.e_i, "margin": d.margin, "maker_action": d.maker_action, "price_e6": d.price_e6,
         "size_e6": d.size_e6, "decision": d.decision, "reason": d.reason, "latency_ms": d.latency_ms,
         "model_built_at": d.model_built_at, "config_json": config_json,
+        "requester": d.requester or None, "condition_id": d.condition_id or None, "deadline_ms": d.deadline_ms,
+        "expires_ms": d.expires_ms, "requested_shares": d.requested_shares, "kelly_size": d.kelly_size,
+        "allowed_size": d.allowed_size, "binding_cap": d.binding_cap,
+        "headroom_json": json.dumps(d.headroom) if d.headroom is not None else None,
+        "d_es1_per_share": d.d_es1_per_share, "pending_same_combo": d.pending_same_combo,
+        "pending_requesters": d.pending_requesters, "book_json": json.dumps(d.book) if d.book is not None else None,
     }

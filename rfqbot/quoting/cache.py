@@ -54,6 +54,7 @@ class GameCache:
         self._lock = threading.Lock()
         self._stop = False
         self.stats = {"refreshes": 0, "model_builds": 0, "errors": 0}
+        self.on_refresh: list[Callable[[], Any]] = []     # run after each refresh_due pass, on the worker thread
 
     # -- read side (RFQ path) -------------------------------------------------------
     def get(self, prefix: str) -> GameEntry | None:
@@ -117,9 +118,12 @@ class GameCache:
         """Build the joint model and pre-warm its shocked variants so `joint()` on the RFQ path
         is a scenario pass (~1 ms), never a rebuild (~0.5 s)."""
         from ..pricing.joint import DEFAULT_SHOCKS, build_game
+        from ..risk.exposure import outcome_matrix
         model = build_game(quotes)
         for sh in DEFAULT_SHOCKS:
             model.shocked(sh)
+        model.marginal_check()                      # warms every leg's indicator for the risk hot path
+        outcome_matrix(model)                       # and the cap outcomes' indicator matrix
         return model
 
     @staticmethod
@@ -158,6 +162,12 @@ class GameCache:
                 with self._lock:
                     self._pending.discard(p)
                     self.entries.setdefault(p, GameEntry(prefix=p, sport=sport_of(p))).refreshed_at_ms = self._now()
+        for hook in self.on_refresh:
+            try:
+                hook()
+            except Exception as e:  # pragma: no cover
+                self.stats["errors"] += 1
+                log.warning("cache hook failed: %s", e)
         return n
 
     async def run(self, period_sec: float = 1.0) -> None:

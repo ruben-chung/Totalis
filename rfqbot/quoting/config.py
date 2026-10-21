@@ -14,7 +14,11 @@ class QuoteConfig:
     base_edge: float = 0.005                # e_b, probability points (flow clears +0.5..0.75 pt over fair; backtest calibrates)
     k_m: float = 1.0                        # multiplier on marginal uncertainty u_m
     k_d: float = 1.0                        # multiplier on dependence uncertainty u_d
-    inventory_skew: float = 0.0             # e_i slot (stage 3)
+    inventory_skew: float = 0.0             # constant added to e_i (stage 3: e_i itself is k_inv * dES1/ds * usage)
+    risk: bool = True                       # caps, Kelly sizing and inventory skew on (QUOTE_RISK=0 to disable)
+    kelly_fraction: float = 0.25            # size <= fraction x capital x margin / (p(1-p)) shares
+    k_inv: float = 0.04                     # e_i = k_inv x dES1/ds (loss per share in the tail) x outcome-cap usage; 1 pt at corr 1, usage 0.5
+    risk_refresh_sec: float = 2.0           # live book / exposure rebuild period (refresh thread)
     max_size_usd: float = 500.0             # per quote, notional at our price
     min_size_usd: float = 5.0               # below this: skip
     tick: float = 0.001                     # price rounding, away from fair
@@ -63,6 +67,9 @@ def load_quote_config(env_file: str | os.PathLike | None = ".env", env: dict[str
     return QuoteConfig(
         base_edge=_f(env, "BASE_EDGE", base.base_edge), k_m=_f(env, "K_M", base.k_m), k_d=_f(env, "K_D", base.k_d),
         inventory_skew=_f(env, "INVENTORY_SKEW", base.inventory_skew),
+        risk=(env.get("QUOTE_RISK") or "1").strip().lower() not in ("0", "false", "no", "off"),
+        kelly_fraction=_f(env, "KELLY_FRACTION", base.kelly_fraction), k_inv=_f(env, "K_INV", base.k_inv),
+        risk_refresh_sec=_f(env, "RISK_REFRESH_SEC", base.risk_refresh_sec),
         max_size_usd=_f(env, "MAX_SIZE_USD", base.max_size_usd), min_size_usd=_f(env, "MIN_SIZE_USD", base.min_size_usd),
         tick=_f(env, "TICK", base.tick), price_min=_f(env, "PRICE_MIN", base.price_min), price_max=_f(env, "PRICE_MAX", base.price_max),
         buy_safety_max=_f(env, "BUY_SAFETY_MAX", base.buy_safety_max), tier_size_mult=tiers, legs_size_mult=legs,

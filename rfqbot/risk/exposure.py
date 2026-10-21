@@ -314,13 +314,10 @@ class Exposure:
         model = self.pool.get(prefix)
         if model is None or prefix not in self.game_vec:
             return []
-        out = []
-        for label, spec in canonical_outcomes(model):
-            d = self.delta(prefix, spec)
-            if d is None:
-                continue
-            out.append(OutcomeDelta(prefix, label, canonical_key(spec), model.p_leg(spec), d))
-        return out
+        outs, O, m = outcome_matrix(model)
+        ds = deltas_on(self.game_vec[prefix], O, m)
+        return [OutcomeDelta(prefix, label, canonical_key(spec), float(m[i] / O.shape[1]), float(ds[i]))
+                for i, (label, spec) in enumerate(outs) if not np.isnan(ds[i])]
 
     # -- portfolio -------------------------------------------------------------------------
     def pnl_draws(self) -> np.ndarray:
@@ -354,6 +351,37 @@ class Exposure:
             contrib["factor:" + k] = d * ((self.draws.factor(k) < f.p).astype(np.float64) - f.p)
         self._mc = {"pnl": total, "contrib": contrib, "seconds": time.perf_counter() - t0}
         return self._mc
+
+    def tail_index(self, level: float = 0.01) -> np.ndarray:
+        """Draw indices of the worst ``level`` share of the portfolio (cached until the P&L changes)."""
+        mc = self.monte_carlo()
+        key = f"tail{level}"
+        if key not in mc:
+            k = max(1, int(round(level * self.draws.n)))
+            mc[key] = np.argpartition(mc["pnl"], k - 1)[:k]
+        return mc[key]
+
+    def absorb(self, cand: "Exposure", size: float) -> None:
+        """Add ``size`` shares of a derived per-share exposure to this one in place (vectors, factor
+        deltas and the Monte Carlo P&L; linear, exact). Used between full rebuilds so pending quotes
+        count immediately. Terms are not merged, so ``report()`` attribution is stale until a rebuild."""
+        for g, vc in cand.game_vec.items():
+            v = self.game_vec.get(g)
+            if v is None:
+                self.game_vec[g] = vc * size
+            else:
+                v += vc * size
+            self.game_positions[g] += cand.game_positions.get(g, 0)
+        for k, d in cand.factor_delta.items():
+            self.factor_delta[k] = self.factor_delta.get(k, 0.0) + d * size
+            self.factor_positions[k] += cand.factor_positions.get(k, 0)
+            if k not in self.factors:
+                self.factors[k] = cand.factors[k]
+        for ck, ref in cand._factor_ref.items():
+            self._factor_ref.setdefault(ck, ref)
+        if self._mc is not None:
+            self._mc = {"pnl": self._mc["pnl"] + size * cand.pnl_draws(), "contrib": self._mc["contrib"], "seconds": 0.0}
+        self.positions.extend(cand.positions)
 
     def portfolio(self, top: int = 10) -> "PortfolioDist":
         mc = self.monte_carlo()
@@ -392,9 +420,47 @@ def delta_on(v: np.ndarray, o: np.ndarray) -> float | None:
     return float((v @ o64) / m - (v @ (1.0 - o64)) / (n - m))
 
 
+def outcome_matrix(model: Any) -> tuple[list[tuple[str, LegSpec]], np.ndarray, np.ndarray]:
+    """Canonical outcomes of a model as one float64 matrix O (k x n) with the per-outcome scenario
+    counts m, cached on the model: deltas of any vector v to all k outcomes are one matvec."""
+    cached = getattr(model, "_outcome_matrix", None)
+    if cached is not None:
+        return cached
+    outs = canonical_outcomes(model)
+    rows, keep = [], []
+    for label, spec in outs:
+        o = model.indicator(spec)
+        if o is None:
+            continue
+        rows.append(o.astype(np.float64))
+        keep.append((label, spec))
+    O = np.stack(rows) if rows else np.zeros((0, model.scen.n), dtype=np.float64)
+    m = O.sum(axis=1)
+    res = (keep, O, m)
+    try:
+        model._outcome_matrix = res
+    except AttributeError:  # pragma: no cover
+        pass
+    return res
+
+
+def deltas_on(v: np.ndarray, O: np.ndarray, m: np.ndarray) -> np.ndarray:
+    """E[v | O_k] - E[v | not O_k] for every row of O (nan where an outcome never / always happens)."""
+    n = v.shape[0]
+    vo = O @ v
+    tot = float(v.sum())
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = vo / m - (tot - vo) / (n - m)
+    out[(m <= 0) | (m >= n)] = np.nan
+    return out
+
+
 def canonical_outcomes(model: Any) -> list[tuple[str, LegSpec]]:
     """Each team's win, over/under at the main total, each team's cover at the main spread, each
     team total over/under at its main line (main = the quoted line with p closest to 0.5)."""
+    cached = getattr(model, "_canonical_outcomes", None)
+    if cached is not None:
+        return cached
     specs = [l.spec for l in model.legs]
     if not specs:
         return []
@@ -430,6 +496,10 @@ def canonical_outcomes(model: Any) -> list[tuple[str, LegSpec]]:
         if tt is not None:
             for side in ("over", "under"):
                 out.append((f"{team} total {side} {tt.line:g}", LegSpec(family="team_total", side=side, team=team, line=tt.line, **base)))
+    try:
+        model._canonical_outcomes = out
+    except AttributeError:  # pragma: no cover
+        pass
     return out
 
 
