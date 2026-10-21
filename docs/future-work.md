@@ -71,7 +71,7 @@ In order raised, with status.
 
 - Walk-forward refits of the margin table inside the replay.
 - A cost for displacing the printed maker (round-trip harvesters would hit us instead).
-- Realized P&L needs resolutions refreshed over the week; 31 of 1,588 trade prints (26 of 1,385 distinct traded combos on the later count) were fully resolved on day one.
+- Realized P&L needs resolutions refreshed as games settle: 447 of 1,835 distinct traded combos fully resolved after the second resolve pass (26 after the first), 274 partly, 38 with a leg missing from the catalog. Schedule `rfqbot.history resolve` hourly (under 2 min a pass) and `pull --since yesterday` daily.
 
 ## Data and operations
 
@@ -85,3 +85,4 @@ In order raised, with status.
 - `hist_pairs` cap of 60k per game binds on 88 of 93 NFL games.
 - History depth: this season only, NFL and NBA only.
 - Unmappable tokens never get a book; Gamma contract tests.
+- NFL player-prop legs are not parsed in history (49,268 of 108,580 NFL hist_legs carry a parse error, nearly all prop side events), so NFL hist_pairs cover game markets only.
