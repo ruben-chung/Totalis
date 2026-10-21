@@ -19,7 +19,8 @@ Numbers as of 2026-10-21; sources in `docs/*-notes.md`.
 - Joint engine on 93 resolved NFL games: Brier 0.130 vs 0.140 independence; direction right, magnitude ~25% overstated; tails calibrated; 1H coupling overstated.
 - Calibration per family pair, game-clustered; market-pinned couplings held at 1 unless rejected. 93 games is not enough to move most pairs; ~10k would be.
 - Exposure before caps, every quote assumed filled: ES1 347% of capital; one requester re-sent one combo 110 times. After caps, live 10 min: ES1 8.4% at end, pinned at 15% whenever flow repeated; largest stack 7 quotes.
-- Quoting latency with caps live: p50 2.9 ms, p99 20 ms per quoted RFQ.
+- One-hour run with caps and margin table live: 503,816 RFQs, 947 quoted; ES1 at the 15% cap most of the hour, 4.8% at the end; 1,062 skips by the ES1 cap; margin p50 3.8 pt; 19% of quotes priced from a fitted node; no errors.
+- Quoting latency with caps live: p50 2.9 ms, p99 20 ms per quoted RFQ on a quiet machine; p99 84 ms under load.
 - Margin table, first night: fill probability at zero margin 0.4 to 0.8% per request; optimal margin 0.5 pt on the one well-populated NBA cell, 2.5 pt pooled; 15 counterfactual wins, so first reading only.
 - Wallet block rule: 22% false positives at 90% confidence under sequential testing; 3.5% at 95%.
 
