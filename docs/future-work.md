@@ -44,6 +44,9 @@ stands. The rest of this document is the engineering backlog they generated.
 - **Hedge combo exposure with singles** (2026-10-21). Recorded below under Quoting and execution:
   the outcome deltas in `rfqbot/risk` are already the hedge ratios per leg.
 
+- **Strategic feedback between our margin function and other makers** (2026-10-21). Recorded below
+  under Quoting and execution.
+
 ## Pricing: marginals
 
 - **Venue weights from data, not priors.** Kalshi's precision multiplier (2.0 on NFL/NBA) is a
@@ -125,6 +128,20 @@ stands. The rest of this document is the engineering backlog they generated.
   Replace it with a mixture confidence sequence so the error rate holds under continuous monitoring.
 - **Joint-engine later fair in the markout monitor.** Markouts for NFL same-game combos use the product of
   leg fairs as the later reference; the joint engine should price them.
+- **Strategic feedback with other makers (game theory).** The margin optimiser treats the fill
+  curve F(m) as exogenous: it is fitted from prints, and prints are other makers' winning quotes.
+  Once we quote live, those makers observe our prints too, and each RFQ is a first-price sealed-bid
+  auction whose equilibrium shading depends on every participant's beliefs about the others. If we
+  widen, the prints we lose to move wider, our next fit sees a flatter curve and widens again; the
+  other makers' optimisers do the same from their side. That is a positive feedback loop toward
+  wider margins (good for all makers until requesters leave) or, in the other direction, a race to
+  the fair. Two implications. First, the fitted curve is endogenous and a refit must be damped:
+  cap the change in m* per refit, hold out a share of RFQs quoted at the previous margin as a
+  control, and watch the segment-wise drift of print minus fair over days, not minutes. Second, the
+  right model is the auction, not the curve: estimate the number of active competitors per
+  segment and their cost distribution from the print history and solve for the equilibrium bid,
+  which also tells us when a segment has too few makers for the curve to mean anything. Open
+  research question; nothing built.
 - **Probe RFQs for combo-level markouts and competitor quotes.** Markouts today are the move in the
   leg-book fair after a print, because a combo has no continuous market. As a requester we can send
   our own RFQ on the exact combo we just quoted or filled, read the makers' quotes through the
