@@ -36,7 +36,7 @@ Numbers as of 2026-10-21; sources in `docs/*-notes.md`.
 - Paper only: no credentials, no fills, no execution updates; fill path tested by unit tests and counterfactual prints.
 - Four hours of recorded flow; 26 of 1,385 traded combos fully resolved on day one (65 partly; 31 have a leg missing from the catalog).
 - NFL-only joint engine; NBA same-game (38% of quotable flow) skipped; props fit exists but not wired; 96% of RFQs are sports without ladders.
-- Venue weight 2.0 is a prior (measurement running).
+- Venue weight measured on 4.4 h pre-game: NBA 1.0 (interval 0.72 to 1.13), NFL 2.0 kept (1.5 to 3.7); Kalshi leads price discovery in both; in play not covered.
 
 ## Next, in priority order
 

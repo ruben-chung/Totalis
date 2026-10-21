@@ -24,7 +24,7 @@ In order raised, with status.
 
 ## Pricing: marginals
 
-- Venue weights from data (lead-lag and Brier tests per sport), not the 2.0 Kalshi prior.
+- Venue weights: measured 2026-10-21 on 4.4 h pre-game (`docs/venue-weight-notes.md`): NBA tight-quote precision ratio 0.90 [0.72, 1.13] so prior 1.0; NFL 2.2 [1.5, 3.7] so keep 2.0. Kalshi leads in both sports (Polymarket closes 4-6% of a gap per minute, Kalshi under 1%), which argues for a lead/staleness term rather than a bigger multiplier. Not covered: in play, the last hour before kickoff, news bursts.
 - Resolve venue disagreement by precision, not by taking Polymarket.
 - Third reference source (de-vigged Pinnacle or consensus odds).
 - Translate shifted Kalshi lines through the game model instead of flagging them.
