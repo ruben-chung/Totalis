@@ -1,9 +1,7 @@
-# Hand-in summary (bullets for Ruben to write up)
+## High Level Goal:
+Calculate Fair value of each marginal, then estimate dependence to find the joint. Quote this FV + margin. 
 
-Numbers as of 2026-10-21; sources in `docs/*-notes.md`.
-
-## What was built
-- High level: Calculate Fair value of each marginal, then estimate dependence to find the joint. Quote this FV + margin. 
+## More Detailed Implementation Description: 
 
 ### Stage 1: listener and storage
 
@@ -46,7 +44,7 @@ Skew. If a quote is +corr to our exposure the margin widens; and vice versa. Thi
 
 Validation: The dependence engine is scored on resolved games. On 93 NFL games Brier is 0.130 vs 0.140 asuuming 100% independence. 
 
-Venues: On 4.4 h of matched pre-game books, Kalshi leads price discovery in both sports. When the two venues disagree, Polymarket closes 4-6% of the gap per minute and Kalshi under 1%; gaps halve in 5-15 min. Noise ratio of mid changes (Poly/Kalshi, tight quotes): NFL 2.2, NBA 0.9, so Kalshi gets 2x weight on NFL and equal weight on NBA. 
+Venues: On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid.
 
 Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors. Latency per quoted RFQ p50 3 ms, p99 20 ms (84 ms under load).
 
@@ -58,9 +56,9 @@ What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of
 | we sell, same-game | 2.7 | +0.5 | ~+3.2 |
 | we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.8 |
 
-Wallet block rule:  3.5% flase positives at 95% confidence ( we would rather wrongly block neutral wallets than let sharps trade w us)
+Wallet block rule: 3.5% flase positives at 95% confidence ( we would rather wrongly block neutral wallets than let sharps trade w us)
 
-Probe RFQs (dry-run build): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Never put into live production. 
+Probe RFQs (built, dry-run only): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Dry-run on 3 h of prints: 26 triggers, 20 request bodies built, 18 disguised with a 0.99 leg from another game, 0 sent. Live needs the API passphrase and deposit-wallet addresses; never run in production here.
 
 
 
