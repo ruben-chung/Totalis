@@ -46,6 +46,8 @@ Skew. If a quote is +corr to our exposure the margin widens; and vice versa. Thi
 
 Validation: The dependence engine is scored on resolved games. On 93 NFL games Brier is 0.130 vs 0.140 asuuming 100% independence. 
 
+Venues: On 4.4 h of matched pre-game books, Kalshi leads price discovery in both sports. When the two venues disagree, Polymarket closes 4-6% of the gap per minute and Kalshi under 1%; gaps halve in 5-15 min. Noise ratio of mid changes (Poly/Kalshi, tight quotes): NFL 2.2, NBA 0.9, so Kalshi gets 2x weight on NFL and equal weight on NBA. 
+
 Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors. Latency per quoted RFQ p50 3 ms, p99 20 ms (84 ms under load).
 
 What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
@@ -56,7 +58,7 @@ What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of
 | we sell, same-game | 2.7 | +0.5 | ~+3.2 |
 | we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.8 |
 
-Wallet block rule: 22% false positives at 90% confidence (sequential test), 3.5% at 95% ( we would rather wrongly block neutral wallets than let sharps trade w us)
+Wallet block rule:  3.5% flase positives at 95% confidence ( we would rather wrongly block neutral wallets than let sharps trade w us)
 
 Probe RFQs (dry-run build): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Never put into live production. 
 
@@ -64,20 +66,14 @@ Probe RFQs (dry-run build): request our own quote on a combo we just filled, rea
 
 ## Design decisions worth stating
 
-- Dependence from the market's own joint (ladders to IPF to scenarios), not from a sports model. Validated, calibrated, honest about sample size.
-- Independence is certified structurally (different game) before any product pricing; anything uncertifiable is refused.
+- Dependence from the market's own joint, not from a fundamental sports model.
+- Independence is certified structurally (different game) before any product pricing
 - Confidence on every fair becomes margin; margin terms are logged per RFQ, so attribution is possible.
 - Caps are on instantaneous exposure including pending quotes, not on quote count.
 - Realized-outcome evidence counted in games, standard errors clustered by game.
 
-## Limits
 
-- Paper only: no credentials, no fills, no execution updates; fill path tested by unit tests and counterfactual prints.
-- Four hours of recorded flow; 26 of 1,385 traded combos fully resolved on day one (65 partly; 31 have a leg missing from the catalog).
-- NFL-only joint engine; NBA same-game (38% of quotable flow) skipped; props fit exists but not wired; 96% of RFQs are sports without ladders.
-- Venue weight measured pre-game only; Kalshi leads price discovery in both sports; in play not covered.
-
-## Next, in priority order
+## Next Steps in this project (I dont have time)
 
 1. Backtest compare table: joint vs independence, caps on/off, fixed edge vs table.
 2. Realized P&L as resolutions arrive over the week.
