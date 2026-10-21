@@ -1,4 +1,4 @@
-"""CLI: python -m rfqbot {listen|catalog|replay|stats|books|bookstats|kalshi-sync|coverage|nfl-coverage|joint}"""
+"""CLI: python -m rfqbot {listen|catalog|replay|stats|books|bookstats|kalshi-sync|coverage|nfl-coverage|joint|joint-validate|joint-calibrate|risk}"""
 from __future__ import annotations
 
 import argparse
@@ -258,6 +258,14 @@ def cmd_joint_calibrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_risk(args: argparse.Namespace) -> int:
+    from .risk.cli import run_risk
+
+    settings = load_settings(args.env)
+    _setup_logging(args.log_level or settings.log_level)
+    return run_risk(args, settings)
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
     settings = load_settings(args.env)
     path = Path(args.db or settings.db_path)
@@ -373,6 +381,22 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", default=None, help="calibration JSON (default: rfqbot/pricing/calibration.json)")
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(fn=cmd_joint_calibrate)
+
+    s = sub.add_parser("risk", help="exposure deltas, per-game worst cases, portfolio ES and caps for the paper book", parents=[common])
+    s.add_argument("--from", dest="from_db", default="./data/decisions.db", help="decisions log (quoted rows become positions)")
+    s.add_argument("--assume-filled", action="store_true", help="count every quote as executed (else pending for 60 s after its decision)")
+    s.add_argument("--rfq-db", default="./data/rfq.db", help="catalog for leg specs (read-only)")
+    s.add_argument("--books-db", default=None, help="books for building game models on demand")
+    s.add_argument("--at-ms", type=int, default=None, help="build models from the books at this time (default: latest)")
+    s.add_argument("--since-ms", type=int, default=None)
+    s.add_argument("--until-ms", type=int, default=None)
+    s.add_argument("--game", default=None, help="only positions touching this game prefix")
+    s.add_argument("--outcome", default=None, help="also report the delta to this canonical LegSpec key")
+    s.add_argument("--n-draws", type=int, default=20_000, help="portfolio Monte Carlo draws")
+    s.add_argument("--top", type=int, default=10)
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--json", default=None, help="write the full report here")
+    s.set_defaults(fn=cmd_risk)
 
     for name, help_ in (("nfl-coverage", "parse / match coverage over NFL rows in markets"),
                         ("coverage", "parse / match coverage for --sport")):

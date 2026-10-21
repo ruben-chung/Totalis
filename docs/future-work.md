@@ -83,11 +83,17 @@ Items marked **(idea only)** were explicitly scoped out by decision, not forgott
 - **Hedging.** Lay off leg exposure on the CLOB or on Kalshi when a combo fills; requires the
   fee model and cross-venue settlement-rule mapping, which the matcher already provides.
 
-## Inventory and risk (stage 3, in design)
+## Inventory and risk (stage 3, in progress)
 
-- Exposure ledgers per market, per game, per team; limits per level; widen, skew, reduce,
-  reject as inventory grows; correlated exposure through the game model's scenarios rather
-  than per-market sums.
+- Exposure deltas, caps and marginal risk exist (`rfqbot/risk`, `docs/risk-exposure-notes.md`).
+  Remaining: wire caps and the inventory skew into quote assembly; sizing from cap headroom and a
+  Kelly-style bound.
+- **Settlement by condition id.** `Book.settle()` needs condition ids, so it only works for books
+  loaded with the catalog; decisions-log books cannot settle yet.
+- **Tail attribution for cross-game combos** is first order (exact for single-game positions).
+- **Repeated RFQs are the dominant inventory risk**: one requester re-sent the same combo 110
+  times in 20 minutes; a per-quote size cap is no protection, only the outcome and game caps
+  are. Pending quotes must count as positions until expiry.
 
 ## Backtest (stage 4)
 

@@ -72,3 +72,16 @@ def test_register_family_hook():
     assert L.canonical_key(p) == "nfl|2026-10-25|CIN@BAL|FG|player_pts_test|some-player|25.5|over"
     L.register_family("first_score_test", "team")
     assert L.complement(mk(family="first_score_test", line=None, side="BAL")).side == "CIN"
+
+
+def test_parse_canonical_key_round_trips():
+    for spec in (mk(), mk(family="spread", team="BAL", line=-7.5, side="BAL"),
+                 mk(family="exact_margin", team="CIN", bucket="1-6", line=None, side="yes"),
+                 mk(family="moneyline", line=None, side="tie", period="1H"),
+                 mk(family="moneyline", line=None, side="not_CIN"),
+                 mk(family="team_total", team="CIN", line=20.5, side="under")):
+        back = L.parse_canonical_key(L.canonical_key(spec))
+        assert L.canonical_key(back) == L.canonical_key(spec)
+        assert back == spec
+    with pytest.raises(L.LegSpecError):
+        L.parse_canonical_key("nfl|2026-10-25|CIN@BAL|FG|total")

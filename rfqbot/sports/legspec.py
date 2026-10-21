@@ -206,6 +206,30 @@ def canonical_key(spec: LegSpec) -> str:
                      spec.family, subject, _fmt_line(spec.line), spec.side])
 
 
+def parse_canonical_key(key: str, *, venue: str = "polymarket", rules: dict[str, str] | None = None,
+                        game_date_basis: str = "et") -> LegSpec:
+    """Inverse of ``canonical_key`` (rules are not in the key; pass them or get none)."""
+    parts = key.split("|")
+    if len(parts) != 8:
+        raise LegSpecError(f"bad canonical key {key!r}")
+    sport, game_date, teams, period, family, subject, line_s, side = parts
+    if "@" not in teams:
+        raise LegSpecError(f"bad canonical key {key!r}")
+    away, home = teams.split("@", 1)
+    team: str | None = None
+    bucket: str | None = None
+    if subject != "-":
+        if ":" in subject:
+            team, bucket = subject.split(":", 1)
+        elif subject in (away, home):
+            team = subject
+        else:
+            bucket = subject
+    line = None if line_s == "-" else float(line_s)
+    return LegSpec(venue=venue, sport=sport, away=away, home=home, game_date=game_date, family=family, period=period,
+                   side=side, team=team, line=line, bucket=bucket, game_date_basis=game_date_basis, rules=dict(rules or {}))
+
+
 def contract_key(spec: LegSpec) -> str:
     """Identity of the *market* (both sides share it): canonical key without the side."""
     return canonical_key(spec).rsplit("|", 1)[0]
