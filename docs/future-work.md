@@ -1,8 +1,9 @@
 # Future work: what we would do with more time and resources
 
-This is a take-home project for Totalis. The bot as delivered covers the four stages of the
-spec; this document records every extension we identified along the way, why it matters, and
-what it would take. Maintained by the planning session; sessions send additions by message.
+This is a take-home project for Totalis. The bot as delivered covers stages 1 and 2 of the spec
+(listener and storage; pricing with dependence, validated and running in paper mode); stages 3
+and 4 (inventory and risk, backtest) are designed below but not built. This document records
+every extension we identified along the way, why it matters, and what it would take. Maintained by the planning session; sessions send additions by message.
 Items marked **(idea only)** were explicitly scoped out by decision, not forgotten.
 
 ## Pricing: marginals
@@ -47,7 +48,7 @@ Items marked **(idea only)** were explicitly scoped out by decision, not forgott
   are pair-level residual terms; today residual correlations are by position pair. The box-score
   dataset already supports fitting them for frequently paired players.
 - **Player props: full engine extension.** Share-plus-residual columns on the scenario set
-  (fit parameters exist in `data/props_fit.json`); NFL prop families (receiving yards, TDs) are
+  (fit parameters exist in `rfqbot/props/props_fit.json`); NFL prop families (receiving yards, TDs) are
   parsed but not modelled; a 2024-25 NBA season would double the fit sample.
 - **Exclusive-group and bracket logic beyond games.** Futures and tournament markets (team wins
   the semi and the final) are linked without sharing a game; today any leg without a game key

@@ -1,7 +1,7 @@
 """Adapters from the two quote stores to the model.
 
 Polymarket: `rfqbot.ladders.game_markets` over books.db. Kalshi: `rfqbot.kalshi_books.kalshi_for_legs`
-over kalshi_books.db (`kalshi_source("auto")` degrades to no Kalshi when the module is absent;
+over kalshi_books.db (`kalshi_source("auto")`; `"none"` leaves every leg unmatched;
 `"synthetic"` fabricates exact matches with a quote jittered around the Polymarket mid). The model
 only duck-types MatchRow and KalshiQuote (attribute names from the briefs).
 
@@ -150,15 +150,12 @@ def synthetic_kalshi(quotes: list[MarketQuote], *, seed: int = 1, jitter: float 
 
 def kalshi_source(mode: str = "auto", *, quotes: list[MarketQuote] | None = None, now_ms: int | None = None,
                   db: str | Path | None = None) -> KalshiLookup:
-    """auto -> rfqbot.kalshi_books.kalshi_for_legs (over `db`) if importable, else none; none; synthetic."""
+    """auto -> rfqbot.kalshi_books.kalshi_for_legs (over `db`); none -> every leg unmatched; synthetic -> fabricated exact books."""
     if mode == "none":
         return no_kalshi
     if mode == "synthetic":
         return synthetic_kalshi(quotes or [], now_ms=now_ms)
     if mode != "auto":
         raise ValueError(f"kalshi source must be auto|none|synthetic, got {mode!r}")
-    try:
-        from ..kalshi_books import kalshi_for_legs  # type: ignore[import-not-found]
-    except ImportError:
-        return no_kalshi
+    from ..kalshi_books import kalshi_for_legs      # lazy: keeps `import rfqbot.marginals` free of websockets / httpx
     return functools.partial(kalshi_for_legs, db=db) if db is not None else kalshi_for_legs

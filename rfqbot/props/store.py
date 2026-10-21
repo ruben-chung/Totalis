@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 DEFAULT_DB = Path("./data/props.db")
+DEFAULT_PARAMS = Path(__file__).with_name("props_fit.json")     # committed artifact, like rfqbot/pricing/calibration.json
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);

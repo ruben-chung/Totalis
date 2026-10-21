@@ -8,7 +8,7 @@ import pytest
 from rfqbot.clusters import (Cluster, ClusterProb, classify_pair, cluster, combo_probability, frechet_bounds, leg_ref)
 
 FIX = Path(__file__).parent / "fixtures"
-SAMPLE = Path(__file__).resolve().parent.parent / "data" / "samples" / "2026-10-20-live-75s"
+SAMPLE = FIX / "rfq_sample_75s.jsonl.gz"  # 75 s live RFQ capture, 2026-10-20 (ground truth for the shares)
 
 
 def L(pid, cond, slug, oi=None):
@@ -157,7 +157,6 @@ def test_combo_probability_impossible_and_unpriceable():
 
 
 # ----------------------------------------------------------- regression
-@pytest.mark.skipif(not SAMPLE.exists(), reason="live sample not present")
 def test_live_sample_class_shares():
     """Ground truth measured by the planning session on the 75 s sample, per distinct two-leg combo:
     disjoint 97.2%, same_game 2.6%, no_game_key 0.1%, shared_team 0.1% (within a point)."""
@@ -166,18 +165,17 @@ def test_live_sample_class_shares():
     per_combo: Counter = Counter()
     seen: set[str] = set()
     n_req = 0
-    for path in sorted(SAMPLE.rglob("*.jsonl.gz")):
-        with gzip.open(path, "rt") as f:
-            for line in f:
-                pl = json.loads(json.loads(line)["p"])
-                if pl.get("type") != "RFQ_REQUEST" or len(pl["leg_position_ids"]) != 2:
-                    continue
-                n_req += 1
-                if pl["condition_id"] in seen:
-                    continue
-                seen.add(pl["condition_id"])
-                a, b = pl["leg_position_ids"]
-                per_combo[classify_pair(refs[a], refs[b])] += 1
+    with gzip.open(SAMPLE, "rt") as f:
+        for line in f:
+            pl = json.loads(json.loads(line)["p"])
+            if pl.get("type") != "RFQ_REQUEST" or len(pl["leg_position_ids"]) != 2:
+                continue
+            n_req += 1
+            if pl["condition_id"] in seen:
+                continue
+            seen.add(pl["condition_id"])
+            a, b = pl["leg_position_ids"]
+            per_combo[classify_pair(refs[a], refs[b])] += 1
     tot = sum(per_combo.values())
     assert n_req > 5000 and tot > 3000
     share = {k: 100 * v / tot for k, v in per_combo.items()}

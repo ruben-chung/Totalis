@@ -387,7 +387,7 @@ def render_notes(res: dict[str, Any], *, counts: dict[str, int] | None = None, c
          "closing ladders from `data/history.db`, Kalshi settled props). Model `stat = s * team_points + e` with `s` from "
          "the line when a line and a team-points line exist (`line`), else the leave-one-out season share (`season`). "
          "Residual sds are by line bucket; pair correlations are on standardized residuals `z = e / sd(bucket)`. "
-         "Parameters: `data/props_fit.json`.", ""]
+         "Parameters: `rfqbot/props/props_fit.json`.", ""]
     if counts:
         L += ["## Dataset", "", "| table | rows |", "|---|---|"] + [f"| {k} | {v:,} |" for k, v in counts.items()] + [""]
     if coverage:

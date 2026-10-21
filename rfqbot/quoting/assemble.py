@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -26,24 +27,28 @@ from .config import QuoteConfig
 from .decisions import DecisionLog, decision_row
 from .semantics import SHARE_E6, UnsupportedRfq, maker_view, notional_e6, requested_shares_e6
 
-try:  # real classifier (rfqbot.clusters) when it lands, else the local stub
-    from ..clusters import cluster  # type: ignore
-except ImportError:  # pragma: no cover
-    from ._cluster_stub import cluster
-from ._cluster_stub import game_key_of as game_prefix_of   # slug -> ladder/game prefix (regex, sport agnostic)
+from ..clusters import cluster
 
 log = logging.getLogger(__name__)
 TIER_ORDER = ("ok", "thin", "wide", "stale", "disagree", "skip")
 
+# Slug -> ladder/game prefix ("nfl-dal-phi-2026-10-27"), sport agnostic. This is the books/ladders
+# prefix, not rfqbot.clusters' game_key (which is the LegSpec key for registered sports).
+GAME_RE = re.compile(r"^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-|$)")
+DOUBLES_RE = re.compile(r"^([a-z]+-doubles-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-|$)")
+
+
+def game_prefix_of(slug: str | None) -> str | None:
+    if not slug:
+        return None
+    m = GAME_RE.match(slug) or DOUBLES_RE.match(slug)
+    return m.group(1) if m else None
+
 
 def _pair_class(c: Any) -> str:
-    """Normalise a cluster's class across the stub (``pair_class``) and rfqbot.clusters (``classes`` set)."""
-    pc = getattr(c, "pair_class", None)
-    if pc:
-        return pc
-    classes = set(getattr(c, "classes", ()) or ())
+    """The strongest pair class that joined a cluster's legs (rfqbot.clusters ``classes`` set)."""
     for k in ("same_market", "same_group", "same_game", "no_game_key"):
-        if k in classes:
+        if k in c.classes:
             return k
     return "single" if len(c.legs) == 1 else "same_game"
 

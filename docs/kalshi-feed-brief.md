@@ -37,7 +37,7 @@ have to recompute matches.
 - Existing client: `rfqbot/kalshi.py` (`KalshiClient`, async httpx, public reads).
   `kalshi_markets` holds every synced game-level market with its parsed `canonical_key`,
   `game_key`, family, period, team, line, side. Matching is in `rfqbot/sports/matcher.py`
-  (`KalshiIndex`, `match`, `match_all`, `MatchResult` with confidence
+  (`KalshiIndex`, `match`, `MatchResult` with confidence
   `exact | rules_differ | shifted_line | none` and notes).
 
 ## Deliverables

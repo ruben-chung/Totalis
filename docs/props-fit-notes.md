@@ -1,6 +1,6 @@
 # NBA player-prop share model: first fit (2026-10-20)
 
-Built by `python -m rfqbot.props fit` on `data/props.db` (box scores: ESPN public API; lines: Polymarket closing ladders from `data/history.db`, Kalshi settled props). Model `stat = s * team_points + e` with `s` from the line when a line and a team-points line exist (`line`), else the leave-one-out season share (`season`). Residual sds are by line bucket; pair correlations are on standardized residuals `z = e / sd(bucket)`. Parameters: `data/props_fit.json`.
+Built by `python -m rfqbot.props fit` on `data/props.db` (box scores: ESPN public API; lines: Polymarket closing ladders from `data/history.db`, Kalshi settled props). Model `stat = s * team_points + e` with `s` from the line when a line and a team-points line exist (`line`), else the leave-one-out season share (`season`). Residual sds are by line bucket; pair correlations are on standardized residuals `z = e / sd(bucket)`. Parameters: `rfqbot/props/props_fit.json`.
 
 ## Dataset
 

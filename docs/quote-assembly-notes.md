@@ -1,7 +1,8 @@
 # Quote assembly: what was built and what the first live runs say (2026-10-20)
 
 Built against `docs/quote-assembly-brief.md`. Package `rfqbot/quoting/` (`semantics.py`,
-`config.py`, `cache.py`, `assemble.py`, `decisions.py`, `_cluster_stub.py`), wiring
+`config.py`, `cache.py`, `assemble.py`, `decisions.py`; `_cluster_stub.py` since removed, the real
+`rfqbot.clusters` landed and `assemble.py` keeps only the slug-prefix regex), wiring
 `python -m rfqbot listen --quote [--decisions-db PATH]`, tests `tests/test_quoting_*.py`.
 
 ## Combo semantics (rfqbot/quoting/semantics.py, with the evidence)

@@ -1,7 +1,6 @@
 """Engine-shaped export: a historical game's markets as rfqbot.ladders.MarketQuote rows."""
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
@@ -49,15 +48,5 @@ def resolved_games(history_db: str | Path = DEFAULT_HISTORY_DB, *, sport: str | 
         if sport:
             sql += " AND sport = ?"; args.append(sport)
         return [r[0] for r in c.execute(sql + " ORDER BY game_start_time DESC", args)]
-    finally:
-        c.close()
-
-
-def legs_json(history_db: str | Path, game_prefix: str) -> str:
-    """Debug helper: the game's legs with outcomes, as JSON."""
-    c = sqlite3.connect(f"file:{Path(history_db)}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
-    try:
-        return json.dumps([dict(r) for r in c.execute("SELECT * FROM hist_legs WHERE game_prefix=?", (game_prefix,))])
     finally:
         c.close()

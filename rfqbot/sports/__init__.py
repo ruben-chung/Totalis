@@ -7,7 +7,4 @@ then is imported here.
 from . import registry  # noqa: F401
 from . import nfl  # noqa: F401  (registers "nfl")
 
-try:  # optional sports built by other sessions; absence is fine
-    from . import nba  # noqa: F401
-except ImportError:  # pragma: no cover
-    pass
+from . import nba  # noqa: F401  (registers "nba")

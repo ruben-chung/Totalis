@@ -297,10 +297,3 @@ def split_tie_bucket(bins: Bins, fit: SurvivalFit, prior_pmf: np.ndarray, tie_pr
             f"P(M=1)={p1:.4f} from {src}, P(M=-1)={pm1:.4f}")
     return Bins(support=bins.support, bin_of=new_bin, mass=mass, edges=bins.edges), note
 
-
-def normal_pmf(mean: float, sd: float, lo: int, hi: int) -> Pmf:
-    support = np.arange(lo, hi + 1)
-    half = np.arange(lo - 0.5, hi + 1.0, 1.0)
-    S = norm_sf((half - mean) / sd)
-    p = np.clip(S[:-1] - S[1:], 0, None)
-    return Pmf(support=support, p=p / p.sum(), fit=None, notes=["prior (no ladder)"])

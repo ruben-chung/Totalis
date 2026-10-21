@@ -120,7 +120,8 @@ def test_kalshi_store_adapter_and_confirmation(tmp_path):
 def test_kalshi_sources(tmp_path):
     books_db, rfq_db = _dbs(tmp_path)
     quotes = poly_source(books_db, rfq_db)(GAME, T0 + 3000)
-    assert kalshi_source("auto") in (no_kalshi,) or callable(kalshi_source("auto"))   # degrades when kalshi_books is absent
+    from rfqbot.kalshi_books import kalshi_for_legs
+    assert kalshi_source("auto") is kalshi_for_legs and kalshi_source("none") is no_kalshi
     syn = kalshi_source("synthetic", quotes=quotes, now_ms=T0 + 3000)
     out = syn([q.position_id for q in quotes], T0 + 3000)
     row, kq = out["p_a"]

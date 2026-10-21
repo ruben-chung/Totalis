@@ -7,6 +7,7 @@ points is recorded in hist_price_checks (a miss for a past kickoff is permanent,
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import json
 import logging
 from typing import Iterable
@@ -85,10 +86,18 @@ async def snapshot_prices(store: HistoryStore, *, sport: str | None = None, offs
             log.warning("prices-history %s failed: %s", token[:12], e)
             return
         pts = pick_points(hist, kick, offsets)
-        with store:
-            if pts:
-                store.insert_prices(token, pts)
-            store.record_price_check(token, kick, len(hist), offsets, now_ms())
+        for attempt in range(6):   # a concurrent pairs/pull job can hold the write lock past busy_timeout: back off, do not die
+            try:
+                with store:
+                    if pts:
+                        store.insert_prices(token, pts)
+                    store.record_price_check(token, kick, len(hist), offsets, now_ms())
+                break
+            except sqlite3.OperationalError as e:
+                if "locked" not in str(e) or attempt == 5:
+                    raise
+                log.warning("history.db locked while writing %s; retry %d", token[:12], attempt + 1)
+                await asyncio.sleep(2 ** attempt)
         counts["with_history" if hist else "no_history"] += 1
         for off in pts:
             counts[f"offset_{off}"] += 1

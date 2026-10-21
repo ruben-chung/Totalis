@@ -17,11 +17,7 @@ def load_quotes(args: Any, settings: Any) -> list[Any]:
     if args.synthetic:
         from .synthetic import make_truth, quotes_from_truth
         return quotes_from_truth(make_truth(), game=args.game, seed=args.seed)
-    try:
-        from ..ladders import game_markets
-    except ImportError:
-        print("rfqbot.ladders.game_markets is not available yet (ladder collector not built); use --synthetic", file=sys.stderr)
-        return []
+    from ..ladders import game_markets
     kw = {}
     if args.books_db:
         kw["books_db"] = args.books_db

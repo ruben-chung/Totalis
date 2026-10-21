@@ -196,6 +196,3 @@ def match(poly: LegSpec, index: KalshiIndex) -> MatchResult:
         reason = f"none:kalshi game exists but has no {poly.family}/{poly.period} markets for it yet"
     return MatchResult("none", notes=[reason], game_date=date)
 
-
-def match_all(polys: Iterable[LegSpec], index: KalshiIndex) -> list[tuple[LegSpec, MatchResult]]:
-    return [(p, match(p, index)) for p in polys]

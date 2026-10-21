@@ -50,8 +50,9 @@ sports (team codes) plus the generic slug codes.
   what `side` and `direction` on the RFQ mean for the maker, and what `requested_size` units
   are (`shares` vs notional). Write it in the module docstring with the evidence. The many
   SELL prints at ~0.999 in the trade log are a known puzzle; if you can explain them, do.
-- Regression test on `data/samples/2026-10-20-live-75s`: class shares must reproduce the
-  numbers above within a point (that sample is the ground truth we measured).
+- Regression test on `tests/fixtures/rfq_sample_75s.jsonl.gz` (the 75 s live capture of
+  2026-10-20, moved into the fixtures so it ships with the repo): class shares must reproduce
+  the numbers above within a point (that sample is the ground truth we measured).
 - Unit tests for every class, the tennis pattern, the no-game-key refusal, and
   `combo_probability` with and without an engine result.
 
