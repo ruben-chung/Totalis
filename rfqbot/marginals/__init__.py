@@ -43,6 +43,11 @@ def compute_game(game_prefix: str, at_ms: int | None = None, *, cfg: MarginalCon
     if poly is None:
         poly = poly_source(books_db, rfq_db)
         poly_confirm = poly_confirm or (lambda qs, t: poly_confirmations(qs, t, books_db=books_db))
+    else:
+        # reader objects may carry their own heartbeat (the backtest's as-of readers do)
+        poly_confirm = poly_confirm or getattr(poly, "confirm", None)
+    if kalshi is not None:
+        kalshi_confirm = kalshi_confirm or getattr(kalshi, "confirm", None)
     quotes = poly(game_prefix, at_ms)
     if kalshi is None:
         kalshi = kalshi_source(kalshi_mode, quotes=quotes, now_ms=eval_ms, db=kalshi_db)

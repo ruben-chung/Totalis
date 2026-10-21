@@ -60,6 +60,19 @@ So EV = Margin - curse - drift.
 
 **Paper runs:** one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,062 for risk. Worst drawdown (bottom 1% of outcomes) less than 7.5k.
 
+**Backtest:** The recorded 4 h window (2.28M RFQs) replayed through the live quoting code on a pinned clock, books read as-of each RFQ, fills from the recorded prints, settled against resolutions. Base run: 19,236 quoted, 21 filled, 17 resolved. Realized P&L +$260 on 17 combos, +$241 mark-to-model, of which +$183 is pricing luck (fair vs outcome) and +$59 margin earned. Only 141 NFL/NBA prints exist in the window and the fills fall in 2 independent game clusters, so nothing here is statistically separable; the mechanical results are:
+
+| setting | filled | model P&L $ | max tail loss $ |
+|---|---|---|---|
+| base (0.5 pt edge, caps on) | 21 | 241 | 7,661 (15%) |
+| independence pricing | 20 | 231 | 7,675 |
+| caps off | 19 | 342 | 68,490 (137%) |
+| edge 0 / 1 pt / 2 pt | 39 / 10 / 1 | 205 / 384 / -40 | ~7,600 |
+| margin table (in-sample) | 13 | 188 | 7,625 |
+
+Fills fall steeply with the edge (39, 21, 10, 1 at 0, 0.5, 1, 2 pt). Caps cost nothing in fills and cut the worst-case loss 9x. Joint vs independence is indistinguishable at this sample. Replayed fairs match the live log (91% within 0.5 pt). Corrections from the replay: trade rate over 4 h is 0.05% of requests (0.135% was the first hour); SELL prints per request are 1.2x BUY, not 3.4x. Needs a second day of flow for an out-of-sample table and any verdict on dependence.
+
+
 
 ## Design decisions worth stating
 
