@@ -11,34 +11,39 @@ Calculate Fair value of each marginal, then estimate dependence to find the join
 
 ### Stage 2: pricing and correlation (NFL and NBA only)
 
-**Fair Value Estimation**: Each Polymarket leg is matched to its Kalshi market. We calcalate the marginal fairs using a precision weighted price (of Poly and Kalshi). Essentially we track change in variance of both venues (these are both tracking the same true probability) - in any window the change in midprice = true change + venues noise. So comparing the two venues gives each venues noise/variance. The error on each fair becomes part of the margin: less confident price, wider quote.
+**Fair Value Estimation**: 
+- Each Polymarket leg is matched to its Kalshi market. We calculate the marginal fairs using a precision weighted price (of Poly and Kalshi). 
+- Essentially we track change in variance of both venues (these are both tracking the same true probability) - in any window the change in midprice = true change + venues noise. So comparing the two venues gives each venues noise/variance. 
+- The error on each fair becomes part of the margin: less confident price, wider quote.
 
 **Dependence:** 
 - Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). 
 - Legs in the same game are priced off a joint distribution of the final score, reconstructed from the market: the spread ladder gives the margin, the total ladder gives the points, the team-total ladders tie the two team scores together. Fitting all of them at once onto a home-away score grid gives one joint that reproduces every quoted line.
-- The fitted grid is a probability table over scores. We draw 50k scores from it and price any combo as the fraction of draws where every leg wins (our dependece value). See Appendix A for one game's fitted grid.
+- The fitted grid is a probability table over scores. We draw 50k scores from it and price any combo as the fraction of draws where every leg wins (our dependece value). See Appendix A visualisation of this. 
 
 Comparing our dependence model against resolved games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overestimated.
 
-
-
-- Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for independence; direction right, magnitude ~25% overstated; tails calibrated; 1H coupling overstated. 
+Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independence
 
 ### Stage 3: inventory and risk
 
-**Exposure:** Every position, filled/pending, is run through the same 50k scores (above). For each outcome/game-state (team wins, over hits) we define Delta "how much our P&L moves if it happens vs not". A ML has delta 1 to its own team winning. From the same scores we can calculate drawdown and risk metrics. 
+**Exposure:** 
+- Every position, filled/pending, is run through the same 50k scores (above). For each outcome/game-state (team wins, over hits) we define Delta "how much our P&L moves if event happens or not". A ML has delta 1 to its own team winning. From the same scores we can calculate drawdown and risk metrics. 
 
-**Sizing:** Min(Volume Asked, Exposure Budget Remaining, Quarter Kelly)
+**Sizing:** 
+- Min(Volume Asked, Exposure Budget Remaining, Quarter Kelly)
 
-**Margin:** We want the margin that maximises expected profit per RFQ = P(fill at margin m) x EV(fill at m). The optimzer picks m to maximise this. 
-P(fill) is the fill curve: we compare our logged paper quotes to the actual prints and count how often we would have won at each margin. 
+**Margin:** 
+- We want the margin that maximises expected profit per RFQ = P(fill at margin m) x EV(fill at m). The optimzer picks m to maximise this. 
+- P(fill) is the fill curve: we compare our logged paper quotes to the actual prints and count how often we would have won at each margin. See Appendix B. 
 
-EV per fill is margin minus two costs. (1) Winner's curse: we get filled more precisely when our price is wrong. So conditional on a fill our fair is wrong against us, by more when it is less certain. The cost is that expected error given a fill. (2) Price Drift (Adverse Selection): Implied Fair price moving away from us after fill. 
-So EV = Margin - curse - drift.
+- EV per fill is margin minus two costs. (1) Winner's curse: we get filled more precisely when our price is wrong. So conditional on a fill our fair is wrong against us, by more when it is less certain. The cost is that expected error given a fill. (2) Price Drift (Adverse Selection): Implied Fair price moving away from us after fill. So EV = Margin - curse - drift.
 
-**Wallets:** on top, each requester gets a profit score from our fills against them. Consistently -EV ones get a premium, or are blocked.
+**Wallets:** 
+- each requester gets a profit score from our fills against them. Consistently -EV ones get a margin premium, or are blocked.
 
-**Skew:** If a quote is +corr to our exposure the margin widens; and vice versa. This skew cannot make us cross FV though. 
+**Skew:** 
+- If a quote is +corr to our exposure the margin widens; and vice versa. This skew cannot make us cross FV. 
 
 
 ### Stage 4: evaluation
@@ -99,4 +104,8 @@ Fills fall steeply with the edge (39, 21, 10, 1 at 0, 0.5, 1, 2 pt). Caps cost n
 
 ![Joint score grid, Bengals at Ravens](img/joint-grid-cin-bal.png)
 
-Bengals at Ravens, 2026-10-25, pre-game Polymarket ladders. Left: market-implied probability of each final score, Ravens points vertical, Bengals points horizontal; dashed line is margin equal to the market spread, dotted line is total equal to the market total. Right: the same grid minus the product of the two team marginals. Red along the spread diagonal and in the high-high and low-low corners is the positive dependence (correlation of team scores +0.24): when one team scores more, so does the other, so favourite-covers-and-over prices above the product. The fit is per integer score; the figure averages over 3 points for display.
+## Appendix B: the fill curve
+
+![Fill curve and expected edge per printed RFQ](img/fill-curve.png)
+
+Margin table fit of 2026-10-21 14:11 UTC. Left: for RFQs that traded, the share we would have won at each margin, by segment, pooled up the ladder (tight NBA two-leg cell at the bottom, all BUY requests at the top). It falls from about 0.8 at zero margin to 0.1 by 2 pt. Right: P(win) times margin minus the model winner's curse; the dot is the optimiser's margin. The tight NBA cell peaks near 2.5 pt. The pooled curves keep rising to the 10 pt grid edge because three or four prints with gaps above 15 pt (legs crossing into play) keep P(win) above zero there; that tail is why pooled nodes were capped with a minimum-wins guard and why the table needs more prints before it is trusted outside the populated cells.
