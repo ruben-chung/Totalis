@@ -46,7 +46,7 @@ Validation: The dependence engine is scored on resolved games. On 93 NFL games B
 
 Venues: On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid.
 
-Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors. Latency per quoted RFQ p50 3 ms, p99 20 ms (84 ms under load).
+Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors.
 
 What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
 
@@ -54,7 +54,7 @@ What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of
 |---|---|---|---|
 | we sell, 3+ legs independent | 0.5-0.75  | 0-0.4 | ~+0.8 |
 | we sell, same-game | 2.7 | +0.5 | ~+3.2 |
-| we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.8 |
+| we buy (requester SELL) | 1.2 | -0.2 to -0.6 (first hour, n 65); -1.4 to -3.0 (7 h, n 16-25) | +0.8 on the first hour; negative on the longer sample |
 
 Wallet block rule: 3.5% flase positives at 95% confidence ( we would rather wrongly block neutral wallets than let sharps trade w us)
 
