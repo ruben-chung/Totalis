@@ -41,6 +41,9 @@ stands. The rest of this document is the engineering backlog they generated.
   combo's condition id, so makers see a new combo; price of XYZ = quoted price / p(extra leg) under
   independence, with a relative error equal to the extra leg's own uncertainty (about 1%).
 
+- **Hedge combo exposure with singles** (2026-10-21). Recorded below under Quoting and execution:
+  the outcome deltas in `rfqbot/risk` are already the hedge ratios per leg.
+
 ## Pricing: marginals
 
 - **Venue weights from data, not priors.** Kalshi's precision multiplier (2.0 on NFL/NBA) is a
@@ -137,8 +140,14 @@ stands. The rest of this document is the engineering backlog they generated.
   on the first night and fall back to the default edge.
 - **Real submission.** Signing, maker onboarding with Polymarket, passphrase and addresses;
   the paper path is complete up to the signed frame.
-- **Hedging.** Lay off leg exposure on the CLOB or on Kalshi when a combo fills; requires the
-  fee model and cross-venue settlement-rule mapping, which the matcher already provides.
+- **Hedging with singles.** Lay off a filled combo's exposure leg by leg on the CLOB or on Kalshi.
+  The outcome deltas in `rfqbot/risk/exposure.py` (E[payoff | leg wins] minus E[payoff | leg loses])
+  are the hedge ratios; a combo is not linear in its legs, so the single-leg hedge removes the
+  first-order exposure and leaves the dependence residual, which is small for disjoint combos and
+  the whole point for same-game ones. Decide per fill whether the hedge is worth its cost: spread
+  plus fees on the hedging venue against the reduction in marginal ES1, which `marginal_risk`
+  already prices. Requires the fee model and the cross-venue settlement-rule mapping (the matcher
+  provides it; `rules_differ` legs cannot be hedged one for one) and real fills to act on.
 
 ## Inventory and risk (stage 3, built)
 
