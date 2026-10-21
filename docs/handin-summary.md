@@ -3,11 +3,13 @@
 Numbers as of 2026-10-21; sources in `docs/*-notes.md`.
 
 ## What was built
+- High level: Calculate Fair value of each marginal, then estimate dependence to find the joint. Quote this FV + margin. 
 
 ### Stage 1: listener and storage
 
 - Websocket listener, verbatim raw log, SQLite store, derived expiry, replay. ~190 RFQ/s recorded
 - Feed facts: 0.135% of requests trade (fill rate); SELL fills 3.4x more than BUY; median 133s from first request to print; no requester concentration (top 10 = 7%).
+
 
 ### Stage 2: pricing and correlation (NFL and NBA only)
 
@@ -15,33 +17,44 @@ Each Polymarket leg is matched to its Kalshi market. We calcalate the marginal f
 
 The error on each fair becomes part of the margin: less confident price, wider quote.
 
-Dependence. Legs in different games are independent, so the combo price is just the product. Legs we cannot place in a game are refused. Legs in the same game are priced off the market's own joint distribution of the score: the spread, total and team-total ladders tell us the distribution of each, and fitting them together on a home-away score grid gives the joint. We sample 50k scores from it and read any combo off as the fraction of scores where every leg wins. A calibration layer per market-type pair then checks that against resolved games and shrinks toward independence where the engine overstates.
+Dependence: Legs in different games are independent, so the combo price is just the product (with different markets like Politics, Economics etc these assumptions cannot be made). Legs in the same game are priced off the market's own implied joint distribution of the score (spread, total ladders). Fitting all of these at once into a score grid gives us the joint distribution. 
 
-- Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for independence; direction right, magnitude ~25% overstated; tails calibrated; 1H coupling overstated. 93 games cannot move most pairs; ~10k would.
-- Market clearing vs product of leg mids: BUY 3+ legs +0.5 to +0.75 pt; same-game BUY +2.7 pt; SELL −1.2 pt.
-- Round-trip arbitrage: 47 cases in one hour against one maker quoting 22% under fair. Hard rule: never quote below fair on independent combos.
+Comparing our dependence model against resolves games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overstated.
+
+We sample 50k scores from the score grid and read any combo off as the fraction of scores where every leg wins. 
+
+- Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for independence; direction right, magnitude ~25% overstated; tails calibrated; 1H coupling overstated. 
 
 ### Stage 3: inventory and risk
 
-Exposure. Every position, filled or still pending, is run through the same 50k scores. For each outcome (team wins, over hits) the delta is how much our P&L moves if it happens vs not; a moneyline share has delta 1 to its own team. From the same scores we get the worst loss per game and the 1% expected shortfall of the whole book. Each is capped (5%, 10%, 15% of $50k). A quote that would breach is cut to what fits or skipped.
+Exposure: Every position, filled/pending, is run through the same 50k scores (above). For each outcome/game-state (team wins, over hits) we define Delta "how much our P&L moves if it happens vs not". A ML has delta 1 to its own team winning. From the same scores we can calculate drawdown and risk metrics. 
 
-Sizing. Min of what was asked, the cap headroom, and a quarter Kelly.
+Sizing: Min(Volume Asked, Exposure Budget Remaining, Quarter Kelly)
 
-Margin. Fitted per segment (sport, number of legs, direction, same-game or not, how uncertain the fair is). We compare our logged paper quotes to the actual prints to get a fill curve: how often we would have won at each margin. Winner's curse: when we win it is because our price was wrong, so the expected error given a fill is charged. Markout: if the fair keeps moving against us after prints in a segment, that drift is charged too. Wallets: each requester gets a profit score; consistently -EV ones get a premium or are blocked. The margin is the one that maximises fill probability x (margin - curse), subject to a minimum fill rate.
+Margin. We want the margin that maximises expected profit per RFQ = P(fill at margin m) x EV(fill at m). The optimzer picks m to maximise this. 
+P(fill) is the fill curve: we compare our logged paper quotes to the actual prints and count how often we would have won at each margin. 
 
-Skew. If a quote adds to our tail risk the margin widens; if it hedges, it tightens toward fair, never through it.
+EV per fill is margin minus two costs. (1) Winner's curse: we get filled more precisely when our price is wrong. So conditional on a fill our fair is wrong against us, by more when it is less certain. The cost is that expected error given a fill. (2) Price Drift (Adverse Selection): Implied Fair price moving away from us after fill. 
+So EV = Margin - curse - drift.
 
-- Before caps, every quote assumed filled: ES1 347% of capital; one requester re-sent one combo 110 times. After caps, 10 min live: ES1 8.4% at end, pinned at 15% when flow repeated; largest stack 7 quotes.
-- One-hour run with caps and margin table live: 503,816 RFQs, 947 quoted; ES1 at the 15% cap most of the hour, 4.8% at the end; 1,062 skips by the ES1 cap; margin p50 3.8 pt; 19% of quotes from a fitted node; no errors.
-- Latency per quoted RFQ: p50 2.9 ms, p99 20 ms quiet; p99 84 ms under load.
-- Margin table, first night: fill probability at zero margin 0.4 to 0.8% per request; optimal margin 0.5 pt on the one populated NBA cell, 2.5 pt pooled; 15 counterfactual wins, so a first reading.
-- Markouts: BUY ~0 to +0.4 pt for the maker; SELL −0.2 to −0.6 pt at 15 to 30 min, against −1.2 pt bought below fair. Adverse selection is mechanical (round trips) and on the sell side.
-- Wallet block: 22% false positives at 90% confidence under sequential testing; 3.5% at 95%.
+Wallets: on top, each requester gets a profit score from our fills against them. Consistently -EV ones get a premium, or are blocked.
 
-### Stage 4: backtest
+Skew. If a quote is +corr to our exposure the margin widens; and vice versa. This skew cannot make us cross FV though. 
 
-- Replay harness built: raw log through the live quoting code on a pinned clock, books read as of each RFQ, fills from recorded prints, settlement from resolutions, attribution per margin term, compare across design switches. Reference run in progress.
-- Probe RFQs in dry-run build (requester side needs builder credentials).
+
+### Stage 4: evaluation
+
+Validation: The dependence engine is scored on resolved games. On 93 NFL games Brier is 0.130 vs 0.140 for independence. Direction right, magnitude ~25% overstated, tails fine, 1H coupling overstated. 93 games is too few to move most pairs; ~10k would.
+
+Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors. Latency per quoted RFQ p50 3 ms, p99 20 ms (84 ms under load).
+
+What the prints say: 0.135% of requests trade; SELL fills 3.4x BUY. Market clears at product + 0.5 to 0.75 pt on 3+ leg combos, +2.7 pt on same-game, -1.2 pt on SELLs. Markouts after prints: BUY ~0 to +0.4 pt for the maker, SELL -0.2 to -0.6 pt, so EV on SELL flow is roughly 1.2 - 0.6 = +0.6 pt. Round trips: 47 in one hour against one maker quoting 22% under fair; hence never quote below fair on independent combos.
+
+Margin table, first night: P(fill) at zero margin is 0.4 to 0.8% per request; optimal margin 0.5 pt on the one populated NBA cell, 2.5 pt pooled; 15 counterfactual wins, so a first reading. Wallet block rule: 22% false positives at 90% confidence (sequential test), 3.5% at 95%.
+
+Backtest: Replay the raw log through the live quoting code on a pinned clock, books read as of each RFQ, fills from recorded prints, settlement from resolutions, P&L attributed per margin term. Then the same window under each switch: joint vs independence, caps on/off, fixed edge vs margin table. Harness built; reference run in progress. Realized P&L needs resolutions over the week.
+
+Probe RFQs (dry-run build): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Needs builder credentials to go live.
 
 - 378 tests. Built with one planning session plus peer Claude Code sessions; briefs and notes under `docs/`.
 
