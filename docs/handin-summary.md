@@ -75,8 +75,8 @@ Paper runs: one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,0
 1. Backtest compare table: joint vs independence, caps on/off, fixed edge vs table.
 2. Realized P&L as resolutions arrive over the week.
 3. NBA same-game engine.
-4. Adverse selection: tilt the fair toward Kalshi when venues disagree (it leads); refuse legs in the last ~10 min before tip-off; seed the SELL premium at ~1.5 pt; split SELL flow into decided-leg exits vs live-leg sells.
-5. Last look: makers with ~$2,500 combo volume get a 1 s window to decline a selected quote. Re-price at selection, decline if the fair moved against us by more than the margin. The standard adverse-selection defence; not available in paper mode.
+4. Adverse selection: tilt the fair toward Kalshi when venues disagree (it leads)
+5. Last look: makers with ~$2,500 combo volume can apply (form plus a contact at Polymarket) for a confirmation step after their quote is selected: an RFQ_CONFIRMATION_REQUEST arrives and the maker answers CONFIRM or DECLINE before a confirm_by deadline (1 s in the overview). Re-price at selection, decline if the fair moved against us by more than the margin. Declining over 15% in an hour can pause quoting. The standard adverse-selection defence; not available in paper mode.
 6. Probe RFQs live once credentials exist; per-RFQ competitor gap into the optimiser.
 7. Hedging with singles; strategic feedback damping.
 8. Full list: `docs/future-work.md`.
