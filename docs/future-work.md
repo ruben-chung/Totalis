@@ -75,7 +75,7 @@ In order raised, with status.
 
 ## Data and operations
 
-- Process supervisor with restart and one health command.
+- Process supervisor with restart and one health command. On 2026-10-21 the machine lost network for 5.6 h (15:45 to 21:25 UTC); the recorders reconnected on their own but nothing alerted, so the day's flow has a gap. A gap monitor on the raw log (alert when no frame for 60 s) is the minimum.
 - Retention: ~3 GB/day RFQ raw, ~0.5 GB/day Kalshi.
 - Monitor slug-date convention drift (NBA switched UTC to ET mid-season).
 - Catalog gaps: WNBA, Kalshi first-basket and `KXNFLHIGHSCOREQ` grammars, All-Star and Finals families; 717 NBA history legs unparsed; reschedules keyed on Gamma `gameStartTime`.
