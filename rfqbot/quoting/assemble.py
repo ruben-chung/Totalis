@@ -231,6 +231,8 @@ class Assembler:
         d = Decision(rfq_id=rfq.rfq_id, at_ms=now, direction=rfq.direction, side=rfq.side, requested_unit=rs.unit,
                      requested_e6=int(rs.value_e6 or 0), n_legs=len(rfq.leg_position_ids),
                      requester=getattr(rfq, "requestor_public_id", "") or "", condition_id=getattr(rfq, "condition_id", "") or "")
+        if self.cfg.probe_requester_id and d.requester == self.cfg.probe_requester_id:
+            return d.skip("own_probe")           # never quote our own probe RFQs (the probe would measure us)
         try:
             mv = maker_view(rfq.direction, rfq.side, rs.unit)
         except UnsupportedRfq as e:

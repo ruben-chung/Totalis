@@ -8,6 +8,7 @@ from rfqbot.marginals import Marginal
 from rfqbot.messages import RequestedSize, RfqRequest
 from rfqbot.pricing.quotes import Quote
 from rfqbot.quoting import Assembler, QuoteConfig
+from rfqbot.quoting.config import load_quote_config
 from rfqbot.quoting.cache import GameCache, GameEntry
 from rfqbot.quoting.decisions import DecisionLog
 
@@ -103,3 +104,13 @@ def test_refit_is_picked_up_by_the_refresh_hook(tmp_path):
     path.unlink()
     assert asm.reload_edge_table() and asm.edge_table_fitted_at is None
     assert asm.evaluate(rfq(), store).edge_source == "default"
+
+
+def test_own_probe_requester_is_skipped_before_pricing():
+    cfg = QuoteConfig(risk=False, edge=False, probe_requester_id="probe_me")
+    _, store, asm = world(cfg)
+    assert asm.evaluate(rfq(req="probe_me"), store).decision == "skipped:own_probe"
+    assert asm.evaluate(rfq(req="req_a"), store).quoted
+    assert load_quote_config(env={"PROBE_REQUESTER_ID": " probe_me "}).probe_requester_id == "probe_me"
+    off = Assembler(world(QuoteConfig(risk=False, edge=False))[0], QuoteConfig(risk=False, edge=False), decisions=DecisionLog(None), now_ms=lambda: NOW)
+    assert off.evaluate(rfq(req="probe_me"), store).quoted

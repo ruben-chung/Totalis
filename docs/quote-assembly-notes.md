@@ -25,6 +25,11 @@ Built against `docs/quote-assembly-brief.md`. Package `rfqbot/quoting/` (`semant
 
 ## Pipeline (assemble.py), every term logged
 
+0. own probe guard (2026-10-21, for `docs/probe-rfq-brief.md` item 5): when `QuoteConfig.probe_requester_id`
+   (env `PROBE_REQUESTER_ID`) is set and equals the RFQ's `requestor_public_id`, `skipped:own_probe` before
+   anything is priced, so the probe loop never measures our own quotes. Empty id (the default until
+   `PROBE_MODE=live`) is a no-op. Test `test_quoting_edge.py::test_own_probe_requester_is_skipped_before_pricing`.
+
 1. legs: `Store.get_market` -> `rfqbot.clusters.cluster(rows)`; per-leg marginal from the game
    cache (`GameCache`, refreshed by a background task via `rfqbot.marginals.compute_game`, so the
    marginal layer's confirmation-based staleness applies). Skips: `leg:unknown_market`,

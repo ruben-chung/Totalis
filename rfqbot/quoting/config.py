@@ -21,6 +21,7 @@ class QuoteConfig:
     risk_refresh_sec: float = 2.0           # live book / exposure rebuild period (refresh thread)
     edge: bool = True                       # margin from rfqbot.edge's fitted table (QUOTE_EDGE=0: base_edge + k_m u_m + k_d u_d)
     edge_table: Path | None = None          # margin table path (default rfqbot/edge/margin_table.json); reloaded on the refresh thread
+    probe_requester_id: str = ""            # our own probe wallet (PROBE_REQUESTER_ID); its RFQs are skipped so the probe never measures us
     max_size_usd: float = 500.0             # per quote, notional at our price
     min_size_usd: float = 5.0               # below this: skip
     tick: float = 0.001                     # price rounding, away from fair
@@ -75,6 +76,7 @@ def load_quote_config(env_file: str | os.PathLike | None = ".env", env: dict[str
         risk_refresh_sec=_f(env, "RISK_REFRESH_SEC", base.risk_refresh_sec),
         edge=(env.get("QUOTE_EDGE") or "1").strip().lower() not in ("0", "false", "no", "off"),
         edge_table=Path(env["QUOTE_EDGE_TABLE"]) if env.get("QUOTE_EDGE_TABLE") else None,
+        probe_requester_id=(env.get("PROBE_REQUESTER_ID") or base.probe_requester_id).strip(),
         max_size_usd=_f(env, "MAX_SIZE_USD", base.max_size_usd), min_size_usd=_f(env, "MIN_SIZE_USD", base.min_size_usd),
         tick=_f(env, "TICK", base.tick), price_min=_f(env, "PRICE_MIN", base.price_min), price_max=_f(env, "PRICE_MAX", base.price_max),
         buy_safety_max=_f(env, "BUY_SAFETY_MAX", base.buy_safety_max), tier_size_mult=tiers, legs_size_mult=legs,
