@@ -95,8 +95,8 @@ Both book stores are change-only; staleness is measured from the feed's last con
 ## Docs
 
 `docs/*-brief.md` is how a task was framed and what was verified first; `docs/*-notes.md` is what
-was built and what the data said. `docs/future-work.md` is the backlog; `docs/handin-summary.md` the results summary; `docs/appendix-joint-grid.md` a worked
-joint-grid example; `docs/coupling-environment-study.md` an idea recorded and not developed.
+was built and what the data said. `docs/future-work.md` is the backlog; `docs/handin-summary.md` the results summary; `docs/img/joint-grid-cin-bal.png` one game's
+fitted joint score grid; `docs/coupling-environment-study.md` an idea recorded and not developed.
 
 ## Workflow
 
