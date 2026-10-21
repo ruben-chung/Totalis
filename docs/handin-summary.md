@@ -50,11 +50,11 @@ Paper runs: The bot quotes the live feed and logs every decision. Before caps, w
 
 What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
 
-| flow | margin at fill | drift after fill (15-30 min) | net |
+| flow | margin at fill (pt) | drift after fill (pt, positive is good) | net (pt) |
 |---|---|---|---|
-| we sell, 3+ legs independent | +0.5 to +0.75 pt | ~0 to +0.4 pt for us | margin kept |
-| we sell, same-game | +2.7 pt | +0.5 pt for us | margin kept; market prices the dependence |
-| we buy (requester SELL) | +1.2 pt | -0.2 to -0.6 pt against us | ~+0.6 pt |
+| we sell, 3+ legs independent | 0.5-0.75  | 0-0.4 | ~+0.6 |
+| we sell, same-game | 2.7 | +0.5 | ~+3.2 |
+| we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.6 |
 
 Round trips: 47 in one hour against one maker selling 22% under fair and being sold back to at fair; hence never quote below fair on independent combos.
 
