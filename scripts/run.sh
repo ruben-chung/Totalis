@@ -7,14 +7,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mod="${1:?usage: scripts/run.sh <module> [args...]}"; shift || true
-pattern="python -m ${mod}( |$)"
+# Duplicate key = module plus its first argument (the subcommand), so e.g. `rfqbot.history prices`
+# and `rfqbot.history pairs` may run concurrently while a second `rfqbot.history prices` is refused.
+sub="${1:-}"; case "$sub" in -*) sub="";; esac
+if [ -n "$sub" ]; then pattern="python -m ${mod} ${sub}( |$)"; else pattern="python -m ${mod}( |$)"; fi
 if pgrep -f "$pattern" >/dev/null 2>&1; then
   echo "refusing: '$mod' already running:" >&2
   pgrep -fl "$pattern" | grep -v pgrep >&2
   exit 2
 fi
 mkdir -p data/logs
-log="data/logs/${mod//[.\/]/_}.log"
+log="data/logs/${mod//[.\/]/_}${sub:+_$sub}.log"
 nohup caffeinate -i .venv/bin/python -m "$mod" "$@" >> "$log" 2>&1 &
 sleep 1
 if pgrep -f "$pattern" >/dev/null 2>&1; then
