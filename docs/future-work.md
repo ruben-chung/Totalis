@@ -6,6 +6,41 @@ and 4 (inventory and risk, backtest) are designed below but not built. This docu
 every extension we identified along the way, why it matters, and what it would take. Maintained by the planning session; sessions send additions by message.
 Items marked **(idea only)** were explicitly scoped out by decision, not forgotten.
 
+## Ruben's ideas
+
+Ideas Ruben raised in the planning conversations, in the order they came up, with where each one
+stands. The rest of this document is the engineering backlog they generated.
+
+- **Aggregate Kalshi and Polymarket marginals by liquidity, flag wide spreads and venue disagreement**
+  (2026-10-20). Built: `rfqbot/marginals`, precision-weighted with a Kalshi prior of 2.0 on NFL/NBA.
+- **Carry a confidence level on every fair and let it widen the margin at execution** (2026-10-20).
+  Built: the `u_m` term in quote assembly is the marginal's expected error.
+- **Certify independence first, because then a combo is just a product** (2026-10-20). Built:
+  `rfqbot/clusters` classifier; different game means independent for sports; politics vs economics
+  deliberately not certified.
+- **Model dependence within a game through the market-implied joint distribution of points**
+  (2026-10-20). Built for NFL: `rfqbot/pricing`; soccer, NBA same-game and player props deferred.
+- **Measure calibration per market-type pair, never pooled** (2026-10-20). Built: per family-pair
+  calibration with game-clustered errors.
+- **Realized-outcome tests are underpowered; count evidence in games and match environments by
+  spread and total** (2026-10-20). Recorded: `docs/coupling-environment-study.md` (idea only).
+- **Exposure caps per outcome through an options-like delta, a sizing function, and margin as a
+  function of adverse selection** (2026-10-20). Built: `rfqbot/risk` deltas and caps, Kelly sizing,
+  inventory skew in quote assembly.
+- **Winner's curse: when our price is wrong we always get filled; margin is an optimisation under a
+  fill-rate constraint** (2026-10-20). Built: `rfqbot/edge` fill curves, curse term, optimiser.
+- **Track opposing wallets and block consistently negative-EV counterparties; measure fill rate and
+  adverse selection per RFQ type** (2026-10-20). Built: wallet scores and blocks, per-segment tables.
+- **Measure EV as the price move x seconds after a fill** (2026-10-21). Built as the markout monitor
+  in `rfqbot/edge/markout.py` on leg-book fairs; combo-level version below.
+- **Probe RFQs: request a quote on the combo we just filled, read the makers' prices, never accept**
+  (2026-10-21). Being built: `rfqbot/probe` (brief `docs/probe-rfq-brief.md`); live sending waits
+  on requester credentials.
+- **Disguise the probe by adding a near-certain leg from another game, then back the combo price
+  out** (2026-10-21). Part of the probe brief: a 0.99 leg from an independent game changes the
+  combo's condition id, so makers see a new combo; price of XYZ = quoted price / p(extra leg) under
+  independence, with a relative error equal to the extra leg's own uncertainty (about 1%).
+
 ## Pricing: marginals
 
 - **Venue weights from data, not priors.** Kalshi's precision multiplier (2.0 on NFL/NBA) is a
@@ -105,11 +140,17 @@ Items marked **(idea only)** were explicitly scoped out by decision, not forgott
 - **Hedging.** Lay off leg exposure on the CLOB or on Kalshi when a combo fills; requires the
   fee model and cross-venue settlement-rule mapping, which the matcher already provides.
 
-## Inventory and risk (stage 3, in progress)
+## Inventory and risk (stage 3, built)
 
-- Exposure deltas, caps and marginal risk exist (`rfqbot/risk`, `docs/risk-exposure-notes.md`).
-  Remaining: wire caps and the inventory skew into quote assembly; sizing from cap headroom and a
-  Kelly-style bound.
+- Exposure deltas, caps and marginal risk (`rfqbot/risk`, `docs/risk-exposure-notes.md`) are wired
+  into quote assembly with Kelly sizing and the inventory skew (`docs/risk-wiring-notes.md`).
+- **Fill path unexercised live.** The feed is unauthenticated, so no execution updates arrive;
+  trade-size fills and settlement in the live Inventory are covered by unit tests only. With real
+  fills the book stays full and the caps bind for the day; in paper mode pending quotes expire 31 s
+  after their deadline and the same combo is re-quoted every half minute.
+- **Cross-sport combos** use the first leg's sport for the sport-notional cap.
+- **Margin table loader** (`rfqbot.edge.margin_for`) replaces the fixed base edge in quote assembly:
+  being wired by the NFL session.
 - **Settlement by condition id.** `Book.settle()` needs condition ids, so it only works for books
   loaded with the catalog; decisions-log books cannot settle yet.
 - **Tail attribution for cross-game combos** is first order (exact for single-game positions).
