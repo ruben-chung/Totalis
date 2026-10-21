@@ -44,9 +44,7 @@ Skew. If a quote is +corr to our exposure the margin widens; and vice versa. Thi
 
 Validation: The dependence engine is scored on resolved games. On 93 NFL games Brier is 0.130 vs 0.140 asuuming 100% independence. 
 
-Venues: On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid.
-
-Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors.
+Venues: On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid. 
 
 What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
 
@@ -60,6 +58,7 @@ Wallet block rule: 3.5% flase positives at 95% confidence ( we would rather wron
 
 Probe RFQs (built, dry-run only): request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Dry-run on 3 h of prints: 26 triggers, 20 request bodies built, 18 disguised with a 0.99 leg from another game, 0 sent. Live needs the API passphrase and deposit-wallet addresses; never run in production here.
 
+Paper runs: one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,062 for risk. Worst drawdown (bottom 1% of outcomes) less than 7.5k.
 
 
 ## Design decisions worth stating
@@ -76,6 +75,8 @@ Probe RFQs (built, dry-run only): request our own quote on a combo we just fille
 1. Backtest compare table: joint vs independence, caps on/off, fixed edge vs table.
 2. Realized P&L as resolutions arrive over the week.
 3. NBA same-game engine.
-4. Probe RFQs live once credentials exist; per-RFQ competitor gap into the optimiser.
-5. Hedging with singles; strategic feedback damping.
-6. Full list: `docs/future-work.md`.
+4. Adverse selection: tilt the fair toward Kalshi when venues disagree (it leads); refuse legs in the last ~10 min before tip-off; seed the SELL premium at ~1.5 pt; split SELL flow into decided-leg exits vs live-leg sells.
+5. Last look: makers with ~$2,500 combo volume get a 1 s window to decline a selected quote. Re-price at selection, decline if the fair moved against us by more than the margin. The standard adverse-selection defence; not available in paper mode.
+6. Probe RFQs live once credentials exist; per-RFQ competitor gap into the optimiser.
+7. Hedging with singles; strategic feedback damping.
+8. Full list: `docs/future-work.md`.
