@@ -66,7 +66,7 @@ RFQs stacking exposure) and `docs/margin-optimizer-notes.md` (fill curves, marko
   listener: `submission_deadline + 10 s acceptance + 1 s last look + EXPIRY_GRACE_MS (20 s default)`.
 - **Resolutions are the gap.** `rfq.db.market_resolutions(condition_id, resolved_outcome, resolved_at_ms)`
   has 57,577 rows, all pulled on 2026-10-20; joined through `markets.position_id`, only **31 of the
-  1,588 traded combos** have every leg resolved today. `data/history.db` `hist_markets` has 107,663
+  1,588 trade prints (26 of 1,385 distinct traded combos on a later count)** have every leg resolved today. `data/history.db` `hist_markets` has 107,663
   resolved markets (NFL 54,290, NBA 53,492) with `outcome_prices`, also keyed by `condition_id`.
   `python -m rfqbot.history resolve --rfq-db data/rfq.db` refreshes `market_resolutions` from Gamma
   (`closed=true` needed; it is a one-shot run, owned by the Data Engineer session). Games in the

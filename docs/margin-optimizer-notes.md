@@ -115,16 +115,18 @@ credited to a print without a decision is the node's m* (2.5 pt) and BUY markout
 
 ## What did not hold
 
-1. **The sequential block rule's false-positive rate is not low at 90%.** The rule is evaluated at every
-   refresh, i.e. after every fill from the 8th, so it is a sequential test with ~30 looks. Simulated neutral
-   wallets (profit ~ N(0, 2 pt), 40 fills, population of 20 such wallets):
+1. **The sequential block rule's false-positive rate is ~22% at 90%, and that is accepted.** The rule
+   is evaluated at every refresh, i.e. after every fill from the 8th, so it is a sequential test with
+   ~30 looks. Simulated neutral wallets (profit ~ N(0, 2 pt), 40 fills, population of 20 such wallets):
 
    | EDGE_BLOCK_CONF | 0.90 | 0.95 | 0.975 | 0.99 |
    |---|---|---|---|---|
    | false-positive rate | 22.5% | 3.5% | 4.5% | 1.0% |
 
-   A -2 pt wallet (sd 2 pt) is caught in 97%+ of runs with a median of <= 16 fills at 0.90. The default
-   stays at the brief's 0.90 (`tests/test_edge_wallets.py` pins both numbers); recommend 0.95.
+   Ruben's decision (2026-10-21): keep 0.90. The payoff is skewed: blocking a wallet that is not sharp
+   costs a little flow for 7 days, failing to block a sharp one costs EV on every fill. What matters is
+   detection: a -2 pt wallet (sd 2 pt) is caught in 97%+ of runs with a median of <= 16 fills at 0.90.
+   `tests/test_edge_wallets.py` pins both the false-positive band and the detection speed.
 2. **Wallet profit per fill is scored on prints, not fills.** Paper mode has no fills and 5 counterfactual
    wins tonight, so a wallet's observations are its prints in the quoted sports, each credited with our
    logged markup when we quoted that RFQ and the node's m* otherwise, plus the 30-min model markout.
@@ -144,5 +146,6 @@ credited to a print without a decision is the node's m* (2.5 pt) and BUY markout
 
 - Per-RFQ delta from the live best competing quote (the RFQ feed only shows the print, not the losing
   quotes); a two-sided curse that includes our size relative to the print.
-- Always-valid (mixture) confidence sequences for the block rule instead of a fixed-level bound.
+- Always-valid (mixture) confidence sequences for the block rule, only if the 7-day blocks ever cost
+  measurable flow; the fixed 90% bound is the chosen trade-off.
 - A joint-engine later fair for NFL same-game combos in the markout monitor.

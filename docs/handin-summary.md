@@ -34,7 +34,7 @@ Numbers as of 2026-10-21; sources in `docs/*-notes.md`.
 ## Limits
 
 - Paper only: no credentials, no fills, no execution updates; fill path tested by unit tests and counterfactual prints.
-- Four hours of recorded flow; 31 of 1,588 traded combos resolved on day one.
+- Four hours of recorded flow; 26 of 1,385 traded combos fully resolved on day one (65 partly; 31 have a leg missing from the catalog).
 - NFL-only joint engine; NBA same-game (38% of quotable flow) skipped; props fit exists but not wired; 96% of RFQs are sports without ladders.
 - Venue weight 2.0 is a prior (measurement running).
 

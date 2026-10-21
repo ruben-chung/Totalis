@@ -69,7 +69,7 @@ In order raised, with status.
 
 - Walk-forward refits of the margin table inside the replay.
 - A cost for displacing the printed maker (round-trip harvesters would hit us instead).
-- Realized P&L needs resolutions refreshed over the week; 31 of 1,588 traded combos were resolved on day one.
+- Realized P&L needs resolutions refreshed over the week; 31 of 1,588 trade prints (26 of 1,385 distinct traded combos on the later count) were fully resolved on day one.
 
 ## Data and operations
 
