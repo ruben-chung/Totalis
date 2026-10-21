@@ -20,7 +20,7 @@ Sections, in both:
 4. **Findings**: data quirks, settlement-rule differences, API behaviour, anything a later
    reader would otherwise rediscover the hard way.
 5. **Not done / v2**: deliberate omissions and their reasons, one line each. Send these to the
-   planning session so they land in `docs/future-work.md`; do not edit that file yourself.
+   planning session so they land in the "Next Steps" section of `docs/handin-summary.md`; do not edit that file yourself.
 
 Keep it factual and specific: numbers over adjectives, paths over descriptions, and nothing
 about files you do not own. If the suite is not green, say which tests fail and whose they are.

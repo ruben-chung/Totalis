@@ -33,7 +33,6 @@
     "rfqbot/props/**": "props",
     "tests/test_marginals_*.py": "props",
     "tests/test_props_*.py": "props",
-    "docs/future-work.md": "planning",
     "docs/*-brief.md": "planning",
     ".claude/**": "planning",
     "scripts/**": "planning",
@@ -47,6 +46,7 @@
     "docs/backtest-notes.md": "backtest",
     "rfqbot/probe/**": "nba",
     "tests/test_probe_*.py": "nba",
-    "docs/probe-rfq-notes.md": "nba"
+    "docs/probe-rfq-notes.md": "nba",
+    "docs/handin-summary.md": "planning"
   }
 }

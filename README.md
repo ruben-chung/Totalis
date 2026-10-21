@@ -13,7 +13,7 @@ exposure caps, and logs the paper quote. Spec: `polymarket-rfq-bot-spec.md`.
 | 3. Inventory and risk | done: outcome deltas, hard caps, Kelly sizing, inventory skew, fitted margin table, wallet blocks |
 | 4. Backtest | in progress: `rfqbot/backtest` (brief `docs/backtest-brief.md`) |
 
-Backlog and ideas: `docs/future-work.md`.
+Results, limits and next steps: `docs/handin-summary.md`.
 
 ## Setup
 
@@ -95,7 +95,7 @@ Both book stores are change-only; staleness is measured from the feed's last con
 ## Docs
 
 `docs/*-brief.md` is how a task was framed and what was verified first; `docs/*-notes.md` is what
-was built and what the data said. `docs/future-work.md` is the backlog; `docs/handin-summary.md` the results summary; `docs/img/joint-grid-cin-bal.png` one game's
+was built and what the data said. `docs/handin-summary.md` is the results summary with next steps; `docs/img/joint-grid-cin-bal.png` one game's
 fitted joint score grid; `docs/coupling-environment-study.md` an idea recorded and not developed.
 
 ## Workflow

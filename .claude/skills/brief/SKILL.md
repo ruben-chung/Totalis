@@ -26,4 +26,4 @@ to the target session and ask it to read the file in full.
 
 Style: short paragraphs, concrete numbers, no speculation dressed as fact. Length is whatever the
 facts need; most briefs run 60 to 130 lines. After sending, record the delegation in
-`docs/future-work.md` only if something was deliberately scoped out, and in memory.
+the "Next Steps" section of `docs/handin-summary.md` only if something was deliberately scoped out, and in memory.

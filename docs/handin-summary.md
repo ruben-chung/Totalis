@@ -91,21 +91,22 @@ Fills fall steeply with the edge (39, 21, 10, 1 at 0, 0.5, 1, 2 pt). Caps cost n
 
 ## Next Steps in this project (I dont have time)
 
-1. Backtest compare table: joint vs independence, caps on/off, fixed edge vs table.
-2. Realized P&L as resolutions arrive over the week.
-3. NBA same-game engine.
-4. Adverse selection: tilt the fair toward Kalshi when venues disagree (it leads)
-5. Last look: makers with ~$2,500 combo volume can apply (form plus a contact at Polymarket) for a confirmation step after their quote is selected: an RFQ_CONFIRMATION_REQUEST arrives and the maker answers CONFIRM or DECLINE before a confirm_by deadline (1 s in the overview). Re-price at selection, decline if the fair moved against us by more than the margin. Declining over 15% in an hour can pause quoting. The standard adverse-selection defence; not available in paper mode.
-6. Probe RFQs live once credentials exist; per-RFQ competitor gap into the optimiser.
-7. Hedging with singles; strategic feedback damping.
-8. Full list: `docs/future-work.md`.
+The four I would do first:
+
+1. **NBA same-game engine.** NBA same-game combos are 38% of the flow we could otherwise quote and are skipped today. Same machinery as NFL (ladders fitted onto a score grid, 50k draws), with NBA scale, quarters and overtime. Needs a validation set: the season started this week, so resolved NBA games with pre-tip ladders have to accumulate, or last season's history be pulled.
+2. **Adverse selection on the fair.** Kalshi leads price discovery (Polymarket closes 4-6% of a disagreement per minute, Kalshi under 1%), so tilt the fair toward Kalshi when venues disagree instead of only widening. Refuse legs in the last ~10 min before tip-off until there is an in-play fair; condition the scenario set on score and clock to get one. Seed the SELL premium at ~1.5 pt rather than waiting for 30 markouts, and split SELL flow into decided-leg exits (no premium) and live-leg sells (premium). Then last look once volume allows: re-price at selection, decline if the fair moved against us by more than the margin.
+3. **Probe RFQs live, and the per-RFQ curse.** The package is built in dry-run; live needs only the API passphrase and deposit-wallet addresses. Each probe gives the combo's own price seconds after our fill and the best competing quote per RFQ, which replaces the per-segment competitor gap in the winner's-curse term with a per-quote number. Disguise with a 0.99 leg from another game.
+4. **Hedging with singles.** The outcome deltas in the risk layer are already the per-leg hedge ratios. Hedge a fill on the CLOB or Kalshi when spread plus fees is below the drop in marginal tail risk; the dependence residual stays. This also raises capacity, since half of intended quotes were refused by the risk budget.
+
+Other things identified and not built:
+
+- Strategic feedback with other makers: fill curves are fitted from prints that are other makers' quotes, so refits can chase each other wider; damp refits and model the auction. Open research question.
+- Margin table out of sample: a second day of flow; measured curse once nodes have a few hundred wins; fill curves from real fills (size priority, later quotes); always-valid confidence sequence for the wallet block.
+- Dependence: quarters and regulation vs overtime; live second-half coupling; soccer and other sports with ladders; player props in the engine (share model fitted, not wired); environment-stratified coupling study; multi-season calibration.
+- Marginals: third reference source; shifted-line translation through the game model; fee model; calibrate the expected-error forecast against realized error.
+- Risk: fill path unexercised live; cross-sport cap uses the first leg's sport; cross-game tail attribution is first order.
+- Operations: process supervisor and a gap monitor (a 5.6 h network outage on 2026-10-21 went unalerted); hourly resolve and daily history pull; historical books rather than last-trade prices; catalog gaps (WNBA, NFL props in history, player-name collisions).
 
 ## Appendix A: a fitted joint score grid
 
 ![Joint score grid, Bengals at Ravens](img/joint-grid-cin-bal.png)
-
-## Appendix B: the fill curve
-
-![Fill curve and expected edge per printed RFQ](img/fill-curve.png)
-
-Margin table fit of 2026-10-21 14:11 UTC. Left: for RFQs that traded, the share we would have won at each margin, by segment, pooled up the ladder (tight NBA two-leg cell at the bottom, all BUY requests at the top). It falls from about 0.8 at zero margin to 0.1 by 2 pt. Right: P(win) times margin minus the model winner's curse; the dot is the optimiser's margin. The tight NBA cell peaks near 2.5 pt. The pooled curves keep rising to the 10 pt grid edge because three or four prints with gaps above 15 pt (legs crossing into play) keep P(win) above zero there; that tail is why pooled nodes were capped with a minimum-wins guard and why the table needs more prints before it is trusted outside the populated cells.
