@@ -48,7 +48,15 @@ Validation: The dependence engine is scored on resolved games. On 93 NFL games B
 
 Paper runs: The bot quotes the live feed and logs every decision. Before caps, with every quote assumed filled, ES1 was 347% of capital (one requester re-sent one combo 110 times). With caps, ES1 sits at the 15% cap when flow repeats and 4.8-8.4% otherwise; largest stack 7 quotes. One hour with caps + margin table live: 504k RFQs, 947 quoted, 1,062 skipped by the ES1 cap, margin p50 3.8 pt, no errors. Latency per quoted RFQ p50 3 ms, p99 20 ms (84 ms under load).
 
-What the prints say: P(fill) = 0.135%. The margin makers are charging, measured as print vs the product of leg fairs at trade time: on 3+ leg independent combos we sell about 0.5 to 0.75 pt over fair; on same-game combos about 2.7 pt over fair (the market prices the dependence, and the joint engine lands near it); on SELLs we buy about 1.2 pt under fair. After the fill the fair drifts: ~0 to +0.4 pt in our favour on BUYs, 0.2 to 0.6 pt against us on SELLs, so SELL flow nets roughly 1.2 - 0.6 = +0.6 pt. Round trips: 47 in one hour against one maker selling 22% under fair and being sold back to at fair; hence never quote below fair on independent combos.
+What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
+
+| flow | margin at fill | drift after fill (15-30 min) | net |
+|---|---|---|---|
+| we sell, 3+ legs independent | +0.5 to +0.75 pt | ~0 to +0.4 pt for us | margin kept |
+| we sell, same-game | +2.7 pt | +0.5 pt for us | margin kept; market prices the dependence |
+| we buy (requester SELL) | +1.2 pt | -0.2 to -0.6 pt against us | ~+0.6 pt |
+
+Round trips: 47 in one hour against one maker selling 22% under fair and being sold back to at fair; hence never quote below fair on independent combos.
 
 Margin table, first night: P(fill) at zero margin is 0.4 to 0.8% per request; optimal margin 0.5 pt on the one populated NBA cell, 2.5 pt pooled; 15 counterfactual wins, so a first reading. Wallet block rule: 22% false positives at 90% confidence (sequential test), 3.5% at 95%.
 
