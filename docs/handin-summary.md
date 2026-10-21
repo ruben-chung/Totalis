@@ -52,9 +52,9 @@ What the prints say: P(fill) = 0.135%. Margin makers charge (print vs product of
 
 | flow | margin at fill (pt) | drift after fill (pt, positive is good) | net (pt) |
 |---|---|---|---|
-| we sell, 3+ legs independent | 0.5-0.75  | 0-0.4 | ~+0.6 |
+| we sell, 3+ legs independent | 0.5-0.75  | 0-0.4 | ~+0.8 |
 | we sell, same-game | 2.7 | +0.5 | ~+3.2 |
-| we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.6 |
+| we buy (requester SELL) | 1.2 | -0.2 to -0.6 | ~+0.8 |
 
 Round trips: 47 in one hour against one maker selling 22% under fair and being sold back to at fair; hence never quote below fair on independent combos.
 
