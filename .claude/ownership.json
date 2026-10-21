@@ -44,6 +44,9 @@
     "docs/margin-optimizer-notes.md": "nba",
     "rfqbot/backtest/**": "backtest",
     "tests/test_backtest_*.py": "backtest",
-    "docs/backtest-notes.md": "backtest"
+    "docs/backtest-notes.md": "backtest",
+    "rfqbot/probe/**": "nba",
+    "tests/test_probe_*.py": "nba",
+    "docs/probe-rfq-notes.md": "nba"
   }
 }
