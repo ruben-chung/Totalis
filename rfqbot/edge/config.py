@@ -34,6 +34,7 @@ class EdgeConfig:
     block_conf: float = 0.90                            # one-sided confidence of the block rule's upper bound
     min_fill_rate: float = 0.0                          # EDGE_MIN_FILL_RATE: F(m*) >= this (0 = unconstrained)
     min_fill_basis: str = "print"                       # print: F among RFQs that traded | request: F per request
+    min_wins_at_m: int = 2                              # m* must be a markup at which at least this many printed decisions won
     curse_source: str = "model"                         # model | measured: E[error | win] used by the optimiser
     default_edge: float = 0.005                         # QUOTE_BASE_EDGE fallback when no table / node applies
     refresh_sec: float = 300.0                          # monitor loop period
@@ -83,6 +84,7 @@ def load_edge_config(env_file: str | os.PathLike | None = ".env", env: dict[str,
         wallet_k=_f(env, "WALLET_K", b.wallet_k), shrink_n=_f(env, "SHRINK_N", b.shrink_n), block_conf=_f(env, "BLOCK_CONF", b.block_conf),
         min_fill_rate=_f(env, "MIN_FILL_RATE", b.min_fill_rate),
         min_fill_basis=(env.get("EDGE_MIN_FILL_BASIS") or b.min_fill_basis).lower(),
+        min_wins_at_m=int(_f(env, "MIN_WINS_AT_M", b.min_wins_at_m)),
         curse_source=(env.get("EDGE_CURSE_SOURCE") or b.curse_source).lower(),
         default_edge=_f(env, "DEFAULT_EDGE", float(env.get("QUOTE_BASE_EDGE") or b.default_edge)),
         refresh_sec=_f(env, "REFRESH_SEC", b.refresh_sec), kalshi_mode=(env.get("EDGE_KALSHI_MODE") or b.kalshi_mode),

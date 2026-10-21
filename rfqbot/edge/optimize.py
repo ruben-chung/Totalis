@@ -72,21 +72,29 @@ def profit_curve(curve: FillCurve, sigma: float, delta: float | None, *, measure
 
 
 def optimize_node(curve: FillCurve, cfg: EdgeConfig, *, info_premium: float = 0.0,
-                  measured: Sequence[float | None] | None = None) -> NodeResult:
-    sigma = max(curve.sigma_mean, 1e-6)
+                  measured: Sequence[float | None] | None = None, sigma: float | None = None,
+                  segment: str | None = None, level: int | None = None) -> NodeResult:
+    """``sigma`` / ``segment`` / ``level`` override the curve's own when a full cell is priced on a pooled
+    parent's fill curve and delta but with the cell's own uncertainty (a pooled node's mean sigma mixes
+    cells with very different u_m + u_d, which alone can push m* to the grid edge)."""
+    sigma = max(sigma if sigma is not None else curve.sigma_mean, 1e-6)
     delta = curve.delta_mean
-    level = curve.segment.level
+    level = curve.segment.level if level is None else level
+    key = segment or curve.key
     if curve.n == 0:
-        return NodeResult(curve.key, level, 0, 0, sigma, None, cfg.default_edge, 0.0, 0.0, None, 0.0, cfg.default_edge,
+        return NodeResult(key, level, 0, 0, sigma, None, cfg.default_edge, 0.0, 0.0, None, 0.0, cfg.default_edge,
                           cfg.default_edge, 0.0, info_premium, False, "no_data")
     if curve.n_printed < cfg.min_printed or delta is None:
         # nothing ever printed against these quotes: F == 0 everywhere, the objective is flat
-        return NodeResult(curve.key, level, curve.n, curve.n_printed, sigma, delta, cfg.default_edge, 0.0, 0.0, None, 0.0,
+        return NodeResult(key, level, curve.n, curve.n_printed, sigma, delta, cfg.default_edge, 0.0, 0.0, None, 0.0,
                           cfg.default_edge, cfg.default_edge, 0.0, info_premium, False, "no_prints")
     use_meas = cfg.curse_source == "measured" and measured is not None
     pts = profit_curve(curve, sigma, delta, measured=measured, use_measured=use_meas)
     basis = curve.f if cfg.min_fill_basis == "request" else curve.f_print
-    ok = [b >= cfg.min_fill_rate - 1e-12 for b in basis]
+    # a markup is admissible only where enough printed decisions actually won (one stray print at the grid
+    # edge must not define m*), and where the policy bound holds
+    wins = [round(fp * curve.n_printed) for fp in curve.f_print]
+    ok = [b >= cfg.min_fill_rate - 1e-12 and w >= cfg.min_wins_at_m for b, w in zip(basis, wins)]
     feasible = [p for p, good in zip(pts, ok) if good]
     hit = False
     if not feasible:
@@ -102,7 +110,7 @@ def optimize_node(curve: FillCurve, cfg: EdgeConfig, *, info_premium: float = 0.
     z_star = (delta - m_star) / sigma
     curse_mult = lam(z_star)
     base = max(0.0, m_star - curse_mult * sigma)
-    return NodeResult(segment=curve.key, level=level, n=curve.n, n_printed=curve.n_printed, sigma=sigma, delta=delta,
+    return NodeResult(segment=key, level=level, n=curve.n, n_printed=curve.n_printed, sigma=sigma, delta=delta,
                       m_star=m_star, f_star=f_star, curse_star=c_star, z_star=z_star, curse_mult=curse_mult, base=base,
                       profit_fill=m_star - c_star, profit_req=prof, info_premium=max(0.0, info_premium), constraint_hit=hit,
                       source="measured" if use_meas else "model")

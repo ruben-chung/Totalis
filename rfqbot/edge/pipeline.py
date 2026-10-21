@@ -101,6 +101,15 @@ def fit(cfg: EdgeConfig, store: EdgeStore, *, since_ms: int | None = None, until
             continue
         prem, _, _ = info_premium_for(key, means, cfg.n_min)
         nodes[key] = optimize_node(curve, cfg, info_premium=prem, measured=measured30.get(key))
+    # every observed full cell is priced on the node it resolves to, but with its own sigma
+    for cell, (node_key, level) in curves.cells.items():
+        if cell in nodes or not node_key:
+            continue
+        own = curves.nodes.get(cell)
+        node_curve = curves.nodes[node_key]
+        prem, _, _ = info_premium_for(cell, means, cfg.n_min)
+        nodes[cell] = optimize_node(node_curve, cfg, info_premium=prem, measured=measured30.get(node_key),
+                                    sigma=own.sigma_mean if own else None, segment=cell, level=level)
 
     obs = wallet_observations(fills, prints, rows, nodes, cfg)
     scores = score_wallets(obs, cfg, now, prior=store.wallet_scores(), manual=load_manual(cfg.wallet_list))
