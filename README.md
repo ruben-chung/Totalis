@@ -2,7 +2,7 @@
 
 Python 3.11. Listens to Polymarket's combos RFQ feed, records it, prices each combo from live
 Polymarket and Kalshi books with an explicit dependence model for same-game legs, sizes against
-exposure caps, and logs the paper quote. Spec: `polymarket-rfq-bot-spec.md`.
+exposure caps, and logs the paper quote. Spec: `instructions.md`.
 
 ## Status
 
