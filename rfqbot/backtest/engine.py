@@ -112,19 +112,22 @@ class CacheView:
         n = max(0, min(int(bcfg.n_replicas), len(DEFAULT_SHOCKS)))
         self.shocks = DEFAULT_SHOCKS[:n]
         self.trivial = bcfg.pricing == "joint" and cal is None and n == len(DEFAULT_SHOCKS)
-        self._memo: dict[tuple[int, int], GameEntry] = {}
+        self._memo: dict[str, tuple[tuple[int, int], GameEntry]] = {}
 
     def get(self, prefix: str) -> GameEntry | None:
         e = self.cache.get(prefix)
         if e is None or self.trivial or e.model is None:
             return e
+        # One wrapped entry per game, replaced when the cache rebuilt the model. Keying on the model id and
+        # keeping every wrapper (the previous version) retained each rebuilt GameModel with its scenario and
+        # indicator caches, which grew past 70 GB over a day of flow and got the process killed.
         key = (id(e), id(e.model))
-        v = self._memo.get(key)
-        if v is None:
-            model = IndependenceModel(e) if self.bcfg.pricing == "independence" else ModelView(e.model, self.calibration, self.shocks)
-            v = self._memo[key] = replace(e, model=model)
-            if len(self._memo) > 4000:
-                self._memo.clear()
+        hit = self._memo.get(prefix)
+        if hit is not None and hit[0] == key:
+            return hit[1]
+        model = IndependenceModel(e) if self.bcfg.pricing == "independence" else ModelView(e.model, self.calibration, self.shocks)
+        v = replace(e, model=model)
+        self._memo[prefix] = (key, v)
         return v
 
     def __getattr__(self, name: str) -> Any:
