@@ -134,3 +134,8 @@ Compare (Δ model P&L vs base; verdict is on the game-cluster SE):
 - No further runs. `data/backtest.db` is left as is: cmp1 settled (17 of 21 base fills resolved, realized +260.42), cmp2 settled but 100% unresolved at 2026-10-22 00:36 UTC (its games had not been played). The hourly resolve + settle loop was cancelled before it ran.
 - To resolve cmp2 later: `rfqbot.history resolve`, then `python -m rfqbot.backtest settle --group cmp2 --out data/backtest.db`.
 - Suite at the end: 434 passed.
+
+## Addendum: short-horizon drift
+
+- `report.markouts_section` built its `FairSource` with the default one-minute bucket, so a fair at fill + h reused one compute per (game, minute) and the markout times were quantised by up to 60 s. It now uses `bucket_ms=1`. Markouts printed before this change (the 1/5/15/30 min lines above) are bucketed; 5 min and longer move little, the 1 min line is the one that was unreliable.
+- Drift in dollars = sum over fills of shares x maker sign x (fair at fill + h - fair at fill), per-game SE, on the fills that have a fair at both instants. EV_h = gross markup + drift_h on the same fills.

@@ -173,7 +173,7 @@ def markouts_section(fills: list[dict[str, Any]], rfq_db: Path, books_db: Path, 
     from ..edge.data import game_prefix_of
     from ..edge.fairs import FairSource
     cfg = EdgeConfig(rfq_db=rfq_db, books_db=books_db, kalshi_db=kalshi_db)
-    fs = FairSource(cfg)
+    fs = FairSource(cfg, bucket_ms=1)       # exact instants: the default minute bucket reuses one compute per minute
     res: dict[int, list[tuple[float, float, list[str]]]] = {h: [] for h in horizons}
     missing = Counter()
     for f in fills:
