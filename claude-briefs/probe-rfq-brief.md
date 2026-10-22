@@ -1,8 +1,8 @@
 # Brief: probe RFQs (combo-level markouts and per-RFQ competitor quotes)
 
 Written 2026-10-21 by the planning session (`totalis-e0`). Owner: Ruben. For the NBA session.
-Report back to `totalis-e0`. Builds on `docs/margin-optimizer-brief.md` and its notes (markouts on
-leg-book fairs, per-segment competitor gap) and `docs/quote-assembly-notes.md` (combo semantics).
+Report back to `totalis-e0`. Builds on `claude-briefs/margin-optimizer-brief.md` and its notes (markouts on
+leg-book fairs, per-segment competitor gap) and `claude-briefs/quote-assembly-notes.md` (combo semantics).
 
 ## Why
 
@@ -54,7 +54,7 @@ The first bullet under Verified facts is therefore wrong as a statement of the o
   `requestor_public_id`. The quoter must skip our own requester id (config `PROBE_REQUESTER_ID`,
   learned from the first create response's `request.requestor_public_id`); otherwise we quote
   ourselves and the probe measures us.
-- **Feed facts** (`docs/quote-assembly-notes.md`, memory): ~190 RFQ/s, 0.135% of requests trade,
+- **Feed facts** (`claude-briefs/quote-assembly-notes.md`, memory): ~190 RFQ/s, 0.135% of requests trade,
   requesters re-poll the same combo at ~1 Hz, so a handful of probes per hour is invisible in volume
   but a probe on the exact combo seconds after a print is a recognisable pattern on the feed.
 - **Independence and the disguise leg**: `rfqbot.clusters` certifies that legs in different games
@@ -118,7 +118,7 @@ quoter beyond the guard line.
 
 ## Ownership and coordination
 
-You own `rfqbot/probe/**`, `tests/test_probe_*.py`, `docs/probe-rfq-notes.md`; the planning session
+You own `rfqbot/probe/**`, `tests/test_probe_*.py`, `claude-briefs/probe-rfq-notes.md`; the planning session
 is adding them to `.claude/ownership.json` under `nba`. Do not edit `rfqbot/quoting/**` (NFL session;
 send the guard line), `rfqbot/catalog.py`, `rfqbot/store.py`, `rfqbot/__main__.py` (NFL), `.env`
 (Ruben; document variables in `.env.example` only, which is shared). Read the live stores with
@@ -133,4 +133,4 @@ rate: how often a 0.99 leg with a tight book exists in another game), the reques
 probe, the analysis report on fake-gateway data, test count, and the exact list of credentials and
 host values Ruben must supply before `PROBE_MODE=live`. Say plainly what in the docs reading above
 is wrong or ambiguous after you have read `docs.polymarket.com/trading/combos/builders` yourself.
-Write `docs/probe-rfq-notes.md` with the `/report` skill when done.
+Write `claude-briefs/probe-rfq-notes.md` with the `/report` skill when done.

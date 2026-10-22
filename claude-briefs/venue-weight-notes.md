@@ -1,6 +1,6 @@
 # Kalshi vs Polymarket venue weight, measured (2026-10-21)
 
-Requested by the planning session (first item of `docs/future-work.md`): replace the 2.0 Kalshi
+Requested by the planning session (first item of `claude-briefs/future-work.md`): replace the 2.0 Kalshi
 prior in the marginal layer (`MarginalConfig.kalshi_prior`, nfl and nba) with a measured number.
 Script `rfqbot/pricing/venue_weight.py` (`python -m rfqbot.pricing.venue_weight [--json]`),
 tests `tests/test_pricing_venue_weight.py`. Read-only over `data/books.db` and

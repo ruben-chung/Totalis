@@ -1,9 +1,9 @@
 # Brief: backtest and replay (stage 4)
 
 Written 2026-10-21 by the planning session (`totalis-e0`). Owner: Ruben. For session `totalis-48`.
-Report back to `totalis-e0`. Builds on `docs/quote-assembly-brief.md` (what a quote is),
-`docs/risk-wiring-brief.md` (caps, sizing, inventory skew; landing from the NFL session tonight) and
-`docs/margin-optimizer-brief.md` (fill curves, winner's curse, margin table; `rfqbot/edge`, landed).
+Report back to `totalis-e0`. Builds on `claude-briefs/quote-assembly-brief.md` (what a quote is),
+`claude-briefs/risk-wiring-brief.md` (caps, sizing, inventory skew; landing from the NFL session tonight) and
+`claude-briefs/margin-optimizer-brief.md` (fill curves, winner's curse, margin table; `rfqbot/edge`, landed).
 
 ## Why
 
@@ -14,8 +14,8 @@ that decide the design: independence pricing against the joint engine, caps on a
 base edge against the fitted margin table, the calibration factors at their fitted values against
 one. The backtest is the harness that runs the same handler under each setting over the same four
 hours of flow and reports the difference. Evidence for the design choices it tests is in
-`docs/engine-validation-notes.md` (engine vs independence), `docs/risk-exposure-notes.md` (repeated
-RFQs stacking exposure) and `docs/margin-optimizer-notes.md` (fill curves, markouts).
+`claude-briefs/engine-validation-notes.md` (engine vs independence), `claude-briefs/risk-exposure-notes.md` (repeated
+RFQs stacking exposure) and `claude-briefs/margin-optimizer-notes.md` (fill curves, markouts).
 
 ## Verified facts (checked 2026-10-21 against the repo and the data stores)
 
@@ -34,7 +34,7 @@ RFQs stacking exposure) and `docs/margin-optimizer-notes.md` (fill curves, marko
 - **Books.** `data/books.db` `book_top(asset_id, at_ms, server_ts_ms, best_bid, best_ask, bid_size,
   ask_size, bid_depth, ask_depth, source)`: 5,597,793 rows from 21:40:17 UTC. Rows are change-only
   and coalesced to one per token per second; the marginal layer's staleness is confirmation-based
-  (`docs/marginal-layer-notes.md`), so an as-of read must use the row with the largest `at_ms <= t`,
+  (`claude-briefs/marginal-layer-notes.md`), so an as-of read must use the row with the largest `at_ms <= t`,
   never the next one. `data/kalshi_books.db` `kalshi_top(ticker, at_ms, ..., yes_bid, yes_ask, ...)`:
   2,118,969 rows from 22:35 UTC; `leg_matches` maps Polymarket positions to tickers. Books start 13
   minutes (Polymarket) and 68 minutes (Kalshi) after the first RFQ: RFQs before a game's first book
@@ -56,7 +56,7 @@ RFQs stacking exposure) and `docs/margin-optimizer-notes.md` (fill curves, marko
   `would_win(direction, p_fair, m, print_price)` (win iff our margin is at or below the gap between the
   print and our fair), `fill_fraction(our_size_e6, print_size_e6)`, `counterfactual(decisions, prints)`.
   Use these; do not write a second fill rule. Its limits (no size priority, no later quotes) are
-  recorded in `docs/future-work.md`.
+  recorded in `claude-briefs/future-work.md`.
 - **Margin table.** `rfqbot/edge/table.py: margin_for(segment, requester=, table=) -> MarginTerms(base,
   curse_mult, info_premium, wallet_premium, blocked, ...)`; `load_table(path, max_age_s)`;
   `rfqbot/edge/margin_table.json` was fitted on the first 8 hours (notes, "First tables"). Fitted
@@ -72,18 +72,18 @@ RFQs stacking exposure) and `docs/margin-optimizer-notes.md` (fill curves, marko
   (`closed=true` needed; it is a one-shot run, owned by the Data Engineer session). Games in the
   window are NFL week 7 Monday night and NBA opening nights, so most legs resolve over the next days.
   Design the settle step to be re-run; report the unresolved share every time.
-- **Units and semantics** (`docs/quote-assembly-notes.md`): combo YES pays 1 pUSD per share iff every
+- **Units and semantics** (`claude-briefs/quote-assembly-notes.md`): combo YES pays 1 pUSD per share iff every
   leg wins; side is always YES; requester BUY means the maker sells YES; `price_e6` is pUSD per share
   for both directions; BUY `requested_size` is a notional budget including fees (prints show
   shares x price / notional of about 0.965), SELL is shares; share size for a BUY at our price is
   `floor(value_e6 * 1e6 / price_e6)`; the venue rejects BUY quotes above 0.90909; SELL prints at 0.999
   are liquidity exits of decided legs, not pricing information.
-- **Flow facts to sanity-check against** (`docs/quote-assembly-notes.md`, `docs/margin-optimizer-notes.md`):
+- **Flow facts to sanity-check against** (`claude-briefs/quote-assembly-notes.md`, `claude-briefs/margin-optimizer-notes.md`):
   0.135% of requests trade; SELL fills 3.4x BUY; median 133 s from first request to trade; maker
   markouts BUY about 0 to +0.4 pt, SELL -0.2 to -0.6 pt at 15 to 30 minutes.
 - **Ownership hook.** Edits by an unregistered session prompt for approval (`.claude/ownership.json`);
   the planning session is adding `rfqbot/backtest/**`, `tests/test_backtest_*.py` and
-  `docs/backtest-notes.md` under the label `backtest`. Run `scripts/claim-owner backtest` once.
+  `claude-briefs/backtest-notes.md` under the label `backtest`. Run `scripts/claim-owner backtest` once.
 - **Ruben's rule for realized outcomes**: count evidence in games, not pairs or RFQs; cluster standard
   errors by game; say when a comparison is underpowered rather than reading a sign.
 
@@ -138,7 +138,7 @@ should be a few minutes per run. Run against the stores read-only (`mode=ro`, as
 
 ## Ownership and coordination
 
-You own `rfqbot/backtest/**`, `tests/test_backtest_*.py`, `docs/backtest-notes.md`. Do not edit
+You own `rfqbot/backtest/**`, `tests/test_backtest_*.py`, `claude-briefs/backtest-notes.md`. Do not edit
 `rfqbot/quoting/**`, `rfqbot/risk/**`, `rfqbot/pricing/**` (NFL session), `rfqbot/edge/**` (NBA
 session), `rfqbot/books.py`, `rfqbot/history/**` (Data Engineer), `rfqbot/marginals/**` (yours
 already, under the props label; keep changes there separate). If `GameCache` or `Assembler` needs
@@ -157,4 +157,4 @@ with clustered standard errors; replay run time. Say plainly if anything above t
 in particular if the as-of book readers cannot reproduce the live fairs (compare the replayed
 `p_fair` to the live `decisions.db` row for the same rfq_id; they should agree to the staleness
 bound) and if the raw log is missing frames the live listener saw. Write
-`docs/backtest-notes.md` with the `/report` skill when done.
+`claude-briefs/backtest-notes.md` with the `/report` skill when done.

@@ -1,4 +1,4 @@
-"""Margin optimiser configuration (env ``EDGE_<KEY>``; see docs/margin-optimizer-brief.md)."""
+"""Margin optimiser configuration (env ``EDGE_<KEY>``; see claude-briefs/margin-optimizer-brief.md)."""
 from __future__ import annotations
 
 import json

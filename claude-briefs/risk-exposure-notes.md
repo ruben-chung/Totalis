@@ -1,6 +1,6 @@
 # Exposure deltas and caps: what was built and what the paper book looks like (2026-10-20)
 
-Built against `docs/risk-exposure-brief.md` (stage 3 part 1). Package `rfqbot/risk/` (`book.py`,
+Built against `claude-briefs/risk-exposure-brief.md` (stage 3 part 1). Package `rfqbot/risk/` (`book.py`,
 `exposure.py`, `caps.py`, `cli.py`), CLI `python -m rfqbot risk`, tests `tests/test_risk_*.py`.
 Nothing is wired into quoting yet; `Assembler` still prices with `e_i = 0`.
 

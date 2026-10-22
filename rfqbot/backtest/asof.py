@@ -5,7 +5,7 @@ the readers here answer "the row with the largest ``at_ms <= t``" from arrays lo
 ``t`` the replay clock, so no row after ``t`` can be returned (tests insert a row at ``t + 1`` and check).
 They mirror ``rfqbot.ladders.game_markets`` and ``rfqbot.kalshi_books.kalshi_for_legs`` field for field
 (tested against both on the same fixture) and expose ``.confirm`` so ``compute_game`` measures staleness
-from the feed heartbeat as of ``t`` (the stores are change-only; see docs/marginal-layer-notes.md).
+from the feed heartbeat as of ``t`` (the stores are change-only; see claude-briefs/marginal-layer-notes.md).
 
 Limits, recorded in the notes: ``leg_matches`` holds only the current match per leg (the matcher is a pure
 function of the catalog, so matches do not drift inside a window); the catalog (``markets``) is the one

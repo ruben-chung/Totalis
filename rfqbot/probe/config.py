@@ -2,7 +2,7 @@
 
 PROBE_MODE off (default) | dry (build and log bodies, never send) | live (send through the gateway).
 PROBE_GATEWAY requester (published host, CLOB L2 account headers only) | builder (host from builder
-onboarding, account + builder headers). See docs/probe-rfq-notes.md for the credential list.
+onboarding, account + builder headers). See claude-briefs/probe-rfq-notes.md for the credential list.
 """
 from __future__ import annotations
 

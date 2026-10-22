@@ -1,5 +1,5 @@
 """Probe RFQs: ask the venue for a quote on a combo we just quoted or filled, read the winning maker
-price, never accept (docs/probe-rfq-brief.md). Live sending needs PROBE_MODE=live and credentials."""
+price, never accept (claude-briefs/probe-rfq-brief.md). Live sending needs PROBE_MODE=live and credentials."""
 from .analysis import combo_markout, gap, leg_markout, probe_gap
 from .config import ProbeConfig, load_probe_config
 from .gateway import DryRunGateway, FakeGateway, HttpGateway, ProbeRequest, ProbeResponse

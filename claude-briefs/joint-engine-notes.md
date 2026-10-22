@@ -1,6 +1,6 @@
 # NFL joint-distribution engine: what was built, what the data says (2026-10-20)
 
-Built against `docs/joint-engine-brief.md`. Code: `rfqbot/pricing/` (`quotes.py`, `ladders_fit.py`,
+Built against `claude-briefs/joint-engine-brief.md`. Code: `rfqbot/pricing/` (`quotes.py`, `ladders_fit.py`,
 `joint_nfl.py`, `indicators.py`, `joint.py`, `synthetic.py`, `cli.py`), command
 `python -m rfqbot joint --game <slug> [--at-ms] [--pairs] [--synthetic]`, tests
 `tests/test_pricing_*.py` (36 tests; whole suite 206 green).
@@ -103,5 +103,5 @@ halves coupling data-driven instead of prior-driven); regulation-vs-OT split; re
   couplings stay at 1.0 unless the clustered interval excludes it; `calibration_level`,
   `coupling_kind`, `lambda_status`), fitted on resolved games
   (`joint-calibrate`, `rfqbot/pricing/calibration.json`); the interval is widened by the group's
-  out-of-sample model error. Numbers in docs/engine-validation-notes.md, round 2.
+  out-of-sample model error. Numbers in claude-briefs/engine-validation-notes.md, round 2.
 * `fair_from_quote`: a sizeless quote at exactly 0.50 is a placeholder (err 0.25).

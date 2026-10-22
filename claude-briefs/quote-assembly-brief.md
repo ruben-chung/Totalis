@@ -16,10 +16,10 @@ the backtest (stage 4) attributes P&L to those components.
 - Catalog: `Store.get_market(position_id)` rows (slug, condition_id, title, outcome).
 - Independence classifier: `rfqbot.clusters.cluster(legs) -> Clustering` and
   `combo_probability(clustering, p_leg, joint_fn)` (NBA session, in flight, brief
-  `docs/independence-classifier-brief.md`). Code against that interface; stub it locally
+  `claude-briefs/independence-classifier-brief.md`). Code against that interface; stub it locally
   under `rfqbot/quoting/_cluster_stub.py` until it lands, then delete the stub.
 - Marginals: `rfqbot.marginals.marginal_for_leg(mq, match, kq, sport=, now_ms=, cfg=)` and
-  `compute_game(prefix, at_ms, ...)` (done; `docs/marginal-layer-notes.md`). Kalshi quotes
+  `compute_game(prefix, at_ms, ...)` (done; `claude-briefs/marginal-layer-notes.md`). Kalshi quotes
   arrive automatically once `rfqbot.kalshi_books` lands.
 - Joint engine: `rfqbot.pricing.joint.build_game(quotes) -> GameModel`, `GameModel.joint(specs)
   -> JointQuote` (yours). Keep one `GameModel` per game prefix in a cache, rebuilt when

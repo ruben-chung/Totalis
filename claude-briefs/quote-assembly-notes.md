@@ -1,6 +1,6 @@
 # Quote assembly: what was built and what the first live runs say (2026-10-20)
 
-Built against `docs/quote-assembly-brief.md`. Package `rfqbot/quoting/` (`semantics.py`,
+Built against `claude-briefs/quote-assembly-brief.md`. Package `rfqbot/quoting/` (`semantics.py`,
 `config.py`, `cache.py`, `assemble.py`, `decisions.py`; `_cluster_stub.py` since removed, the real
 `rfqbot.clusters` landed and `assemble.py` keeps only the slug-prefix regex), wiring
 `python -m rfqbot listen --quote [--decisions-db PATH]`, tests `tests/test_quoting_*.py`.
@@ -25,7 +25,7 @@ Built against `docs/quote-assembly-brief.md`. Package `rfqbot/quoting/` (`semant
 
 ## Pipeline (assemble.py), every term logged
 
-0. own probe guard (2026-10-21, for `docs/probe-rfq-brief.md` item 5): when `QuoteConfig.probe_requester_id`
+0. own probe guard (2026-10-21, for `claude-briefs/probe-rfq-brief.md` item 5): when `QuoteConfig.probe_requester_id`
    (env `PROBE_REQUESTER_ID`) is set and equals the RFQ's `requestor_public_id`, `skipped:own_probe` before
    anything is priced, so the probe loop never measures our own quotes. Empty id (the default until
    `PROBE_MODE=live`) is a no-op. Test `test_quoting_edge.py::test_own_probe_requester_is_skipped_before_pricing`.

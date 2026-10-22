@@ -36,7 +36,7 @@ the realized joint outcome better than independence does, and where does it not?
    snapshot prices themselves (realized rate by predicted bucket) so engine error can be
    separated from market error.
 4. The same at offsets 60 and 5 if cheap, to see whether closer snapshots help.
-5. Write `docs/engine-validation-notes.md` with the tables and the three worst family pairs,
+5. Write `claude-briefs/engine-validation-notes.md` with the tables and the three worst family pairs,
    with a guess at why. Keep the raw scores table so the backtest can reuse it.
 
 ## Ownership

@@ -7,7 +7,7 @@ the print (``would_win``), and fills ``min(1, our_size / print_size)`` of it (``
   win     our price at or inside the print                (ties count; the edge package's rule)
   strict  our price inside the print by at least one tick (the range the report shows)
 
-Limits, inherited from the rule and recorded in docs/future-work.md: no size priority, no later quotes by
+Limits, inherited from the rule and recorded in claude-briefs/future-work.md: no size priority, no later quotes by
 other makers reacting to ours, prints of RFQs we would have quoted differently are the same prints.
 """
 from __future__ import annotations

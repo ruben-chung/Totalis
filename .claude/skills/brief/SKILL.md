@@ -1,11 +1,11 @@
 ---
 name: brief
-description: Write a delegation brief for a peer Claude Code session in this repo's standard shape (why, verified facts, deliverables, ownership, report back), save it under docs/, and send it. Use when handing a component to another session.
+description: Write a delegation brief for a peer Claude Code session in this repo's standard shape (why, verified facts, deliverables, ownership, report back), save it under claude-briefs/, and send it. Use when handing a component to another session.
 ---
 
 # Delegation brief
 
-Write `docs/<topic>-brief.md` with exactly these sections, then send the essentials by SendMessage
+Write `claude-briefs/<topic>-brief.md` with exactly these sections, then send the essentials by SendMessage
 to the target session and ask it to read the file in full.
 
 1. **Header**: date, who wrote it (the planning session's current name), owner (Ruben), where to
@@ -26,4 +26,4 @@ to the target session and ask it to read the file in full.
 
 Style: short paragraphs, concrete numbers, no speculation dressed as fact. Length is whatever the
 facts need; most briefs run 60 to 130 lines. After sending, record the delegation in
-the "Next Steps" section of `docs/handin-summary.md` only if something was deliberately scoped out, and in memory.
+the "Next Steps" section of `handin-summary.md` only if something was deliberately scoped out, and in memory.

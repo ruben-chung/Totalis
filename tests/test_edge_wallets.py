@@ -40,7 +40,7 @@ def test_neutral_wallets_false_positive_rate():
     """The brief's rule (one-sided 90% bound, checked after every fill from the 8th) is a sequential
     test, so its cumulative false-positive rate over 40 fills is ~20-25%. Accepted by Ruben 2026-10-21:
     a wrongly blocked neutral wallet costs little flow, an unblocked sharp one costs EV on every fill.
-    0.95 would bring it under 10% (docs/margin-optimizer-notes.md)."""
+    0.95 would bring it under 10% (claude-briefs/margin-optimizer-notes.md)."""
     rng = random.Random(3)
     r90 = fpr(0.90, rng)
     r975 = fpr(0.975, rng)

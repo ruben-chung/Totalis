@@ -1,4 +1,4 @@
-"""Kalshi vs Polymarket venue weight from the recorded books (docs/venue-weight-notes.md).
+"""Kalshi vs Polymarket venue weight from the recorded books (claude-briefs/venue-weight-notes.md).
 
 For every exact-matched leg (kalshi_books.db ``leg_matches``) with two-sided quotes on both venues
 before kickoff, build a common 1-second grid of mids (last value carried forward; a second is

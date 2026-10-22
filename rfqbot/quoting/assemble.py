@@ -1,6 +1,6 @@
 """RFQ -> PaperQuote. Every term is computed separately, logged, and printed in the reason.
 
-Pipeline (docs/quote-assembly-brief.md):
+Pipeline (claude-briefs/quote-assembly-brief.md):
   legs (catalog + cache marginals) -> clusters -> per-cluster probability (marginal product, or
   the joint engine for same-game clusters) -> p_fair = product over clusters -> uncertainty
   terms u_m (leg errors through the product) and u_d (half cluster interval width through the

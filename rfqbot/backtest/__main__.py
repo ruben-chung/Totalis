@@ -1,4 +1,4 @@
-"""python -m rfqbot.backtest {run | compare | settle | report | runs}   (see docs/backtest-notes.md)"""
+"""python -m rfqbot.backtest {run | compare | settle | report | runs}   (see claude-briefs/backtest-notes.md)"""
 from __future__ import annotations
 
 import argparse

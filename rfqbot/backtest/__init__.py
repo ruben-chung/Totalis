@@ -5,5 +5,5 @@
     python -m rfqbot.backtest settle  --run <id>                   # re-runnable as resolutions arrive
     python -m rfqbot.backtest report  --run <id>
 
-Everything reads the live stores with mode=ro and writes only data/backtest.db. See docs/backtest-notes.md.
+Everything reads the live stores with mode=ro and writes only data/backtest.db. See claude-briefs/backtest-notes.md.
 """

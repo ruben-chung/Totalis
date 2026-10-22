@@ -2,7 +2,7 @@
 
 Written 2026-10-20 by the planning session (totalis-94) for the session building this.
 Owner: Ruben. When done, send a summary back to session `totalis-94` via SendMessage.
-Companion to `docs/nfl-matching-brief.md`, which a parallel session (`totalis-47`) is building
+Companion to `claude-briefs/nfl-matching-brief.md`, which a parallel session (`totalis-47`) is building
 right now in this same directory. Read that brief first: it defines the shared `LegSpec`,
 the matcher contract, the Kalshi client and the coverage report. This brief adds the NBA.
 
@@ -29,7 +29,7 @@ Files owned by `totalis-47` (the NFL session). Do **not** create or edit them:
 Files you own: `rfqbot/sports/nba_teams.py`, `rfqbot/sports/nba_poly.py`,
 `rfqbot/sports/nba_kalshi.py`, `rfqbot/sports/nba_players.py`, `rfqbot/sports/nba_coverage.py`
 (standalone, run as `python -m rfqbot.sports.nba_coverage`, so `__main__.py` stays untouched),
-`tests/test_nba_*.py`, `tests/fixtures/nba_*`, `docs/nba-matching-notes.md`.
+`tests/test_nba_*.py`, `tests/fixtures/nba_*`, `claude-briefs/nba-matching-notes.md`.
 
 Coordination: message `totalis-47` when you start. Ask it to expose a per-sport registry
 (sport -> Polymarket parser, Kalshi parser, Kalshi series list, slug-date convention) so you can
@@ -188,7 +188,7 @@ Michael Porter Jr).
    the ET-date case (`nba-gsw-lal-2026-10-21` vs `KXNBAGAME-26OCT21GSWLAL`), the 1H-tie
    settlement note, the Yes/No-vs-Over/Under convention, player name normalization, and a test
    that parses every NBA row in `data/rfq.db` when present.
-8. `docs/nba-matching-notes.md`: what you verified, what differs from this brief, open questions.
+8. `claude-briefs/nba-matching-notes.md`: what you verified, what differs from this brief, open questions.
 
 ## Report back
 

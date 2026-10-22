@@ -11,7 +11,7 @@ to every book (prints that would have filled a pending quote, expiries) and expo
 live period; (3) the game cache refreshes the games that recently saw RFQs, on the live cadence; (4) each
 strategy runs ``Assembler.evaluate`` and, if it quotes, adds the pending position at the quoted size.
 
-Deviations from the live bot, all recorded in docs/backtest-notes.md: the refresh happens on the RFQ path
+Deviations from the live bot, all recorded in claude-briefs/backtest-notes.md: the refresh happens on the RFQ path
 at one-second ticks instead of on a worker thread (a cold game is skipped once, as live, then served from
 the next tick); games are refreshed only while they received an RFQ in the last ``refresh_idle_ms``;
 exposures are rebuilt only when the book changed.

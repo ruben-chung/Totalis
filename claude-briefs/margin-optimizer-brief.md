@@ -75,7 +75,7 @@ anything; a few hours of decisions are needed for the segment tables.
    per request and per fill, the pooling level, and counts. Quote assembly will load this in
    place of QUOTE_BASE_EDGE (the NFL session wires it; you deliver the table and a loader
    `margin_for(segment) -> MarginTerms(base, curse_mult, info_premium, wallet_premium, blocked)`).
-7. CLI `python -m rfqbot.edge {fit|report|wallets}` and a short `docs/margin-optimizer-notes.md`
+7. CLI `python -m rfqbot.edge {fit|report|wallets}` and a short `claude-briefs/margin-optimizer-notes.md`
    with the first tables once a few hours of decisions exist.
 8. Tests: counterfactual fill logic for both directions and sizes; monotone fill-curve fit and
    pooling fallbacks; the curse formula against a simulated auction (known sigma, known
@@ -85,7 +85,7 @@ anything; a few hours of decisions are needed for the segment tables.
 
 ## Ownership
 
-You own `rfqbot/edge/*`, `tests/test_edge_*.py`, `docs/margin-optimizer-notes.md` (added to
+You own `rfqbot/edge/*`, `tests/test_edge_*.py`, `claude-briefs/margin-optimizer-notes.md` (added to
 `.claude/ownership.json` under nba). Quoting integration is the NFL session's; send it the loader
 signature when stable. Suite is 316 green.
 

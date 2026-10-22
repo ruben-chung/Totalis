@@ -1,4 +1,4 @@
-"""Validate the joint engine on resolved games (docs/engine-validation-brief.md).
+"""Validate the joint engine on resolved games (claude-briefs/engine-validation-brief.md).
 
 For each resolved NFL game with pre-kickoff snapshots at ``offset_min`` (history.db, Data
 Engineer): build the GameModel from the snapshot quotes (bid = ask = p, so every leg carries the

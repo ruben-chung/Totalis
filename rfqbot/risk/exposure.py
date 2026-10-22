@@ -1,4 +1,4 @@
-"""Exposure on the scenario engine (stage 3 part 1, docs/risk-exposure-brief.md).
+"""Exposure on the scenario engine (stage 3 part 1, claude-briefs/risk-exposure-brief.md).
 
 Every active position is decomposed into independent *components*: one per game that has a
 ``GameModel`` (the product of its legs' indicators over that game's scenarios) and one Bernoulli
