@@ -1,4 +1,4 @@
-"""Live book, caps and inventory skew for the quoter (stage 3 part 3, claude-briefs/risk-wiring-brief.md).
+"""Live book, caps and inventory skew for the quoter (stage 3 part 3, claude-sessions/risk-wiring-brief.md).
 
 The quoter keeps a ``Book`` of its own quotes: pending at quoted size from the moment a quote is
 emitted until the listener's expiry rule (submission deadline + acceptance + last look + grace),

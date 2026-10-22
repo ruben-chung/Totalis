@@ -1,4 +1,4 @@
-"""Positions and the book (stage 3, claude-briefs/risk-exposure-brief.md).
+"""Positions and the book (stage 3, claude-sessions/risk-exposure-brief.md).
 
 A position is one combo from the maker's point of view: its legs (``LegSpec`` where the sport is
 registered), a sign (+1 long YES = we bought the combo, -1 short YES = we sold it), a size in

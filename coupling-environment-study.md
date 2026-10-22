@@ -1,7 +1,4 @@
 # Idea, not developed: environment-stratified coupling study
-
-Recorded 2026-10-20. Ruben's decision: out of scope for this project; on record for later.
-
 **Question.** The engine reads each game's margin-to-total coupling from its ladders. Validating
 that against realized outcomes on 93 games is underpowered for a correlation of ~0.1.
 

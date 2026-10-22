@@ -1,6 +1,6 @@
 # Margin table wired into quote assembly (2026-10-21)
 
-Per the planning session's request after `claude-briefs/margin-optimizer-brief.md` (NBA session's
+Per the planning session's request after `claude-sessions/margin-optimizer-brief.md` (NBA session's
 `rfqbot.edge`). Changes in `rfqbot/quoting/{assemble,config,decisions}.py`, `rfqbot/__main__.py`;
 tests `tests/test_quoting_edge.py` (3). Inventory and caps unchanged.
 

@@ -37,13 +37,13 @@ outcomes joined to the pre-game lines. NBA first, because that is where the prop
    - teammate residual correlation by position pair and opponent-pair correlation (pace);
    - player-vs-team-total and player-vs-spread correlations implied by the data, which are
      what the extension will need as defaults.
-   Output a short markdown report `claude-briefs/props-fit-notes.md` with the numbers, plus the
+   Output a short markdown report `claude-sessions/props-fit-notes.md` with the numbers, plus the
    parameters in a JSON file the engine extension can load.
 4. Tests on small fixtures (box-score parsing, line joining, the share fit on synthetic data).
 
 ## Ownership
 
-You own `rfqbot/props/*`, `tests/test_props_*.py`, `claude-briefs/props-fit-notes.md`. Shared files are
+You own `rfqbot/props/*`, `tests/test_props_*.py`, `claude-sessions/props-fit-notes.md`. Shared files are
 owned as before (NFL session: pricing, quoting, store, __main__; Data Engineer: books, ladders,
 history; NBA session: kalshi_books, clusters, sports/nba*). Not a git repo. Suite is 236 green.
 

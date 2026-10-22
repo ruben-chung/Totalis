@@ -1,6 +1,6 @@
 # NFL identity + Kalshi matching: what was built and what the data says (2026-10-20)
 
-Built against `claude-briefs/nfl-matching-brief.md`. Everything below was verified against the catalog
+Built against `claude-sessions/nfl-matching-brief.md`. Everything below was verified against the catalog
 in `data/rfq.db` (24,958 NFL position rows / 12,479 markets / 45 games), the Gamma API and
 the Kalshi public API on 2026-10-20.
 

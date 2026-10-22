@@ -1,6 +1,6 @@
 # Caps, sizing and inventory skew in quote assembly (stage 3 part 3, 2026-10-20)
 
-Built against `claude-briefs/risk-wiring-brief.md`. New `rfqbot/quoting/inventory.py`; changes in
+Built against `claude-sessions/risk-wiring-brief.md`. New `rfqbot/quoting/inventory.py`; changes in
 `rfqbot/quoting/{assemble,cache,config,decisions}.py`, `rfqbot/risk/{book,caps,exposure}.py`,
 `rfqbot/__main__.py`; tests `tests/test_quoting_inventory.py` (7) plus updated `tests/test_risk_caps.py`.
 On by default with `listen --quote`; `QUOTE_RISK=0` restores stage 2 behaviour.

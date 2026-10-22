@@ -1,6 +1,6 @@
 # Marginal layer: what was built and what the first real run says (2026-10-20)
 
-Built against `claude-briefs/marginal-layer-brief.md`. Package `rfqbot/marginals/` (config, model, sources,
+Built against `claude-sessions/marginal-layer-brief.md`. Package `rfqbot/marginals/` (config, model, sources,
 __main__), tests `tests/test_marginals_model.py` + `tests/test_marginals_cli.py` (36 tests; suite 276 green).
 
 ```bash
@@ -34,7 +34,7 @@ this, 258 of 622 NE@CHI legs were tier `stale` on quiet books an hour before any
   `depth_v = min(bid_depth, ask_depth)` (sizes at best as fallback), `staleness_v` = seconds since
   the quote was last confirmed (above), `c_stale` switches from pregame to in-play once
   `game_start_time <= now`.
-* `precision_v = 1 / sigma_v^2`; Kalshi x `KALSHI_PRIOR[sport]` (nfl 2.0; nba and else 1.0, see claude-briefs/venue-weight-notes.md) and
+* `precision_v = 1 / sigma_v^2`; Kalshi x `KALSHI_PRIOR[sport]` (nfl 2.0; nba and else 1.0, see claude-sessions/venue-weight-notes.md) and
   x 0.25 for `rules_differ`. `shifted_line` / `none` never combine.
 * `p = sum(prec * p_v) / sum(prec)`, `err = 1 / sqrt(sum(prec))`, floored at 0.005 (0.02 when
   degenerate), capped at 0.5 (an absolute probability error above that carries no information).
@@ -111,7 +111,7 @@ edits outside `rfqbot/marginals/*`, `tests/test_marginals_*`, this note.
 ## Venue prior revised (2026-10-21)
 
 The Kalshi prior default is now `nfl 2.0, nba 1.0` (was 2.0 for both). The NFL session measured the venue weight on 4.4 h of
-matched pre-game books (`claude-briefs/venue-weight-notes.md`): tight-quote precision ratio var_poly / var_kalshi is 0.90 for NBA
+matched pre-game books (`claude-sessions/venue-weight-notes.md`): tight-quote precision ratio var_poly / var_kalshi is 0.90 for NBA
 (interval 0.72 to 1.13, so no evidence Kalshi deserves extra weight) and 2.2 for NFL (1.5 to 3.7). The env override is unchanged.
 Backtest runs started before this change used 2.0 for NBA; the run configs store the marginal config only through this file,
 so compare runs made on either side of the change are not comparable.

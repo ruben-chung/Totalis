@@ -1,7 +1,7 @@
 # Margin optimiser: notes
 
 Written 2026-10-21 by the NBA session (totalis-c8) for the planning session (totalis-e0) and Ruben.
-Brief: `claude-briefs/margin-optimizer-brief.md`. Code: `rfqbot/edge/` (owner nba). Tests: `tests/test_edge_*.py` (32).
+Brief: `claude-sessions/margin-optimizer-brief.md`. Code: `rfqbot/edge/` (owner nba). Tests: `tests/test_edge_*.py` (32).
 Run: `python -m rfqbot.edge fit [--since-hours N]`, `report`, `wallets [--allow|--deny|--clear ID]`,
 `monitor` (fit every `EDGE_REFRESH_SEC`, 300 s). Output `rfqbot/edge/margin_table.json`, state `data/edge.db`.
 

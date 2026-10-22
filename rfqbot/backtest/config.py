@@ -1,6 +1,6 @@
 """BacktestConfig: one run's switches, JSON-stored with the run.
 
-Every switch of claude-briefs/backtest-brief.md deliverable 5 is a field here; ``quote`` holds QuoteConfig overrides
+Every switch of claude-sessions/backtest-brief.md deliverable 5 is a field here; ``quote`` holds QuoteConfig overrides
 (applied on top of the live config from ``load_quote_config``), so a run is fully described by this object.
 
     pricing      joint | independence      same-game clusters priced by the joint engine or as the product of marginals

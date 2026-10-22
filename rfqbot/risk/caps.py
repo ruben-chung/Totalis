@@ -1,4 +1,4 @@
-"""Hard caps and marginal risk (stage 3 part 1, claude-briefs/risk-exposure-brief.md).
+"""Hard caps and marginal risk (stage 3 part 1, claude-sessions/risk-exposure-brief.md).
 
 Caps are layers over the exposure of the book plus a candidate position at size s (shares):
 

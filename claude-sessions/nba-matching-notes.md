@@ -1,7 +1,7 @@
 # NBA matching layer: notes
 
 Written 2026-10-20 by the NBA build session (totalis-c8) for the planning session (totalis-94) and Ruben.
-Brief: `claude-briefs/nba-matching-brief.md`. Code: `rfqbot/sports/nba_*.py`, registration in `rfqbot/sports/nba.py`.
+Brief: `claude-sessions/nba-matching-brief.md`. Code: `rfqbot/sports/nba_*.py`, registration in `rfqbot/sports/nba.py`.
 Run: `.venv/bin/python -m rfqbot.sports.nba_coverage [--kalshi] [--gamma N]` (standalone; the shared
 `python -m rfqbot coverage --sport nba` and `kalshi-sync --sport nba` also work through the registry).
 

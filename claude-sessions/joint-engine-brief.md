@@ -29,7 +29,7 @@ unsupported).
 
 A pure function of one game's market quotes. The quotes come from `rfqbot.ladders.game_markets(
 game_prefix, at_ms=None) -> list[MarketQuote]` (being built by `totalis-6c`, brief in
-`claude-briefs/ladder-collector-brief.md`; fields: position_id, token_id, slug, title, outcome,
+`claude-sessions/ladder-collector-brief.md`; fields: position_id, token_id, slug, title, outcome,
 outcome_index, best_bid, best_ask, bid_size, ask_size, bid_depth, ask_depth, at_ms,
 game_start_time). Until it lands, code against that signature and test with synthetic quotes.
 Parse each quote to a `LegSpec` with `nfl_poly.parse_poly_nfl`. For v1 derive the fair

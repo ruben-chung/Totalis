@@ -6,7 +6,7 @@ Owner: Ruben. When done, send a summary back to `totalis-4d` via SendMessage.
 ## Why
 
 The next pricing component (an NFL joint-distribution engine, briefed separately to
-`totalis-47`, see `claude-briefs/joint-engine-brief.md`) reads each game's full line ladders: every
+`totalis-47`, see `claude-sessions/joint-engine-brief.md`) reads each game's full line ladders: every
 spread line, total line, team-total line and first-half line, for both sides. The catalog lists
 them (NFL: 17 spread lines per side, 21 totals, 11 team-total lines per team, 16 1H spreads
 per side, 5 1H totals, 6 1Q totals per game), but the catalog prices are placeholders, so the

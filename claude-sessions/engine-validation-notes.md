@@ -1,6 +1,6 @@
 # Joint engine validation on resolved NFL games (2026-10-20)
 
-Built against `claude-briefs/engine-validation-brief.md`. Code `rfqbot/pricing/validate.py`, command
+Built against `claude-sessions/engine-validation-brief.md`. Code `rfqbot/pricing/validate.py`, command
 `python -m rfqbot joint-validate [--offsets 60,15,5] [--max-pairs 3000] [--report-only]`, scores in
 `data/engine_validation.db` (`validation_games`, `hist_pair_scores`, `hist_leg_scores`; kept for the
 backtest). Test: `tests/test_pricing_validate.py` (history fixture event, synthetic snapshots).

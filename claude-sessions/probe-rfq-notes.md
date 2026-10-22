@@ -1,7 +1,7 @@
 # Probe RFQs: notes
 
 Written 2026-10-21 by the NBA session (totalis-c8) for the planning session (totalis-e0) and Ruben.
-Brief: `claude-briefs/probe-rfq-brief.md`. Code: `rfqbot/probe/` (owner nba). Tests: `tests/test_probe_*.py` (21).
+Brief: `claude-sessions/probe-rfq-brief.md`. Code: `rfqbot/probe/` (owner nba). Tests: `tests/test_probe_*.py` (21).
 Run: `python -m rfqbot.probe dry-run [--since-hours N] [--show K] [--fairs]`, `report`, `run` (refuses
 unless `PROBE_MODE=live` and the credentials are present). State `data/probe.db` (dry-runs write to
 `data/probe_dryrun.db` by default so they never consume the live budget). **Nothing has been sent:
@@ -128,7 +128,7 @@ requesters with 1-5 triggering prints each.
 
 - Live send: blocked on the credential list above; `run` refuses without them.
 - The edge pipeline does not read `probe_gap` yet (brief: no change to `rfqbot/edge` in this task); note
-  left in `claude-briefs/margin-optimizer-notes.md`.
+  left in `claude-sessions/margin-optimizer-notes.md`.
 - Same-game combos' leg-book fair is the product of leg fairs (no joint engine in the probe analysis).
 - SELL-direction probes assume no share balance is needed to create; verify on the first live SELL.
 - Requester-id visibility and a possible venue-side pattern check on repeated combos are untested;

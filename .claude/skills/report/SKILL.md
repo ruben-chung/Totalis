@@ -1,11 +1,11 @@
 ---
 name: report
-description: Send a completion report for a delegated task in this repo's standard shape (shipped, numbers, corrections to the brief, settlement or data surprises, not done) and write the matching claude-briefs/<topic>-notes.md. Use when finishing a briefed task.
+description: Send a completion report for a delegated task in this repo's standard shape (shipped, numbers, corrections to the brief, settlement or data surprises, not done) and write the matching claude-sessions/<topic>-notes.md. Use when finishing a briefed task.
 ---
 
 # Completion report
 
-Two outputs: `claude-briefs/<topic>-notes.md` (the durable record, written for a reviewer who did not
+Two outputs: `claude-sessions/<topic>-notes.md` (the durable record, written for a reviewer who did not
 watch the work) and a SendMessage to the session that briefed you, whose first line states the
 task is done.
 

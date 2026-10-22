@@ -94,7 +94,7 @@ Both book stores are change-only; staleness is measured from the feed's last con
 
 ## Docs
 
-`claude-briefs/` holds the material exchanged between the Claude Code sessions that built this: `*-brief.md` is how a task was
+`claude-sessions/` holds the material exchanged between the Claude Code sessions that built this: `*-brief.md` is how a task was
 framed and what was verified first, `*-notes.md` is what the session built and what the data said. `handin-summary.md` is the results summary with next steps; `img/joint-grid-cin-bal.png` one game's
 fitted joint score grid; `coupling-environment-study.md` an idea recorded and not developed.
 
