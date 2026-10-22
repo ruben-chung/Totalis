@@ -128,3 +128,9 @@ Compare (Δ model P&L vs base; verdict is on the game-cluster SE):
 - cmp2 (13.2 h, all unresolved): indep -2.25 ±1.79 G=11; caps-off +17.91 ±11.83 G=13; edge-0 +4.92 ±3.85 G=12; edge-1pt +2.69 ±4.09 G=12; edge-2pt -80.54 ±53.11 G=12; table -73.72 ±54.95 G=12. All within 2 SE.
 - Base P&L, per-game SE: cmp1 total +241.09 ±44.85 (9 games), realized +260.42 ±3.87 (5 games, underpowered), marked -19.33 ±16.80 (7 games); cmp2 marked +114.73 ±57.77 (12 games, within 2 SE), gross markup +155.51 ±53.97 (12 games).
 - The one cmp1 "exceeds" (edge-0, 13 games) is on mark-to-model P&L, which still carries the pricing-error term; it does not change the conclusion that edge-0 fills more, and its size rests on a handful of games' outcomes.
+
+## Status: final
+
+- No further runs. `data/backtest.db` is left as is: cmp1 settled (17 of 21 base fills resolved, realized +260.42), cmp2 settled but 100% unresolved at 2026-10-22 00:36 UTC (its games had not been played). The hourly resolve + settle loop was cancelled before it ran.
+- To resolve cmp2 later: `rfqbot.history resolve`, then `python -m rfqbot.backtest settle --group cmp2 --out data/backtest.db`.
+- Suite at the end: 434 passed.
