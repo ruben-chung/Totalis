@@ -24,7 +24,7 @@ from typing import Any
 from .config import BacktestConfig, WindowConfig
 from .report import fill_table, pnl_section
 from .settle import settle_run
-from .stats import cluster_ids, cluster_mean_se, n_games, verdict
+from .stats import cluster_ids, cluster_mean_se, game_total_se, n_games, verdict
 from .store import BacktestStore
 
 SUITE: list[tuple[str, BacktestConfig, str]] = [
@@ -78,7 +78,9 @@ def compare_group(store: BacktestStore, group_id: str, base_name: str = "base") 
                 diffs = [a.get(i, 0.0) - b.get(i, 0.0) for i in rfq_ids]
                 mean, se, g = cluster_mean_se(diffs, clusters)
                 tot, tse = mean * len(diffs), None if se is None else se * len(diffs)
-                row[f"d_{key}"] = {"total": tot, "se": tse, "clusters": g, "verdict": verdict(tot, tse, g)}
+                _, gse, gg = game_total_se(diffs, [u[1] for u in universe])
+                row[f"d_{key}"] = {"total": tot, "se": tse, "clusters": g, "verdict": verdict(tot, tse, g),
+                                   "se_game": gse, "games": gg, "verdict_game": verdict(tot, gse, gg)}
         out["rows"].append(row)
     return out
 
@@ -88,7 +90,7 @@ def fmt_compare(c: dict[str, Any]) -> str:
     L.append(f"{'setting':<11}{'quoted':>7}{'win':>5}{'strict':>7}{'filled':>7}{'markup $':>10}{'realized $':>11}{'(n)':>5}{'model P&L $':>12}{'maxES1 $':>10}   Δ model P&L vs base (±se, clusters)  verdict")
     for r in c["rows"]:
         d = r.get("d_model_pnl")
-        dtxt = "" if d is None else f"{d['total']:+9.2f} ± {('n/a' if d['se'] is None else format(d['se'], '.2f')):>6}  g={d['clusters']:<3} {d['verdict']}"
+        dtxt = "" if d is None else f"{d['total']:+9.2f} ± {('n/a' if d['se'] is None else format(d['se'], '.2f')):>6}  g={d['clusters']:<3} {d['verdict']} | per-game ± {('n/a' if d['se_game'] is None else format(d['se_game'], '.2f')):>6}  G={d['games']:<3} {d['verdict_game']}"
         L.append(f"{r['name']:<11}{r['quoted'] or 0:>7}{r['win_fills'] or 0:>5}{r['strict_fills'] or 0:>7}{r['filled'] or 0:>7}{r['gross_markup']:>10.2f}"
                  f"{r['realized']:>11.2f}{r['resolved_combos']:>5}{r['model_pnl']:>12.2f}{(r['max_es1'] or 0):>10.0f}   {dtxt}")
     return "\n".join(L)

@@ -231,3 +231,16 @@ def test_validate_against_a_live_decisions_log(tmp_path):
     w, raw = world(tmp_path / "w")
     rc = raw_completeness(raw, w["rfq_db"], T0 - 800_000, T0 + 400_000)
     assert rc["raw_unique_requests"] == 7 and rc["raw_duplicates"] == 1 and rc["rfq_db_rfqs"] == 0
+
+
+def test_game_total_se_splits_cross_game_rows_and_never_joins_dates():
+    from rfqbot.backtest.stats import cluster_ids, game_total_se
+    games = [["a"], ["b"], ["a", "b"], ["c"]]
+    vals = [1.0, 3.0, 2.0, -2.0]
+    assert len(set(cluster_ids(games))) == 2                 # union-find fuses a and b
+    tot, se, g = game_total_se(vals, games)
+    assert tot == pytest.approx(4.0) and g == 3
+    mean = 1.0                                               # centred scores: a=0+.5*... computed by hand
+    sa, sb, sc = (1 - mean) + (2 - mean) / 2, (3 - mean) + (2 - mean) / 2, (-2 - mean)
+    assert se == pytest.approx((3 / 2 * (sa * sa + sb * sb + sc * sc)) ** 0.5)
+    assert game_total_se([1.0], [["a"]])[1] is None

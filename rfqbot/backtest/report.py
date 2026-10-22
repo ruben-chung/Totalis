@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .settle import E6, sign_of
-from .stats import MIN_CLUSTERS, cluster_ids, cluster_mean_se, cluster_total_se, n_games, verdict
+from .stats import MIN_CLUSTERS, cluster_ids, cluster_mean_se, cluster_total_se, game_total_se, n_games, verdict
 from .store import BacktestStore
 
 N_LEG_BUCKETS = (("1", lambda n: n == 1), ("2", lambda n: n == 2), ("3-4", lambda n: 3 <= n <= 4), ("5+", lambda n: n >= 5))
@@ -104,7 +104,9 @@ def pnl_section(fills: list[dict[str, Any]]) -> dict[str, Any]:
     def block(sel: list[int], field: str) -> dict[str, Any]:
         vals = [fills[i][field] for i in sel]
         tot, se, g = cluster_total_se(vals, [cl[i] for i in sel]) if vals else (0.0, None, 0)
-        return {"n": len(sel), "total": tot, "se": se, "clusters": g, "games": n_games(fills[i]["games"] for i in sel),
+        _, gse, gg = game_total_se(vals, [fills[i]["games"] for i in sel]) if vals else (0.0, None, 0)
+        return {"n": len(sel), "total": tot, "se": se, "clusters": g, "se_game": gse, "game_groups": gg,
+                "flag_game": verdict(tot, gse, gg) if sel else "none", "games": n_games(fills[i]["games"] for i in sel),
                 "per_fill": (tot / len(sel)) if sel else None, "flag": verdict(tot, se, g) if sel else "none"}
     decisive = [i for i, f in enumerate(fills) if f["realized"] is not None]
     marked = [i for i, f in enumerate(fills) if f["realized"] is None and f["status"] not in ("void",)]
@@ -232,7 +234,9 @@ def fmt(rep: dict[str, Any]) -> str:
     p = rep["pnl"]
     def b(x):
         se = "n/a" if x["se"] is None else f"{x['se']:.2f}"
-        return f"{x['total']:+.2f} (se {se}, {x['n']} fills, {x['games']} games, {x['clusters']} clusters, {x['flag']})"
+        gse = "n/a" if x.get("se_game") is None else f"{x['se_game']:.2f}"
+        return (f"{x['total']:+.2f} (se {se}, {x['n']} fills, {x['games']} games, {x['clusters']} clusters, {x['flag']}; "
+                f"per-game se {gse}, {x.get('game_groups', 0)} games, {x.get('flag_game', '')})")
     L.append(f"gross markup  {b(p['gross_markup'])}")
     L.append(f"realized      {b(p['realized'])}   [{p['resolved_combos']} resolved combos, {p['void_combos']} void, unresolved share "
              f"{'-' if p['unresolved_share'] is None else format(p['unresolved_share'], '.0%')}]")

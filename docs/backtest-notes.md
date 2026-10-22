@@ -118,3 +118,13 @@ Compare (Δ model P&L vs base; verdict is on the game-cluster SE):
 - Compare (Δ marked P&L vs base): indep -2.25, cal-ones 0.00, cal-0.75 0.00, caps-off +17.91 (max ES1 57,299 = 115% of capital), edge-0 +4.92 (60 fills), edge-1pt +2.69 (5 fills), edge-2pt -80.54 (1 fill), table -73.72 (19 fills), shock x0.5 / x2 0.00 (inert, same reason as cmp1).
 - Table is in-sample: `margin_table.json` was refit at 14:11 UTC inside the window. Post-14:11 slice (table fitted before these fills): table 12 fills, marked +11.67; base 5 fills, +3.80 (5 fills, 4 games). Before 14:11 the base run has 21 fills, +110.93. Slice n is too small for any conclusion, and none of it is resolved.
 - Correction: the 3,618 prints in the message are all sports; NFL/NBA prints in the quoted window are 112 (about 91 for the table's quoted set).
+
+## Addendum: per-game standard errors
+
+- `stats.game_total_se(values, games_per_row)`: a row touching k games is attached to each with weight 1/k, so the per-game scores add up to the total; SE is the cluster-robust sandwich over games. Different game dates are never joined. The returned count is the games with a non-zero row (evidence in games), not every game in the universe.
+- It is shown next to the union-find SE in `report` and `compare` (`per-game ±`, `G=`, verdict). The union-find SE is the conservative bound (cross-game combos fuse a day into 1-2 components); the per-game SE is the optimistic one because it ignores the correlation cross-game rows create between neighbouring game scores. Read the pair as a band.
+- The verdict keeps the 10-game minimum. Test: `test_game_total_se_splits_cross_game_rows_and_never_joins_dates`.
+- cmp1 (4 h; Δ marked P&L vs base, per-game SE, G, verdict): indep -9.66 ±4.01 G=4 underpowered; caps-off +100.77 ±42.82 G=6 underpowered; edge-0 -35.98 ±15.94 G=13 exceeds 2 SE; edge-1pt +143.43 ±63.37 G=9 underpowered; edge-2pt -280.75 ±116.83 G=9 underpowered; table -52.91 ±31.78 G=8 underpowered.
+- cmp2 (13.2 h, all unresolved): indep -2.25 ±1.79 G=11; caps-off +17.91 ±11.83 G=13; edge-0 +4.92 ±3.85 G=12; edge-1pt +2.69 ±4.09 G=12; edge-2pt -80.54 ±53.11 G=12; table -73.72 ±54.95 G=12. All within 2 SE.
+- Base P&L, per-game SE: cmp1 total +241.09 ±44.85 (9 games), realized +260.42 ±3.87 (5 games, underpowered), marked -19.33 ±16.80 (7 games); cmp2 marked +114.73 ±57.77 (12 games, within 2 SE), gross markup +155.51 ±53.97 (12 games).
+- The one cmp1 "exceeds" (edge-0, 13 games) is on mark-to-model P&L, which still carries the pricing-error term; it does not change the conclusion that edge-0 fills more, and its size rests on a handful of games' outcomes.

@@ -70,6 +70,35 @@ def cluster_total_se(values: Sequence[float], clusters: Sequence[str]) -> tuple[
     return mean * n, (None if se is None else se * n), g
 
 
+def game_total_se(values: Sequence[float], games_per_row: Sequence[Sequence[str]]) -> tuple[float, float | None, int]:
+    """(total, per-game cluster-robust SE of the total, number of games with a non-zero row).
+
+    A row touching k games is attached to each of them with weight 1/k, so the per-game scores add up to the total
+    and different game dates are never joined (the union-find components can fuse a whole day through cross-game
+    combos). Rows without games are singleton groups. Cross-game rows make neighbouring game scores correlated,
+    which this ignores; the union-find SE is the conservative bound, this is the optimistic one.
+    se^2 = G/(G-1) * sum_g (sum_i w_ig (y_i - ybar))^2.
+    """
+    n = len(values)
+    if n == 0:
+        return 0.0, None, 0
+    mean = sum(values) / n
+    score: dict[str, float] = {}
+    evidence: set[str] = set()
+    for i, (y, gs) in enumerate(zip(values, games_per_row)):
+        gs = list(dict.fromkeys(gs)) or [f"row:{i}"]
+        for g in gs:
+            score[g] = score.get(g, 0.0) + (y - mean) / len(gs)
+            if y != 0.0:
+                evidence.add(g)
+    g = len(score)
+    if g < 2 or not evidence:
+        return mean * n, None, len(evidence)
+    # the G/(G-1) factor counts every game in the universe; the returned count is the games with a non-zero row
+    # (evidence in games, not the zero-valued games a comparison universe carries)
+    return mean * n, math.sqrt(g / (g - 1) * sum(v * v for v in score.values())), len(evidence)
+
+
 def verdict(diff: float, se: float | None, g: int) -> str:
     """'exceeds' / 'within' the clustered SE band (|diff| > 2 SE), or 'underpowered' (too few clusters / no SE)."""
     if se is None or g < MIN_CLUSTERS:
