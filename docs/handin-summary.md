@@ -66,26 +66,24 @@ Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independen
 
 **Paper runs:** one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,062 for risk. Worst drawdown (bottom 1% of outcomes) less than 7.5k.
 
-**How the bot performed (paper, replayed on recorded flow, base setting):**
+**How the bot performed (paper, replayed on 13 h of recorded flow, 2026-10-21, base setting):**
 
-| | run 1: 4 h, Mon evening | run 2: 13 h, Tue |
-|---|---|---|
-| NFL/NBA RFQs evaluated | 46,884 | 56,220 |
-| quoted | 19,236 | 22,296 |
-| filled (won the print) | 21 | 26 |
-| fill rate on quoted | 0.11% | 0.12% |
-| margin earned at fill | $59 ($2.8 per fill) | $156 ($6.0 per fill) |
-| drift of the fair against us, 60 s after fill | -$3 (4 of 20 fills had no book tick yet) | -$0.3 (8 of 26 had no tick yet) |
-| drift at 5 min | -$7 ± $5 | -$45 ± $32 |
-| drift at 30 min | -$125 ± $32 (9 games) | -$61 ± $34 |
-| EV at 5 min = margin + drift | +$35 ± $8 | +$110 ± $29 |
-| EV at 30 min | -$90 ± $33 | +$95 ± $27 |
-| EV per fill at 5 min / 30 min | +$1.7 / -$4.3 | +$4.2 / +$3.6 |
-| realized, resolved combos | +$260 on 17 of 21 (outcome luck, not EV) | none resolved yet |
-| worst-case loss (1% tail) | $7.7k, 15% of capital, at the cap | $7.7k, at the cap |
-| same without caps | $68k, 137% | $57k, 115% |
+| | |
+|---|---|
+| NFL/NBA RFQs evaluated | 56,220 over 58 games |
+| quoted | 22,296 |
+| filled (won the print) | 26 |
+| fill rate on quoted | 0.12% |
+| margin earned at fill | $156 ($6.0 per fill) |
+| drift of the fair against us, 60 s after fill | -$0.3 (8 of 26 fills had no book tick yet) |
+| drift at 5 min | -$45 ± $32 |
+| drift at 30 min | -$61 ± $34 |
+| EV at 5 min = margin + drift | +$110 ± $29 ($4.2 per fill) |
+| EV at 30 min | +$95 ± $27 ($3.6 per fill) |
+| worst-case loss (1% tail) | $7.7k, 15% of capital, at the cap |
+| same without caps | $57k, 115% of capital |
 
-Read: EV is margin minus the move of the fair against us after the fill (adverse selection). Under a minute the leg books have mostly not ticked, so the short horizons say nothing; the cost shows between 1 and 5 min and is all on BUY fills. Run 2 keeps about two thirds of its margin; run 1, Monday evening around game time, gave it all back by 30 min. Fills are rare (one in 800 quotes) and the caps bind, so capacity is risk-limited. Errors are per-game SEs; two days shows the mechanism, not a stable number.
+Read: EV is margin minus the move of the fair against us after the fill (adverse selection). Under a minute the leg books have mostly not ticked, so the short horizons say nothing; the cost shows between 1 and 5 min and is all on BUY fills, and about two thirds of the margin survives it. Fills are rare (one in 800 quotes) and the caps bind, so capacity is risk-limited. Errors are per-game SEs over 12 games; one day shows the mechanism, not a stable number.
 
 **Backtest:** The recorded 4 h window (2.28M RFQs) replayed through the live quoting code on a pinned clock, books read as-of each RFQ, fills from the recorded prints, settled against resolutions. Base run: 19,236 quoted, 21 filled, 17 resolved. Realized P&L +$260 on 17 combos, +$241 mark-to-model, of which +$183 is pricing luck (fair vs outcome) and +$59 margin earned. Only 141 NFL/NBA prints exist in the window and the fills fall in 2 independent game clusters, so nothing here is statistically separable; the mechanical results are:
 
