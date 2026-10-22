@@ -74,7 +74,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.no_risk:
         quote["risk"] = False
     cal = args.calibration if args.calibration in ("fitted", "ones") else float(args.calibration)
-    bc = BacktestConfig(name=args.name, quote=quote, pricing=args.pricing, calibration=cal, shock_scale=args.shock_scale,
+    bc = BacktestConfig(name=args.name, quote=quote, pricing=args.pricing, calibration=cal, n_replicas=args.replicas,
                         table=args.table, table_policy=args.table_policy)
     w = window_from(args)
     print(f"window {datetime.fromtimestamp(w.start_ms / 1000, timezone.utc):%m-%d %H:%M} .. "
@@ -137,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--name", default="base"); s.add_argument("--group", default=None)
     s.add_argument("--pricing", choices=("joint", "independence"), default="joint")
     s.add_argument("--calibration", default="fitted", help="fitted | ones | <factor on the fitted lambdas>")
-    s.add_argument("--shock-scale", type=float, default=1.0)
+    s.add_argument("--replicas", type=int, default=2, help="bootstrap replicas per model build (live engine: 8)")
     s.add_argument("--table", default="none", help="none (stage 2 formula) | repo | <path to a margin table>")
     s.add_argument("--table-policy", choices=("after_fit", "always"), default="after_fit")
     s.add_argument("--base-edge", type=float, default=None); s.add_argument("--no-risk", action="store_true")

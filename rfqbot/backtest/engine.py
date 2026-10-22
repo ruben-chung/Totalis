@@ -90,10 +90,6 @@ class IndependenceModel:
         raise AttributeError(name)
 
 
-def scaled_shocks(scale: float) -> tuple[Shock, ...]:
-    return tuple(s if s.kind == "bootstrap" else Shock(s.kind, s.value * scale) for s in DEFAULT_SHOCKS)
-
-
 def scaled_calibration(cal: Calibration, factor: float) -> Calibration:
     """The fitted calibration with every pair / group lambda multiplied by ``factor`` (tail maps and errors untouched)."""
     return Calibration(pairs={k: replace(v, lam=v.lam * factor) for k, v in cal.pairs.items()},
@@ -113,8 +109,9 @@ class CacheView:
         else:
             cal = scaled_calibration(default_calibration(), float(bcfg.calibration))
         self.calibration = cal
-        self.shocks = DEFAULT_SHOCKS if bcfg.shock_scale == 1.0 else scaled_shocks(bcfg.shock_scale)
-        self.trivial = bcfg.pricing == "joint" and cal is None and bcfg.shock_scale == 1.0
+        n = max(0, min(int(bcfg.n_replicas), len(DEFAULT_SHOCKS)))
+        self.shocks = DEFAULT_SHOCKS[:n]
+        self.trivial = bcfg.pricing == "joint" and cal is None and n == len(DEFAULT_SHOCKS)
         self._memo: dict[tuple[int, int], GameEntry] = {}
 
     def get(self, prefix: str) -> GameEntry | None:

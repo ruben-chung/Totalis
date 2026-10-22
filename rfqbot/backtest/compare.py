@@ -9,7 +9,7 @@ Settings (every run uses the stage 2 margin formula unless it is the table run, 
   caps-off       no caps, no Kelly sizing, no inventory skew (stage 2 behaviour); the book still tracked for ES1
   edge-0 / edge-1pt / edge-2pt   base edge 0 / 1 / 2 points (base is 0.5)
   table          the margin table (data/margin_table.json) for the whole window: IN-SAMPLE, it was fitted on this flow
-  (shock-0.5 / shock-2 removed: inert with the bootstrap-only shock set, see SUITE)
+  (shock settings removed: the shock set is bootstrap replicas; BacktestConfig.n_replicas sets how many)
 
 For each comparison the paired difference in per-RFQ model P&L (realized where the combo is decided, else marked to
 the run's last model fair; 0 for RFQs not filled) against the base is reported with its game-clustered SE and a
@@ -37,8 +37,6 @@ SUITE: list[tuple[str, BacktestConfig, str]] = [
     ("edge-1pt", BacktestConfig(name="edge-1pt", table="none", quote={"base_edge": 0.01}), "base edge"),
     ("edge-2pt", BacktestConfig(name="edge-2pt", table="none", quote={"base_edge": 0.02}), "base edge"),
     ("table", BacktestConfig(name="table", table="repo", table_policy="always", note="in-sample: table fitted on this flow"), "base edge"),
-    # shock-0.5 / shock-2 were dropped: the joint engine's shock set is bootstrap replicas only (seeds are not scaled), so
-    # the scale is inert; BacktestConfig.shock_scale remains for engines whose shock set carries correlation shifts
 ]
 
 

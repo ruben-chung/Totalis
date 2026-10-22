@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from rfqbot.backtest.config import BacktestConfig, WindowConfig
-from rfqbot.backtest.engine import (CacheView, IndependenceModel, ModelView, Replayer, scaled_calibration, scaled_shocks)
+from rfqbot.backtest.engine import (CacheView, IndependenceModel, ModelView, Replayer, scaled_calibration)
 from rfqbot.backtest.feed import SportIndex, file_window_ms, iter_requests, raw_files
 from rfqbot.backtest.fills import FillResult, decision_rec, evaluate_fill
 from rfqbot.backtest.store import BacktestStore
@@ -216,39 +216,35 @@ class DummyModel:
         return SimpleNamespace(p_cal=0.4)
 
 
-def test_model_view_passes_calibration_and_scaled_shocks(monkeypatch):
-    from rfqbot.backtest import engine
-    from rfqbot.pricing.joint import Shock
-    # the engine's shock set is bootstrap replicas only now; scaling must still handle the correlation kinds
-    monkeypatch.setattr(engine, "DEFAULT_SHOCKS", (Shock("halves_corr", 0.15), Shock("halves_corr", -0.15), Shock("prior_rho", -0.2),
-                                                   Shock("prior_rho", 0.2), Shock("bootstrap", 1), Shock("bootstrap", 2)))
-    assert [s.value for s in scaled_shocks(0.5)][:4] == [0.075, -0.075, -0.1, 0.1]
-    assert [s.value for s in scaled_shocks(2.0)][4:] == [1, 2]                      # bootstrap seeds are not scaled
-    assert all(s.kind == "bootstrap" for s in __import__("rfqbot.pricing.joint", fromlist=["x"]).DEFAULT_SHOCKS)
+def test_model_view_passes_calibration_and_replica_subset():
+    from rfqbot.pricing.joint import DEFAULT_SHOCKS
+    assert all(s.kind == "bootstrap" for s in DEFAULT_SHOCKS)
     cal = Calibration(pairs={"a": PairParams(lam=0.8, lo=None, hi=None, resid=0.01, n=5, n_games=3, n_lo=0, n_hi=0)}, identity=False)
     sc = scaled_calibration(cal, 0.75)
     assert sc.pairs["a"].lam == pytest.approx(0.6) and cal.pairs["a"].lam == 0.8 and sc.pairs["a"].resid == 0.01
     m = DummyModel()
-    v = ModelView(m, sc, scaled_shocks(2.0))
-    assert v.joint(["s1"]).p_cal == 0.4 and m.calls[0][1] == scaled_shocks(2.0) and m.calls[0][2] is sc
+    v = ModelView(m, sc, DEFAULT_SHOCKS[:2])
+    assert v.joint(["s1"]).p_cal == 0.4 and m.calls[0][1] == DEFAULT_SHOCKS[:2] and m.calls[0][2] is sc
 
 
 def test_cache_view_switches():
     entry = SimpleNamespace(model=DummyModel(), specs={}, marginals={})
     entry = dataclasses.make_dataclass("E", [("model", object), ("specs", dict), ("marginals", dict)])(entry.model, {}, {})
     cache = SimpleNamespace(get=lambda prefix: entry, stats={})
-    assert CacheView(cache, BacktestConfig()).get("g") is entry                              # joint + fitted + x1: untouched
+    from rfqbot.pricing.joint import DEFAULT_SHOCKS
+    assert CacheView(cache, BacktestConfig(n_replicas=8)).get("g") is entry                  # joint + fitted + all replicas: untouched
     v = CacheView(cache, BacktestConfig(calibration="ones")).get("g")
     assert isinstance(v.model, ModelView) and v.model.calibration is not None and v.model.calibration.identity
     v2 = CacheView(cache, BacktestConfig(pricing="independence")).get("g")
     assert isinstance(v2.model, IndependenceModel)
-    assert CacheView(cache, BacktestConfig(shock_scale=0.5)).get("g").model.shocks == scaled_shocks(0.5)
+    assert CacheView(cache, BacktestConfig(n_replicas=2)).get("g").model.shocks == DEFAULT_SHOCKS[:2]
+    assert CacheView(cache, BacktestConfig(n_replicas=0)).get("g").model.shocks == ()
     cache2 = SimpleNamespace(get=lambda prefix: None, stats={})
     assert CacheView(cache2, BacktestConfig(calibration="ones")).get("g") is None
 
 
 def test_backtest_config_roundtrip_and_quote_config():
-    bc = BacktestConfig(name="x", quote={"base_edge": 0.01, "risk": False}, table="none", calibration=0.75, shock_scale=2.0)
+    bc = BacktestConfig(name="x", quote={"base_edge": 0.01, "risk": False}, table="none", calibration=0.75, n_replicas=4)
     assert BacktestConfig.from_json(bc.to_json()) == bc
     q = bc.quote_config()
     assert q.base_edge == 0.01 and q.risk is False and q.edge is False and str(q.decisions_db) == "/dev/null"

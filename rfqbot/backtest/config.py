@@ -5,7 +5,8 @@ Every switch of claude-sessions/backtest-brief.md deliverable 5 is a field here;
 
     pricing      joint | independence      same-game clusters priced by the joint engine or as the product of marginals
     calibration  fitted | ones | <float>   joint engine calibration: the fitted file, identity, or fitted lambdas x factor
-    shock_scale  1.0 | 0.5 | 2.0           dependence shock set (Shock.value x scale; bootstrap seeds unchanged); drives u_d
+    n_replicas   2 (default) .. 8          bootstrap replicas per model build for the u_d interval; fewer is faster, the live
+                                           engine uses 8 (rfqbot.pricing.joint.N_BOOTSTRAP)
     table        none | repo | <path>      margin table; none = the stage 2 formula k_m u_m + k_d u_d + base_edge
     table_policy after_fit | always        after_fit: the table only prices RFQs at or after its fitted_at_ms (no lookahead)
     fill_rule    win | strict              which fill flag moves the book (ties count as wins; strict needs a full tick inside the print)
@@ -27,7 +28,7 @@ class BacktestConfig:
     quote: dict[str, Any] = field(default_factory=dict)
     pricing: str = "joint"
     calibration: str | float = "fitted"
-    shock_scale: float = 1.0
+    n_replicas: int = 2
     table: str = "repo"
     table_policy: str = "after_fit"
     fill_rule: str = "win"            # win | strict: which fill flag drives the book (both are always recorded)
