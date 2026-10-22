@@ -107,3 +107,14 @@ Compare (Δ model P&L vs base; verdict is on the game-cluster SE):
 - Scale the bootstrap seeds in the shock comparison, or add cross-period combos to the window.
 - Refit props with NBA `hist_prices` (mine, pending).
 - Hourly rerun of `settle` as resolutions fill in (Data Engineer suggested an hourly resolve).
+
+## Addendum: cmp2 (02:36 to 15:45 UTC 2026-10-21, 13.2 h, all 11 settings)
+
+- Run: 56,220 RFQs evaluated, 58 games, 11,183 s (3.1 h; my estimate of 1.6-2.1 h was low, the load was 17-24). Peak RSS about 1.3 GB.
+- The window ends 42 s before the network outage (15:45:42 to 21:24:55 UTC); the second segment is not run.
+- Base: quoted 22,296, printed 112, win 26, strict 17, filled 26, gross markup +155.51, marked +114.73.
+- Settlement at 2026-10-22 00:36 UTC: **all fills unresolved (100%)**. `market_resolutions` has none of these games yet because the last resolve pass ran before they ended, so realized P&L is 0. Re-run `settle --group cmp2` after the next `history resolve`.
+- Clusters: the union-find over cross-game combos joins all 58 games into **1 cluster**, so every clustered SE is n/a and every verdict is underpowered. Game-clustering by cross-game combos is too coarse for a full day; cmp1 had 2.
+- Compare (Δ marked P&L vs base): indep -2.25, cal-ones 0.00, cal-0.75 0.00, caps-off +17.91 (max ES1 57,299 = 115% of capital), edge-0 +4.92 (60 fills), edge-1pt +2.69 (5 fills), edge-2pt -80.54 (1 fill), table -73.72 (19 fills), shock x0.5 / x2 0.00 (inert, same reason as cmp1).
+- Table is in-sample: `margin_table.json` was refit at 14:11 UTC inside the window. Post-14:11 slice (table fitted before these fills): table 12 fills, marked +11.67; base 5 fills, +3.80 (5 fills, 4 games). Before 14:11 the base run has 21 fills, +110.93. Slice n is too small for any conclusion, and none of it is resolved.
+- Correction: the 3,618 prints in the message are all sports; NFL/NBA prints in the quoted window are 112 (about 91 for the table's quoted set).
