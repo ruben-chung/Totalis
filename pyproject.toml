@@ -2,6 +2,7 @@
 name = "rfqbot"
 version = "0.1.0"
 description = "Polymarket Combos RFQ paper-trading bot: listener, pricing, inventory, backtest"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "websockets>=13,<16",
@@ -9,12 +10,17 @@ dependencies = [
     "python-dotenv>=1.0",
     "cryptography>=42",   # Kalshi request signing (RSA-PSS / Ed25519)
     "numpy>=1.26",
+    "tzdata; platform_system == 'Windows'",   # ZoneInfo('America/New_York') has no system tz db on Windows
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+figures = [
+    "matplotlib>=3.8",   # scripts/make_figures.py only
 ]
 
 [project.scripts]
@@ -30,3 +36,12 @@ packages = ["rfqbot"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["data", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]   # long lines are tolerated in tables and SQL; the limit above is advisory

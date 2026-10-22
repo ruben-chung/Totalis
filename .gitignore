@@ -21,8 +21,9 @@ venv/
 .vscode/
 .idea/
 
-# Claude Code: machine-local session -> owner label map for .claude/hooks/ownership.py
+# Claude Code: machine-local state (session -> owner label map, scheduler lock)
 .claude/session-owners.json
+.claude/scheduled_tasks.lock
 
 # Pytest
 .pytest_cache/
