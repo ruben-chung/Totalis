@@ -3,7 +3,7 @@
 
 Reads the tool call from stdin, looks the file up in .claude/ownership.json (glob -> owner),
 and the calling session's label in .claude/session-owners.json (session_id -> label, written
-by scripts/claim-owner). Unowned paths and the 'shared' owner pass. A path owned by another
+by scripts/claim-owner). Unowned paths and the 'shared' owner pass; a session claimed as 'all' passes everywhere (used when one session takes over the whole tree). A path owned by another
 label, or any owned path when the session has not claimed a label, returns permissionDecision
 "ask" so a human confirms; it never hard-denies.
 """
@@ -42,7 +42,7 @@ def main():
     except Exception:
         sessions = {}
     mine = sessions.get(sid)
-    if mine == owner:
+    if mine == owner or mine == "all":
         return
     if mine is None:
         reason = (f"{rel} is owned by '{owner}' and this session has not claimed an owner label. "
