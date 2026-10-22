@@ -348,10 +348,6 @@ class KalshiFeedClient:
             await self._client.aclose()
             self._client = None
 
-    @property
-    def authenticated(self) -> bool:
-        return self.auth is not None
-
     def rate_per_sec(self, window_sec: float = 60.0) -> float:
         now = time.monotonic()
         n = sum(1 for t in self._stamps if now - t <= window_sec)

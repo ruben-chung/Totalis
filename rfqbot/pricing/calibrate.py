@@ -378,15 +378,6 @@ def bucket_resid(p: np.ndarray, w: np.ndarray, min_n: int = 30) -> float | None:
     return float(np.sqrt(num / den)) if den else None
 
 
-def _cv_predict(rows: Rows, fold: np.ndarray, folds: int, **kw) -> np.ndarray:
-    oos = np.empty_like(rows.pj)
-    for k in range(folds):
-        test = fold == k
-        cal_k = _fit_on(rows, ~test, **kw)
-        oos[test] = _apply_vec(cal_k, rows, test)
-    return oos
-
-
 def _group_only(cal: Calibration) -> Calibration:
     """Pooled-group baseline: every pair uses its group's values."""
     return Calibration(pairs={}, groups=cal.groups, identity=False)

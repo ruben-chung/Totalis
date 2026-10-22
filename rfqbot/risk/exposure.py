@@ -154,13 +154,6 @@ class Term:
                 out *= comp.p
         return out
 
-    @property
-    def p_all(self) -> float:
-        out = 1.0
-        for comp in self.comps:
-            out *= comp.p
-        return out
-
 
 class Exposure:
     def __init__(self, book: Book | None, models: ModelPool | Mapping[str, Any] | None, *, positions: Iterable[Position] | None = None,

@@ -100,9 +100,6 @@ class KalshiClient:
             params["tags"] = tags
         return (await self.get("/series", params)).get("series") or []
 
-    async def event(self, event_ticker: str) -> dict[str, Any]:
-        return await self.get(f"/events/{event_ticker}")
-
 
 def market_row(m: dict[str, Any], sport: str, synced_at_ms: int,
                parser: Callable[..., LegSpec] | None = None) -> dict[str, Any]:

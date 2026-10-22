@@ -192,10 +192,6 @@ def _with(est: VenueEstimate, **kw) -> VenueEstimate:
     return replace(est, **kw)
 
 
-def _fmt(x: float | None, nd: int = 3) -> str:
-    return "-" if x is None else f"{x:.{nd}f}"
-
-
 def _fmt_depth(d: float) -> str:
     return f"{d / 1000:.1f}k" if d >= 1000 else f"{d:.0f}"
 

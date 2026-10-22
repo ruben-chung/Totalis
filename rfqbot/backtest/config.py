@@ -41,9 +41,6 @@ class BacktestConfig:
         d = json.loads(s)
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
-    def with_(self, **kw: Any) -> "BacktestConfig":
-        return replace(self, **kw)
-
     def quote_config(self, base: QuoteConfig | None = None) -> QuoteConfig:
         """The live QuoteConfig (env / .env) with this run's overrides. ``table`` decides ``edge`` and ``edge_table``."""
         q = base if base is not None else load_quote_config()

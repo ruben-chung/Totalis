@@ -178,9 +178,6 @@ class Pmf:
         m = self.mean
         return float(math.sqrt(max(np.dot((self.support - m) ** 2, self.p), 1e-9)))
 
-    def survival(self, x: float) -> float:
-        return float(self.p[self.support > x].sum())
-
 
 def _half_lines(fit: SurvivalFit) -> tuple[np.ndarray, np.ndarray]:
     """The fit restricted to half-point lines (drops a moneyline observation at 0)."""

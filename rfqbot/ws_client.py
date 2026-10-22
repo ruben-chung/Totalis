@@ -122,15 +122,6 @@ class RfqSocket:
         if ws is not None:
             asyncio.ensure_future(ws.close())
 
-    @property
-    def stopped(self) -> bool:
-        return self._stop.is_set()
-
-    async def send_json(self, obj: dict) -> None:
-        if self._ws is None:
-            raise ConnectionError("not connected")
-        await self._ws.send(json.dumps(obj))
-
     # ---------------------------------------------------------------- events
     async def events(self) -> AsyncIterator[Event]:
         backoff_n = 0
