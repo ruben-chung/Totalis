@@ -52,7 +52,6 @@ class Listener:
         self.raw_db_types = settings.raw_db_types
         self.counts: dict[str, int] = {}
         self.fatal: str | None = None
-        self._tx = None
         self._tx_opened = 0.0
 
     # ------------------------------------------------------------------ run
@@ -81,21 +80,19 @@ class Listener:
 
     # ----------------------------------------------------- batched commits
     # Frames arrive at ~200/s; one BEGIN/COMMIT per frame is wasteful. We keep a
-    # transaction open and commit every commit_interval_s. Store.tx() nests
-    # inside it, so normalizer code is unchanged.
+    # transaction open (Store.begin) and commit every commit_interval_s. Store.tx()
+    # nests inside it as a savepoint, so a failing handler rolls back only its message.
     def _begin_if_needed(self) -> None:
-        if self._tx is None:
-            self._tx = self.store.tx()
-            self._tx.__enter__()
+        if not self.store.in_transaction:
+            self.store.begin()
             self._tx_opened = time.monotonic()
 
     def _commit(self) -> None:
-        if self._tx is not None:
-            self._tx.__exit__(None, None, None)
-            self._tx = None
+        if self.store.in_transaction:
+            self.store.commit()
 
     def _maybe_commit(self) -> None:
-        if self._tx is not None and time.monotonic() - self._tx_opened >= self.commit_interval_s:
+        if self.store.in_transaction and time.monotonic() - self._tx_opened >= self.commit_interval_s:
             self._commit()
 
     # ---------------------------------------------------------------- loops
@@ -193,7 +190,7 @@ class Listener:
             return
         if quote is None:
             return
-        self.norm.record_paper_quote(rfq.rfq_id, quote, at_ms=at_ms, is_paper=self.settings.paper_trading)
+        self.norm.record_paper_quote(rfq.rfq_id, quote, at_ms=at_ms, is_paper=True)   # no live submission path exists
         # Log the frame we *would* have sent, so replay sees the same decision stream.
         payload = json.dumps({
             "type": m.RFQ_QUOTE, "rfq_id": rfq.rfq_id, "price_e6": str(quote.price_e6),

@@ -91,12 +91,60 @@ def test_prior_is_per_sport():
     assert nfl.w_kalshi > other.w_kalshi and other.w_kalshi == pytest.approx(0.5)
 
 
-def test_rules_differ_scales_kalshi_precision_and_flags():
+def test_rules_differ_adds_a_bias_variance_to_kalshi_and_flags():
     exact = run(pq(0.40, 0.42), kq(0.42, 0.44))
     rd = run(pq(0.40, 0.42), kq(0.42, 0.44), confidence="rules_differ")
     assert "rules_differ" in rd.flags and rd.tier == "ok"
-    assert rd.venues[1].precision == pytest.approx(exact.venues[1].precision * 0.25)
+    prior, sigma = CFG.prior_for("nfl"), rd.venues[1].sigma
+    assert exact.venues[1].precision == pytest.approx(prior / sigma ** 2)
+    assert rd.venues[1].precision == pytest.approx(prior / (sigma ** 2 + CFG.rules_differ_bias ** 2))
     assert rd.w_kalshi < exact.w_kalshi and rd.w_kalshi > 0
+
+
+def test_rules_differ_props_do_not_combine():
+    mq = MarketQuote(position_id="p", token_id="t", slug="nba-dal-hou-2026-10-21-rebounds-cooper-flagg-6pt5", title="", outcome="Over",
+                     outcome_index=0, best_bid=0.40, best_ask=0.42, bid_size=100.0, ask_size=100.0, bid_depth=1000.0, ask_depth=1000.0,
+                     at_ms=NOW - 5000, game_start_time=None)
+    match = MatchRow("KX", "yes", "rules_differ", ())
+    kqt = KalshiQuote(0.50, 0.52, 100.0, 100.0, 1000.0, 1000.0, NOW - 5000)
+    m = marginal_for_leg(mq, match, kqt, sport="nba", now_ms=NOW, cfg=CFG)
+    assert "kalshi_unused:props_rules" in m.flags and m.w_kalshi == 0.0 and m.p == pytest.approx(0.41)
+
+
+def test_locked_or_crossed_book_is_unusable_not_a_zero_width_one():
+    # the reviewer's repro: Poly 0.40/0.40 beside Kalshi 0.45/0.46 used to give p = 0.40 with w_poly = 1
+    m = run(pq(0.40, 0.40), kq(0.45, 0.46))
+    assert "crossed:poly" in m.flags and m.w_poly == 0.0 and m.p == pytest.approx(0.455, abs=0.002)
+    assert run(pq(0.43, 0.41), None, confidence="none").tier == "skip"
+    alone = run(pq(0.40, 0.40), None, confidence="none")
+    assert alone.p is None and alone.tier == "skip" and "crossed:poly" in alone.flags
+
+
+def test_half_spread_is_floored_at_half_a_tick():
+    e = estimate_venue(pq(0.4995, 0.5005, bd=1e6, ad=1e6), now_ms=NOW, inplay=False, cfg=CFG)
+    assert e.half_spread == pytest.approx(0.0005) and e.sigma >= 0.0005
+    ek = estimate_venue(kq(0.499, 0.501, bd=1e6, ad=1e6), now_ms=NOW, inplay=False, cfg=CFG)
+    assert ek.half_spread == pytest.approx(0.005)
+
+
+def test_config_rejects_non_positive_kalshi_prior():
+    with pytest.raises(ValueError):
+        MarginalConfig(kalshi_prior={"nba": 0.0})
+    with pytest.raises(ValueError):
+        MarginalConfig(kalshi_prior_default=-1.0)
+
+
+def test_microprice_shift_is_shrunk_when_the_book_is_thin():
+    thick = estimate_venue(pq(0.40, 0.42, bs=300.0, as_=100.0, bd=5000.0, ad=5000.0), now_ms=NOW, inplay=False, cfg=CFG)
+    thin = estimate_venue(pq(0.40, 0.42, bs=300.0, as_=100.0, bd=20.0, ad=20.0), now_ms=NOW, inplay=False, cfg=CFG)
+    assert 0.41 < thin.p < thick.p < 0.415 + 1e-9
+
+
+def test_err_is_floored_at_rho_times_the_best_sigma():
+    cfg = MarginalConfig(kalshi_prior={"nfl": 100.0})                            # a huge prior would drive 1/sqrt(sum prec) far below sigma
+    m = run(pq(0.40, 0.42), kq(0.40, 0.42), cfg=cfg)
+    best = min(v.sigma for v in m.venues)
+    assert m.err >= cfg.err_rho * best - 1e-12 and 1 / math.sqrt(sum(v.precision for v in m.venues)) < cfg.err_rho * best
 
 
 @pytest.mark.parametrize("conf", ["shifted_line", "none"])
@@ -198,22 +246,25 @@ def test_inplay_staleness_scale_and_tier():
     assert "inplay" in kickoff.flags
 
 
-def test_disagree_takes_poly_and_err_at_least_gap():
-    m = run(pq(0.40, 0.42), kq(0.46, 0.48))                                     # gap 0.06 > 0.01 + 0.01
+def test_disagree_keeps_the_weighted_p_and_err_at_least_gap():
+    m = run(pq(0.40, 0.42), kq(0.46, 0.48))                                     # gap 0.06 > 2 * hypot(sigma_p, sigma_k) ~ 0.038
     assert "disagree" in m.flags and "disagree_hard" not in m.flags and m.tier == "disagree"
-    assert m.p == pytest.approx(0.41) and m.err == pytest.approx(0.06)
-    assert m.w_poly == 1.0 and m.w_kalshi == 0.0 and m.p_kalshi == pytest.approx(0.47)
-    assert "poly only" in m.explain
-    agree = run(pq(0.40, 0.42), kq(0.415, 0.435))                               # gap 0.015 <= 0.02
+    w_k = m.w_kalshi
+    assert 0 < w_k < 1 and m.p == pytest.approx(0.41 * (1 - w_k) + 0.47 * w_k) and m.err >= 0.06 - 1e-12
+    assert m.p_kalshi == pytest.approx(0.47) and "venues disagree" in m.explain
+    agree = run(pq(0.40, 0.42), kq(0.415, 0.435))                               # gap 0.015 inside the sigma band
     assert "disagree" not in agree.flags and agree.w_kalshi > 0
-    agree = run(pq(0.40, 0.42), kq(0.42, 0.44))                                 # gap == 0.02: not a disagreement
-    assert "disagree" not in agree.flags and agree.w_kalshi > 0
+    wide_gap = run(pq(0.40, 0.42), kq(0.42, 0.44))
+    assert "disagree" not in wide_gap.flags and wide_gap.w_kalshi > 0
+    # the test scales with the venues' own sigma: the same 0.06 gap between thin books is not a disagreement
+    noisy = run(pq(0.34, 0.48, bd=10.0, ad=10.0), kq(0.40, 0.54, bd=10.0, ad=10.0))
+    assert "disagree" not in noisy.flags
 
 
 def test_disagree_hard_skips_but_reports_p():
     m = run(pq(0.40, 0.42), kq(0.60, 0.62))                                     # gap 0.20 > gap_skip 0.10
     assert {"disagree", "disagree_hard"} <= set(m.flags) and m.tier == "skip"
-    assert m.p == pytest.approx(0.41) and m.err == pytest.approx(0.20) and m.w_kalshi == 0.0
+    assert m.err == pytest.approx(0.20) and 0 < m.w_kalshi < 1 and 0.41 < m.p < 0.61
 
 
 def test_degenerate_raises_err_floor():
@@ -249,14 +300,14 @@ def test_no_quote_at_all():
 
 
 def test_err_floor_and_cap():
-    tight = run(pq(0.50, 0.50, bd=1e6, ad=1e6), kq(0.50, 0.50, bd=1e6, ad=1e6))   # locked books
+    tight = run(pq(0.499, 0.501, bd=1e6, ad=1e6), kq(0.499, 0.501, bd=1e6, ad=1e6))   # one-tick books
     assert tight.err == pytest.approx(CFG.err_floor)
     huge = run(pq(0.01, 0.99), None, confidence="none")
     assert huge.err == pytest.approx(CFG.err_cap)
 
 
 def test_tier_priority_and_flags_unique():
-    m = run(pq(0.30, 0.52, bd=10.0, ad=10.0), kq(0.60, 0.62, at=NOW - 700_000))   # wide, thin, stale, hard disagree
+    m = run(pq(0.40, 0.42, bd=10.0, ad=10.0), kq(0.60, 0.62, at=NOW - 700_000))   # thin, stale kalshi, hard disagree
     assert m.tier == "skip"
     assert len(m.flags) == len(set(m.flags))
     m = run(pq(0.30, 0.52, bd=10.0, ad=10.0), kq(0.42, 0.44, at=NOW - 700_000))   # stale beats wide beats thin

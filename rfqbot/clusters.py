@@ -25,12 +25,15 @@ Pair classes, ordered; the first that applies wins (``classify_pair``):
 Game key (``leg_ref``): for a registered sport (``rfqbot.sports.registry.sport_for_slug``) it is
 ``LegSpec.game_key`` as the sport's slug-only parse would produce it, ``{sport}|{slug_date}|{AWAY}@{HOME}``
 with canonical team codes from the sport's team table (so an NFL slug date stays the UTC slug
-date, exactly as nfl_poly emits it). Otherwise the generic team-sport prefix
-``{league}-{a}-{b}-{YYYY-MM-DD}`` (100% of team-sport slugs) gives ``{league}|{date}|{a}@{b}``, and the
-tennis doubles shape ``{atp|wta}-doubles-{a}-{b}-{date}`` gives ``{league}-doubles|{date}|{a}@{b}``.
-Anything else -> no game key. Shared-team detection uses canonical codes for registered sports
-and the generic slug codes otherwise, always qualified by league so "mia" in the NBA and the NFL
-never collide.
+date, exactly as nfl_poly emits it); both slug codes must be in the team table, otherwise the slug
+is not a game (``nfl-afc-championship-2027-01-25-x``) and gets no game key. Otherwise the generic
+team-sport prefix ``{league}-{a}-{b}-{YYYY-MM-DD}`` gives ``{league}|{date}|{a}@{b}``, but only for a
+league token in ``GENERIC_LEAGUES`` (the tokens seen in the live sample plus a few obvious ones):
+any three tokens and a date make the shape (``fed-rate-cut-2026-12-10-25bps``), and two such
+non-game slugs must classify as ``no_game_key``, not ``same_game``. The tennis doubles shape
+``{atp|wta}-doubles-{a}-{b}-{date}`` gives ``{league}-doubles|{date}|{a}@{b}``. Anything else -> no
+game key. Shared-team detection uses canonical codes for registered sports and the generic slug
+codes otherwise, always qualified by league so "mia" in the NBA and the NFL never collide.
 
 Pricing (``combo_probability``): the combo pays only when every leg pays, so
 P = product over clusters of P(cluster). A one-leg cluster is its marginal. A multi-leg cluster
@@ -47,9 +50,12 @@ assembly in ``rfqbot.quoting.semantics`` (NFL session), not here.
 from __future__ import annotations
 
 import importlib
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
+
+log = logging.getLogger(__name__)
 
 PAIR_CLASSES = ("same_market", "same_group", "same_game", "no_game_key", "shared_team_diff_game", "disjoint")
 PairClass = str
@@ -60,6 +66,18 @@ EXCLUSIVE_FAMILIES: dict[str, tuple[str, ...]] = {
     "nfl": ("exact-margin-", "highest-scoring-quarter-"),
     "*": ("exact-score-", "halftime-result-", "second-half-result-"),
 }
+
+#: League tokens whose ``{league}-{a}-{b}-{date}`` slugs are games (generic basis). Enumerated from the
+#: 75 s live sample of 2026-10-20 (tests/fixtures/clusters_75s_legs.json.gz, 96 tokens) plus mlb, ncaab,
+#: ncaaf, nhl. A token outside this set never gets a game key, so a non-sport slug of the same shape
+#: is refused rather than priced as a same-game cluster.
+GENERIC_LEAGUES: frozenset[str] = frozenset("""
+arg argpn atp aus aut aze2 bel1 bl2 bl3 bra bra2 bun cfb chi chi1 col col1 col2 crint cs2 cze1 den dota2
+ecu1 efa egy1 el1 el2 elc enl epl ere es2 est1 fin1 fl1 fr2 gre1 gtm hok hr1 idn1 irl1 isl1 isp isr itf itsb
+ja2 ja3 jap kor lal lib lol mex mex2 mlbb mls nba nfl nhl nirl1 nls nor nor2 per1 pol por qat1 r6siege rou1
+rus scop sea spl sud sui svk1 swe swe2 tur tur2 ucl uel ufc ukr1 usl1 uslc usoc val wnba wta
+mlb ncaab ncaaf
+""".split())
 
 _GENERIC = re.compile(r"^(?P<league>[a-z0-9]+)-(?P<a>[a-z0-9]+)-(?P<b>[a-z0-9]+)-(?P<date>\d{4}-\d{2}-\d{2})(?:-(?P<rest>.*))?$")
 _DOUBLES = re.compile(r"^(?P<league>atp|wta)-doubles-(?P<a>[a-z0-9]+)-(?P<b>[a-z0-9]+)-(?P<date>\d{4}-\d{2}-\d{2})(?:-(?P<rest>.*))?$")
@@ -78,7 +96,8 @@ class LegRef:
     basis: str = "none"                # registry | generic | doubles | none
 
     @property
-    def is_yes(self) -> bool | None:
+    def is_first_outcome(self) -> bool | None:
+        """True for outcome_index 0 (the YES / first-listed outcome), None when the index is unknown."""
         return None if self.outcome_index is None else self.outcome_index == 0
 
 
@@ -91,13 +110,18 @@ def _registered(slug: str):
         return None
 
 
-def _team_code(sport: str, slug_code: str) -> str:
-    """Canonical code from rfqbot.sports.{sport}_teams.by_poly_slug; the uppercase slug code if no table."""
+def _team_code(sport: str, slug_code: str) -> str | None:
+    """Canonical code from rfqbot.sports.{sport}_teams.by_poly_slug; None when the sport has a team table
+    and the code is not in it (the slug is not a game of that sport). A sport without a team table
+    keeps the uppercase slug code."""
     try:
         mod = importlib.import_module(f"rfqbot.sports.{sport}_teams")
-        return mod.by_poly_slug(slug_code).code
-    except Exception:
+    except ImportError:
         return slug_code.upper()
+    try:
+        return mod.by_poly_slug(slug_code).code
+    except KeyError:          # UnknownTeam subclasses KeyError
+        return None
 
 
 def leg_ref(position_id: str, condition_id: str | None, slug: str | None, outcome_index: int | None = None) -> LegRef:
@@ -116,8 +140,15 @@ def leg_ref(position_id: str, condition_id: str | None, slug: str | None, outcom
     if sp is not None:
         league, basis = sp.sport, "registry"
         a, b = _team_code(sp.sport, m["a"]), _team_code(sp.sport, m["b"])
+        if a is None or b is None:
+            # registered sport, but the slug tokens are not two teams (nfl-afc-championship-2027-01-25-...):
+            # not a game, so no game key rather than a key that pairs unrelated markets as same_game
+            log.debug("no game key for %s: %s slug codes %r/%r not in the %s team table", slug, sp.sport, m["a"], m["b"], sp.sport)
+            return LegRef(position_id, condition_id, slug, outcome_index, league)
     else:
         league, basis = m["league"], "generic"
+        if league not in GENERIC_LEAGUES:
+            return LegRef(position_id, condition_id, slug, outcome_index)
         a, b = m["a"], m["b"]
     key = f"{league}|{m['date']}|{a}@{b}"
     rest = m["rest"] or ""
@@ -272,28 +303,32 @@ def combo_probability(clustering: Clustering, p_leg: Mapping[str, float], joint_
     position_id -> marginal probability that the leg pays."""
     flags = list(clustering.flags)
     out: list[ClusterProb] = []
-    missing = [l.position_id for l in clustering.legs if l.position_id not in p_leg]
+    uniq_legs = list({l.position_id: l for l in clustering.legs}.values())
+    missing = [l.position_id for l in uniq_legs if l.position_id not in p_leg]
     if missing:
         flags.append("missing_marginals:" + ",".join(missing))
-    all_ps = [p_leg[l.position_id] for l in clustering.legs if l.position_id in p_leg]
+    all_ps = [p_leg[l.position_id] for l in uniq_legs if l.position_id in p_leg]
     indep = _product(all_ps) if not missing else None
     lo, hi = frechet_bounds(all_ps) if not missing else (None, None)
     unpriceable = "unpriceable_dependence" in clustering.flags
     for cl in clustering.clusters:
-        ps = [p_leg[pid] for pid in cl.position_ids if pid in p_leg]
-        if len(ps) != len(cl):
+        # the same position twice is just that leg: dedupe by position_id before any structural check
+        legs = list({l.position_id: l for l in cl.legs}.values())
+        ps = [p_leg[l.position_id] for l in legs if l.position_id in p_leg]
+        if len(ps) != len(legs):
             out.append(ClusterProb(cl.key, cl.position_ids, None, "unpriceable")); continue
-        if len(cl) == 1:
+        if len(legs) == 1:
             out.append(ClusterProb(cl.key, cl.position_ids, ps[0], "marginal")); continue
         # structurally impossible combinations: two different positions of one market, or two YES
-        # legs of one exclusive group
-        if len({l.position_id for l in cl.legs}) == 1:
-            out.append(ClusterProb(cl.key, cl.position_ids, ps[0], "marginal")); continue
-        if len({l.condition_id for l in cl.legs}) < len(cl):
+        # legs of one exclusive group. Only known condition_ids count: a leg with no catalog row must
+        # not make the cluster impossible.
+        conds = [l.condition_id for l in legs if l.condition_id]
+        if len(set(conds)) < len(conds):
             out.append(ClusterProb(cl.key, cl.position_ids, 0.0, "impossible")); continue
-        if "same_group" in cl.classes and all(l.is_yes for l in cl.legs) and len({l.group for l in cl.legs}) == 1:
+        if "same_group" in cl.classes and all(l.is_first_outcome for l in legs) and len({l.group for l in legs}) == 1:
             out.append(ClusterProb(cl.key, cl.position_ids, 0.0, "impossible")); continue
-        p = joint_fn(cl) if joint_fn is not None else None
+        engine_cl = cl if len(legs) == len(cl.legs) else Cluster(cl.game_key, legs, set(cl.classes))
+        p = joint_fn(engine_cl) if joint_fn is not None else None
         if p is not None:
             out.append(ClusterProb(cl.key, cl.position_ids, float(p), "engine"))
         else:

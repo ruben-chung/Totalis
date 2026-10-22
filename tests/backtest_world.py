@@ -106,7 +106,3 @@ def add_print(rfq_db, rfq_id, *, direction, price_e6, size_e6, at_ms, legs, requ
                     "size_e6": size_e6, "executed_at_ms": at_ms, "received_at_ms": at_ms, "is_ours": 0, "raw_message_id": None})
     s.close()
 
-
-def test_world_builds(tmp_path):
-    w = build_world(tmp_path)
-    assert w["books_db"].exists() and w["kalshi_db"].exists()

@@ -57,6 +57,9 @@ def test_back_out_and_error_propagation():
     # a wider book on the extra leg means a proportionally larger error
     _, err2 = back_out(0.2985, 0.995, 0.02)
     assert err2 == pytest.approx(2 * err)
+    # the half spread is a floor: a maker-side uncertainty on the extra leg adds in quadrature
+    _, err3 = back_out(0.2985, 0.995, 0.01, extra_err=0.012)
+    assert err3 == pytest.approx(0.3 * (0.005 ** 2 + 0.012 ** 2) ** 0.5 / 0.995) and err3 > err
     with pytest.raises(ValueError):
         back_out(0.3, 0.0, 0.01)
     d = extra("x", "nfl-dal-phi-2026-10-26").as_dict()

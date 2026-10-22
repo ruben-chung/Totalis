@@ -1,5 +1,5 @@
 from rfqbot.edge.data import DecisionRec, LegInfo, Print
-from rfqbot.edge.fills import actual_markup, competitor_gap, counterfactual, fill_fraction, would_win
+from rfqbot.edge.fills import actual_markup, adverse_round_trips, competitor_gap, counterfactual, fill_fraction, would_win
 
 E6 = 1_000_000
 
@@ -11,9 +11,27 @@ def dec(i, direction, p_fair, price, size=100 * E6, rfq=None, n_legs=2, u_m=0.00
                        size_e6=size, legs=legs, requester=requester)
 
 
-def prt(rfq, direction, price, size=100 * E6, at=1_010_000, requester="w1"):
+def prt(rfq, direction, price, size=100 * E6, at=1_010_000, requester="w1", cond="0xc"):
     return Print(rfq_id=rfq, direction=direction, price=price, size_e6=size, executed_at_ms=at, requester=requester, n_legs=2,
-                 position_ids=["p1", "p2"], prefixes=["nba-okc-sas-2026-10-20", "nba-phi-nyk-2026-10-20"])
+                 position_ids=["p1", "p2"], prefixes=["nba-okc-sas-2026-10-20", "nba-phi-nyk-2026-10-20"], condition_id=cond)
+
+
+def test_adverse_round_trip_is_a_fill_plus_an_opposite_print_on_the_same_combo_within_10s():
+    d = dec(1, "BUY", 0.30, 0.31)                                    # we quoted 0.31, print at 0.33: a win
+    p = prt("rfq-1", "BUY", 0.33, at=1_000_000)
+    fills = counterfactual([d], [p])
+    assert fills[0].win_actual
+    # the same wallet sells the same combo 8 s later -> adverse round trip on rfq-1
+    unwind = prt("rfq-9", "SELL", 0.29, at=1_008_000)
+    assert adverse_round_trips(fills, [p, unwind]) == {"rfq-1"}
+    # not: a different wallet, a different combo, the same direction, or outside the window
+    assert adverse_round_trips(fills, [p, prt("rfq-9", "SELL", 0.29, at=1_008_000, requester="w2")]) == set()
+    assert adverse_round_trips(fills, [p, prt("rfq-9", "SELL", 0.29, at=1_008_000, cond="0xother")]) == set()
+    assert adverse_round_trips(fills, [p, prt("rfq-9", "BUY", 0.33, at=1_008_000)]) == set()
+    assert adverse_round_trips(fills, [p, prt("rfq-9", "SELL", 0.29, at=1_020_001)]) == set()
+    # a losing quote (we did not fill) is never a round trip, whatever the wallet did next
+    lost = counterfactual([dec(2, "BUY", 0.30, 0.35)], [prt("rfq-2", "BUY", 0.33, at=1_000_000)])
+    assert adverse_round_trips(lost, [prt("rfq-2", "BUY", 0.33, at=1_000_000), unwind]) == set()
 
 
 def test_would_win_buy_lower_ask_wins():

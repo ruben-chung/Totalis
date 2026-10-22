@@ -1,5 +1,4 @@
 """As-of readers: field-for-field with the live readers, never a row after t, heartbeat staleness, lazy == eager marginals."""
-import numpy as np
 import pytest
 
 from rfqbot.backtest.asof import CatalogRO, Clock, GameData, Heartbeat, KalshiAsOf, PolyAsOf
@@ -8,7 +7,7 @@ from rfqbot.kalshi_books import kalshi_for_legs
 from rfqbot.ladders import game_markets
 from rfqbot.marginals import compute_game, load_config
 
-from test_backtest_world import G1, G2, KTICKER, PID, T0, TOK, build_world
+from backtest_world import G1, G2, PID, T0, TOK, build_world
 
 
 def test_poly_asof_matches_game_markets_at_several_times(tmp_path):

@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
-
-HERE = Path(__file__).resolve().parent
 
 
 @dataclass(frozen=True)
@@ -19,7 +17,7 @@ class EdgeConfig:
     kalshi_db: Path = Path("./data/kalshi_books.db")
     edge_db: Path = Path("./data/edge.db")              # fills, curves, markouts, wallet scores
     wallet_list: Path = Path("./data/edge_wallets.json")  # manual allow / deny list
-    table_path: Path = HERE / "margin_table.json"       # the optimiser's output, read by margin_for()
+    table_path: Path = Path("./data/margin_table.json")  # the optimiser's output (a runtime artifact), read by margin_for()
     sports: tuple[str, ...] = ("nfl", "nba")            # sports quote assembly prices
     grid_max: float = 0.10                              # markup grid 0 .. grid_max in grid_step (probability points)
     grid_step: float = 0.0025
@@ -35,6 +33,7 @@ class EdgeConfig:
     min_fill_rate: float = 0.0                          # EDGE_MIN_FILL_RATE: F(m*) >= this (0 = unconstrained)
     min_fill_basis: str = "print"                       # print: F among RFQs that traded | request: F per request
     min_wins_at_m: int = 2                              # m* must be a markup at which at least this many printed decisions won
+    m_shrink_k: float = 10.0                            # EDGE_M_SHRINK_K: m* = w m_raw + (1 - w) m*_parent, w = wins / (wins + k)
     curse_source: str = "model"                         # model | measured: E[error | win] used by the optimiser
     default_edge: float = 0.005                         # QUOTE_BASE_EDGE fallback when no table / node applies
     refresh_sec: float = 300.0                          # monitor loop period
@@ -84,7 +83,7 @@ def load_edge_config(env_file: str | os.PathLike | None = ".env", env: dict[str,
         wallet_k=_f(env, "WALLET_K", b.wallet_k), shrink_n=_f(env, "SHRINK_N", b.shrink_n), block_conf=_f(env, "BLOCK_CONF", b.block_conf),
         min_fill_rate=_f(env, "MIN_FILL_RATE", b.min_fill_rate),
         min_fill_basis=(env.get("EDGE_MIN_FILL_BASIS") or b.min_fill_basis).lower(),
-        min_wins_at_m=int(_f(env, "MIN_WINS_AT_M", b.min_wins_at_m)),
+        min_wins_at_m=int(_f(env, "MIN_WINS_AT_M", b.min_wins_at_m)), m_shrink_k=_f(env, "M_SHRINK_K", b.m_shrink_k),
         curse_source=(env.get("EDGE_CURSE_SOURCE") or b.curse_source).lower(),
         default_edge=_f(env, "DEFAULT_EDGE", float(env.get("QUOTE_BASE_EDGE") or b.default_edge)),
         refresh_sec=_f(env, "REFRESH_SEC", b.refresh_sec), kalshi_mode=(env.get("EDGE_KALSHI_MODE") or b.kalshi_mode),

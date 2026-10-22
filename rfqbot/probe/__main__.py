@@ -13,7 +13,6 @@ import json
 import logging
 import sys
 import time
-from pathlib import Path
 
 from ..edge.config import EdgeConfig
 from ..edge.fairs import FairSource

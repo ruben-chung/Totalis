@@ -3,26 +3,14 @@ edge layer segments on. Read-only; both files belong to other writers."""
 from __future__ import annotations
 
 import json
-import re
-import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from ..db import chunks, ro_connect
+from ..slugs import E6, game_prefix_of
 from .config import EdgeConfig
-from .segments import Segment
-
-GAME_RE = re.compile(r"^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-|$)")
-DOUBLES_RE = re.compile(r"^([a-z]+-doubles-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-|$)")
-E6 = 1_000_000
-
-
-def game_prefix_of(slug: str | None) -> str | None:
-    """Ladder / game prefix of a slug (same grammar as rfqbot.quoting.assemble.game_prefix_of)."""
-    if not slug:
-        return None
-    m = GAME_RE.match(slug) or DOUBLES_RE.match(slug)
-    return m.group(1) if m else None
+from .segments import Segment, rfq_sigma
 
 
 def sport_of_prefixes(prefixes: Iterable[str | None]) -> str:
@@ -35,12 +23,6 @@ def sport_of_prefixes(prefixes: Iterable[str | None]) -> str:
 def same_game_of(prefixes: Sequence[str | None]) -> bool:
     known = [p for p in prefixes if p]
     return len(known) != len(set(known))
-
-
-def _ro(path: str | Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{Path(path)}?mode=ro", uri=True, timeout=30)
-    c.row_factory = sqlite3.Row
-    return c
 
 
 @dataclass
@@ -74,7 +56,7 @@ class DecisionRec:
 
     @property
     def sigma(self) -> float:
-        return (self.u_m or 0.0) + (self.u_d or 0.0)
+        return rfq_sigma(self.u_m, self.u_d)
 
     @property
     def prefixes(self) -> list[str]:
@@ -126,7 +108,7 @@ def load_decisions(cfg: EdgeConfig, since_ms: int | None = None, until_ms: int |
         where.append("at_ms <= ?"); args.append(until_ms)
     sql = "SELECT * FROM decisions" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY id"
     out: list[DecisionRec] = []
-    conn = _ro(cfg.decisions_db)
+    conn = ro_connect(cfg.decisions_db, shared=False)
     try:
         for r in conn.execute(sql, args):
             if r["p_fair"] is None or r["price_e6"] is None:
@@ -151,12 +133,11 @@ def load_decisions(cfg: EdgeConfig, since_ms: int | None = None, until_ms: int |
 def _attach_requesters(cfg: EdgeConfig, decs: list[DecisionRec]) -> None:
     if not decs or not Path(cfg.rfq_db).exists():
         return
-    conn = _ro(cfg.rfq_db)
+    conn = ro_connect(cfg.rfq_db, shared=False)
     try:
         ids = [d.rfq_id for d in decs]
         found: dict[str, str] = {}
-        for i in range(0, len(ids), 900):
-            chunk = ids[i:i + 900]
+        for chunk in chunks(ids):
             for r in conn.execute(f"SELECT r.rfq_id, q.public_id FROM rfqs r JOIN requesters q ON q.id = r.requester_id"
                                   f" WHERE r.rfq_id IN ({','.join('?' * len(chunk))})", chunk):
                 found[r["rfq_id"]] = r["public_id"] or ""
@@ -177,7 +158,7 @@ def load_prints(cfg: EdgeConfig, since_ms: int | None = None, until_ms: int | No
         where.append("t.executed_at_ms >= ?"); args.append(since_ms)
     if until_ms is not None:
         where.append("t.executed_at_ms <= ?"); args.append(until_ms)
-    conn = _ro(cfg.rfq_db)
+    conn = ro_connect(cfg.rfq_db, shared=False)
     try:
         sql = ("SELECT t.rfq_id, t.direction, t.price_e6, t.size_e6, t.executed_at_ms, t.combo_id, q.public_id,"
                " r.size_unit, r.size_value_e6, c.condition_id, c.n_legs"
@@ -188,8 +169,7 @@ def load_prints(cfg: EdgeConfig, since_ms: int | None = None, until_ms: int | No
         rows = [r for r in rows if wanted is None or r["rfq_id"] in wanted]
         combo_ids = sorted({r["combo_id"] for r in rows if r["combo_id"] is not None})
         legs: dict[int, list[tuple[int, str, str | None]]] = {}
-        for i in range(0, len(combo_ids), 900):
-            chunk = combo_ids[i:i + 900]
+        for chunk in chunks(combo_ids):
             for l in conn.execute(f"SELECT cl.combo_id, cl.leg_index, cl.position_id, m.slug FROM combo_legs cl"
                                   f" LEFT JOIN markets m ON m.position_id = cl.position_id"
                                   f" WHERE cl.combo_id IN ({','.join('?' * len(chunk))})", chunk):

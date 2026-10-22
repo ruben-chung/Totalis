@@ -20,7 +20,7 @@ Results, limits and next steps: `handin-summary.md`.
 ```bash
 uv venv .venv && uv pip install -e ".[dev]" --python .venv/bin/python
 cp .env.example .env            # public feeds need no credentials
-.venv/bin/python -m pytest -q   # ~375 tests; three files skip without data/
+.venv/bin/python -m pytest -q   # ~490 tests; three files skip without data/
 ```
 
 ## Run
@@ -29,7 +29,7 @@ cp .env.example .env            # public feeds need no credentials
 scripts/run.sh rfqbot listen --quote   # RFQ listener + paper quotes -> data/rfq.db, data/raw/, data/decisions.db
 scripts/run.sh rfqbot.books            # Polymarket leg books and game ladders -> data/books.db
 scripts/run.sh rfqbot.kalshi_books     # Kalshi top-of-book and leg matches -> data/kalshi_books.db
-scripts/run.sh rfqbot.edge monitor     # margin table refit every 5 min -> rfqbot/edge/margin_table.json
+scripts/run.sh rfqbot.edge monitor     # margin table refit every 5 min -> data/margin_table.json
 scripts/status.sh                      # running rfqbot processes
 ```
 
@@ -37,7 +37,7 @@ scripts/status.sh                      # running rfqbot processes
 commands: `.venv/bin/python -m rfqbot --help` (listen, catalog, replay, stats, bookstats,
 kalshi-sync, coverage, joint, joint-validate, joint-calibrate, risk) and module entry points
 `rfqbot.history`, `rfqbot.props`, `rfqbot.marginals`, `rfqbot.edge`, `rfqbot.sports.nba_coverage`.
-`PAPER_TRADING=false` is rejected: no signing path.
+There is no signing path: `PAPER_TRADING=false` logs a warning and the bot still runs in paper mode.
 
 ## Architecture
 

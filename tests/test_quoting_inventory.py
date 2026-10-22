@@ -79,14 +79,16 @@ def test_repeated_combo_is_cut_then_skipped_by_the_outcome_cap(nfl_entry):
     cache, store, asm, inv = make_world(nfl_entry)
     legs = [leg(nfl_entry, "-spread-home-3pt5", "Cowboys"), leg(nfl_entry, "-total-44pt5", "Over")]
     sizes, decisions = [], []
-    for i in range(12):
-        d = asm.handle(rfq(legs, value=5_000_000_000, rid=f"r{i}", req="req_a" if i % 2 else "req_b"), store)
+    for i in range(30):                 # Kelly on the base edge is ~0.3% of capital per quote; the 5% outcome cap bites after ~17
+        asm.handle(rfq(legs, value=5_000_000_000, rid=f"r{i}", req="req_a" if i % 2 else "req_b"), store)
         dec = asm.decisions.read(f"r{i}")[0]
         decisions.append(dec["decision"])
         sizes.append(dec["size_e6"] or 0)
     assert decisions[0] == "quoted" and sizes[0] > 0
     first = asm.decisions.read("r0")[0]
-    assert first["allowed_size"] is not None and first["binding_cap"] in ("outcome", "game", "es1", "kelly", None)
+    assert first["allowed_size"] is not None and first["allowed_size"] > 0
+    # on an empty book the first $5k request is cut by Kelly on the base edge (not by a cap), so no cap binds
+    assert first["binding_cap"] is None and "cut:kelly" in first["reason"]
     assert first["expires_ms"] == NOW + 400 + 31_000 and first["deadline_ms"] == NOW + 400
     assert first["pending_same_combo"] == 0 and json.loads(first["headroom_json"])["outcome"] is not None
     assert json.loads(first["book_json"])["positions"] == 0
@@ -183,12 +185,48 @@ def test_risk_off_keeps_stage_two_behaviour(nfl_entry):
 
 
 def test_kelly_cuts_size_and_is_logged(nfl_entry):
-    cache, store, asm, inv = make_world(nfl_entry, caps=Caps(capital_usd=1_000.0, max_outcome_delta=10, max_game_worst_loss=10,
+    cache, store, asm, inv = make_world(nfl_entry, caps=Caps(capital_usd=10_000.0, max_outcome_delta=10, max_game_worst_loss=10,
                                                              max_portfolio_es1=10))
     ml = [leg(nfl_entry, "", "Cowboys")]
     d = asm.evaluate(rfq(ml, value=5_000_000_000, rid="k"), store)
-    assert d.quoted and d.kelly_size == pytest.approx(kelly_size(d.margin, d.p_fair, 1_000.0, 0.25))
+    # Kelly sizes on the expected profit (base edge), not on the uncertainty / curse part of the margin
+    assert d.quoted, d.reason
+    assert d.kelly_edge == pytest.approx(d.e_b) and d.kelly_edge < d.margin
+    assert d.kelly_size == pytest.approx(kelly_size(d.kelly_edge, d.p_fair, 10_000.0, 0.25))
     assert d.size_e6 / 1e6 <= d.kelly_size + 1e-3 and "cut:kelly" in d.reason
+
+
+def test_hedge_allowance_is_bounded_by_the_tail_it_removes(nfl_entry):
+    cache, store, asm, inv = make_world(nfl_entry)
+    ml = [leg(nfl_entry, "", "Cowboys")]
+    for i in range(3):
+        asm.handle(rfq(ml, value=300_000_000, rid=f"s{i}"), store)
+    h = asm.evaluate(rfq(ml, direction="SELL", unit="shares", value=100_000_000, rid="h"), store)
+    assert h.quoted and h.e_i < 0 and h.d_es1_per_share < 0
+    assert h.kelly_edge == pytest.approx(h.e_b + min(-h.e_i, -h.d_es1_per_share))
+    # the skewed margin never drops below the curse floor (base_edge without a fitted node): a hedge tightens, not to fair
+    assert h.margin >= asm.cfg.base_edge - 1e-12 and h.price_e6 / 1e6 <= h.p_fair - asm.cfg.base_edge + asm.cfg.tick + 1e-9
+    # the candidate exposure that went into the book is at the final price
+    assert h.position.price == pytest.approx(h.price_e6 / 1e6)
+
+
+def test_requote_replaces_and_opposite_pending_does_not_net(nfl_entry):
+    cache, store, asm, inv = make_world(nfl_entry)
+    ml = [leg(nfl_entry, "", "Cowboys")]
+    asm.handle(rfq(ml, value=300_000_000, rid="q1", req="req_a", cond="cx"), store)
+    d1 = {d.label: d.delta for d in inv.state.canonical_deltas(GAME)}["DAL win"]
+    asm.handle(rfq(ml, value=300_000_000, rid="q1", req="req_a", cond="cx"), store)          # the same rfq re-quoted
+    assert {d.label: d.delta for d in inv.state.canonical_deltas(GAME)}["DAL win"] == pytest.approx(d1, rel=1e-6)
+    assert inv.book_summary()["pending"] == 1
+    # the same requester now asks the other way on the same combo: at most one fills -> no netting to zero
+    asm.handle(rfq(ml, direction="SELL", unit="shares", value=200_000_000, rid="q2", req="req_a", cond="cx"), store)
+    d2 = {d.label: d.delta for d in inv.state.canonical_deltas(GAME)}["DAL win"]
+    assert abs(d2) >= abs(d1) - 1e-6 and inv.stats["pending_opposite_not_absorbed"] + inv.stats["pending_opposite_replaced"] == 1
+    inv.refresh(force=True)                                                                 # the rebuild applies the same rule
+    d3 = {d.label: d.delta for d in inv.state.canonical_deltas(GAME)}["DAL win"]
+    assert abs(d3) >= min(abs(d1), abs(d2)) - 1e-6 and inv.state.flags["pending_opposite_sides_kept_worse"] == 1
+    # public fill hook
+    assert inv.fill_pending("q2", size=50.0).status == "filled" and inv.fill_pending("nope") is None
 
 
 def test_decisions_log_migrates_old_schema(tmp_path):

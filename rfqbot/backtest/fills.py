@@ -2,7 +2,8 @@
 
 The live bot never submits in paper mode, so the only fill evidence is the venue's trade print on the RFQ:
 it is the best competing quote of a first-price auction. Our quote at ``price`` wins iff it is at or inside
-the print (``would_win``), and fills ``min(1, our_size / print_size)`` of it (``fill_fraction``). Two flags:
+the print (``would_win``), and fills ``min(our_size, print_size)`` shares (``fill_frac`` stays the edge package's
+share of the print, ``our_size / print_size`` capped at 1; it is not the booked fraction of our quote). Two flags:
 
   win     our price at or inside the print                (ties count; the edge package's rule)
   strict  our price inside the print by at least one tick (the range the report shows)
@@ -14,13 +15,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from ..edge.config import EdgeConfig
 from ..edge.data import DecisionRec, LegInfo, Print, load_prints
 from ..edge.fills import Fill, counterfactual
+from ..slugs import E6, game_prefix_of
 
-E6 = 1_000_000
+PRINT_SLACK_MS = 120_000          # prints are looked up this long past the window end
 
 
 @dataclass(frozen=True)
@@ -33,7 +35,7 @@ class FillResult:
     print_size_e6: int | None = None
     executed_at_ms: int | None = None
     delta: float | None = None          # competitor gap in our win direction (print - fair for a requester BUY)
-    fill_size_e6: int = 0               # frac x our size under the rule that drives the book
+    fill_size_e6: int = 0               # min(our size, print size) under the rule that drives the book; frac is the edge package's share of the print
 
     def as_dict(self) -> dict[str, Any]:
         return {"printed": int(self.printed), "fill_win": int(self.win), "fill_strict": int(self.strict), "fill_frac": self.frac,
@@ -42,7 +44,7 @@ class FillResult:
 
 
 def load_print_index(rfq_db: str | Path, start_ms: int, end_ms: int, *, sports: tuple[str, ...] = ("nfl", "nba"),
-                     slack_ms: int = 120_000) -> dict[str, Print]:
+                     slack_ms: int = PRINT_SLACK_MS) -> dict[str, Print]:
     """Prints of RFQs first seen in the window (executed up to ``slack_ms`` after it), keyed by rfq_id."""
     cfg = EdgeConfig(rfq_db=Path(rfq_db))
     return {p.rfq_id: p for p in load_prints(cfg, start_ms, end_ms + slack_ms, sports=sports)}
@@ -50,7 +52,6 @@ def load_print_index(rfq_db: str | Path, start_ms: int, end_ms: int, *, sports: 
 
 def decision_rec(d: Any, idx: int = 0) -> DecisionRec:
     """An assembler Decision as the edge package's DecisionRec (quoted decisions only)."""
-    from ..edge.data import game_prefix_of
     legs = [LegInfo(l.position_id, game_prefix_of(l.slug), l.p, l.err, l.kalshi_confidence or "none") for l in d.legs]
     same_game = any(len(c.position_ids) > 1 for c in d.clusters)
     return DecisionRec(id=idx, rfq_id=d.rfq_id, at_ms=d.at_ms, direction=d.direction, requested_unit=d.requested_unit,
@@ -76,4 +77,4 @@ def evaluate_fill(d: Any, prints: dict[str, Print], *, tick: float = 0.001, rule
     strict = f.win_actual and gap_price >= tick - 1e-9
     driving = strict if rule == "strict" else f.win_actual
     return FillResult(True, bool(f.win_actual), bool(strict), f.fill_frac if f.win_actual else 0.0, pr.price, pr.size_e6,
-                      pr.executed_at_ms, f.delta, int(f.fill_frac * d.size_e6) if driving else 0)
+                      pr.executed_at_ms, f.delta, min(int(d.size_e6), int(pr.size_e6)) if driving else 0)

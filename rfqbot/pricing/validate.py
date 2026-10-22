@@ -17,7 +17,6 @@ out of the pair sample; pairs with a leg missing a snapshot are left out too.
 from __future__ import annotations
 
 import json
-import math
 import sqlite3
 import time
 from collections import defaultdict
@@ -27,9 +26,11 @@ from typing import Any, Iterable
 
 import numpy as np
 
+from ..db import ro_connect
 from ..sports.legspec import canonical_key
-from .joint import DEFAULT_SHOCKS, GameModel, build_game
+from .joint import DEFAULT_SHOCKS, build_game, interval_of
 from .joint_nfl import EngineConfig
+from .metrics import brier as _brier, family_pair, logloss as _logloss
 
 DEFAULT_HISTORY_DB = Path("./data/history.db")
 DEFAULT_OUT_DB = Path("./data/engine_validation.db")
@@ -80,21 +81,6 @@ class GameValidation:
     n_pairs_unpriced: int = 0
 
 
-def _ro(path: str | Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{Path(path)}?mode=ro", uri=True, check_same_thread=False, timeout=30)
-    c.row_factory = sqlite3.Row
-    return c
-
-
-def _fam(family: str | None, period: str | None) -> str:
-    return f"{family or '?'}/{period or '?'}"
-
-
-def family_pair(fa: str, pa: str, fb: str, pb: str) -> str:
-    a, b = _fam(fa, pa), _fam(fb, pb)
-    return " x ".join(sorted((a, b)))
-
-
 class Validator:
     def __init__(self, history_db: str | Path = DEFAULT_HISTORY_DB, out_db: str | Path | None = DEFAULT_OUT_DB, *,
                  max_pairs_per_game: int = 3000, seed: int = 0, config: EngineConfig | None = None,
@@ -122,7 +108,7 @@ class Validator:
         return game_markets_hist(prefix, offset, history_db=self.history_db, include_unpriced=False)
 
     def legs(self, prefix: str) -> dict[tuple[str, int], sqlite3.Row]:
-        c = _ro(self.history_db)
+        c = ro_connect(self.history_db)
         try:
             rows = c.execute("SELECT * FROM hist_legs WHERE game_prefix=? AND parse_error IS NULL", (prefix,)).fetchall()
         finally:
@@ -130,7 +116,7 @@ class Validator:
         return {(r["condition_id"], int(r["outcome_index"])): r for r in rows}
 
     def pairs(self, prefix: str) -> list[sqlite3.Row]:
-        c = _ro(self.history_db)
+        c = ro_connect(self.history_db)
         try:
             return c.execute("SELECT * FROM hist_pairs WHERE game_prefix=?", (prefix,)).fetchall()
         finally:
@@ -213,10 +199,11 @@ class Validator:
                 m2 = model.shocked(sh)
                 vals.append(float((m2.indicator(sa) * m2.indicator(sb)).mean(dtype=np.float64)))
             won_a, won_b = float(pr["won_a"]), float(pr["won_b"])
+            lo, hi = interval_of(vals)
             scored.append((prefix, offset, canonical_key(sa), canonical_key(sb),
                            family_pair(pr["family_a"], pr["period_a"], pr["family_b"], pr["period_b"]),
                            p_joint, ma * mb, float(ia.mean(dtype=np.float64)), float(ib.mean(dtype=np.float64)), ma, mb,
-                           min(vals), max(vals), won_a * won_b, won_a, won_b))
+                           lo, hi, won_a * won_b, won_a, won_b))
         self.out.executemany("INSERT OR REPLACE INTO hist_pair_scores VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", scored)
         gv.n_pairs_scored = len(scored)
         self._write_game(gv)
@@ -317,15 +304,6 @@ def _count_flags(rows) -> dict[str, int]:
             key = key.replace(" is", "").strip()
             out[key] += 1
     return dict(sorted(out.items(), key=lambda kv: -kv[1]))
-
-
-def _brier(p: np.ndarray, w: np.ndarray) -> float:
-    return float(np.mean((p - w) ** 2)) if len(p) else float("nan")
-
-
-def _logloss(p: np.ndarray, w: np.ndarray) -> float:
-    p = np.clip(p, 1e-4, 1 - 1e-4)
-    return float(-np.mean(w * np.log(p) + (1 - w) * np.log(1 - p))) if len(p) else float("nan")
 
 
 def _metrics(pj: np.ndarray, pi: np.ndarray, w: np.ndarray) -> dict[str, float]:

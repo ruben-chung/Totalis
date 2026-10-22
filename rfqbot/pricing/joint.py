@@ -1,16 +1,17 @@
 """Public API of the joint engine: ``build_game(quotes) -> GameModel``.
 
-``GameModel.joint(specs)`` evaluates the legs' payoffs over the scenario set and returns a
-``JointQuote``. The interval ``[lo, hi]`` is the min/max of ``p_joint`` under a small fixed
-shock set (``DEFAULT_SHOCKS``), clipped to the Fréchet bounds:
-  * ``halves_corr`` +/- 0.15: the Gaussian-copula coupling with a shifted correlation instead of
-    the 2H-ladder increments prior (re-sampling only),
-  * ``prior_rho`` -0.2 / +0.2 on the prior margin-total correlation (matters when team-total
-    ladders are missing or thin; otherwise the IPF targets pin it and the shock is a no-op),
-  * ``bootstrap`` seeds 1 and 2: every ladder observation redrawn as N(p, err) and the whole
-    model rebuilt.
-Shocked models are built lazily and cached on the GameModel, so evaluating many leg sets costs
-one scenario pass each.
+``GameModel.joint(specs)`` returns a ``JointQuote``. A leg set made only of full-game legs is a
+pure function of the fitted 81 x 81 FG table and is evaluated **exactly** on the grid (indicator
+masks, mass sum); leg sets with a half leg are a Monte Carlo mean over the scenario set (the
+halves coupling is only defined through sampling). The interval ``[lo, hi]`` is the
+``INTERVAL_Q`` / ``1 - INTERVAL_Q`` quantile of ``p_joint`` over the base model and
+``DEFAULT_SHOCKS`` = 8 bootstrap replicas, clipped to the Fréchet bounds. A replica redraws every
+ladder observation as N(p, err), rebuilds the whole model, and perturbs the halves coupling
+inside the same coupling mode as the base model (Gaussian correlation shift U(-0.15, 0.15) in
+copula mode; in increments mode the redrawn 2H ladders are the perturbation) and the prior
+margin-total correlation (U(-0.2, 0.2)); replicas use ``EngineConfig.replica_scenarios``
+scenarios. Shocked models are built lazily and cached on the GameModel; ``halves_corr`` and
+``prior_rho`` shock kinds remain available for diagnostics.
 
 ``p_cal`` is the calibrated probability (``calibrate.py``: per family pair, shrunk toward its
 group, lambda on the departure from the engine-marginal product plus tail maps), fitted on
@@ -34,8 +35,16 @@ from ..sports.legspec import LegSpec, canonical_key
 from ..sports.nfl_poly import parse_poly_nfl
 from .calibrate import Calibration, default_calibration, family_pair_key, group_of
 from .indicators import indicator
-from .joint_nfl import FIT_FAMILIES, EngineConfig, Leg, PeriodModel, Scenarios, build_period, couple_periods
+from .joint_nfl import GRID, _A_IDX, _H_IDX, FIT_FAMILIES, EngineConfig, Leg, PeriodModel, Scenarios, build_period, couple_periods
 from .quotes import Fair, fair_from_quote
+
+N_BOOTSTRAP = 8
+INTERVAL_Q = 0.1                     # interval = (q, 1 - q) quantiles over base + replicas
+BOOT_CORR_SHIFT = 0.15               # halves coupling correlation perturbation per replica (copula mode)
+BOOT_RHO_SHIFT = 0.2                 # prior margin-total correlation perturbation per replica
+# the FG grid as a "scenario set": one scenario per (H, A) cell, so the scenario indicators double as grid masks
+_GRID_SCEN = Scenarios(H1=np.zeros(GRID * GRID, dtype=np.int16), A1=np.zeros(GRID * GRID, dtype=np.int16),
+                       H=_H_IDX.ravel().astype(np.int16), A=_A_IDX.ravel().astype(np.int16), clamp_rate=0.0, corr_h=0.0, corr_a=0.0, seed=0)
 
 
 @dataclass(frozen=True)
@@ -48,11 +57,13 @@ class Shock:
         return f"{self.kind}{self.value:+g}" if self.kind != "bootstrap" else f"bootstrap#{int(self.value)}"
 
 
-DEFAULT_SHOCKS: tuple[Shock, ...] = (
-    Shock("halves_corr", +0.15), Shock("halves_corr", -0.15),
-    Shock("prior_rho", -0.2), Shock("prior_rho", +0.2),
-    Shock("bootstrap", 1), Shock("bootstrap", 2),
-)
+DEFAULT_SHOCKS: tuple[Shock, ...] = tuple(Shock("bootstrap", k) for k in range(1, N_BOOTSTRAP + 1))
+
+
+def interval_of(values: Sequence[float], q: float = INTERVAL_Q) -> tuple[float, float]:
+    """(lo, hi) quantiles of the base and replica values."""
+    v = np.asarray(values, dtype=float)
+    return float(np.quantile(v, q)), float(np.quantile(v, 1 - q))
 
 
 @dataclass
@@ -116,17 +127,36 @@ class GameModel:
         self._shocked: dict[str, "GameModel"] = {}
         self._fair_by_key: dict[str, Fair] = {canonical_key(l.spec): l.fair for l in legs if l.fair is not None}
         self._ind_cache: dict[str, np.ndarray | None] = {}
+        self._grid_cache: dict[str, np.ndarray | None] = {}
 
     # -- per leg -------------------------------------------------------------------------
+    def _check_leg(self, spec: LegSpec) -> str:
+        if spec.sport != "nfl" or f"{spec.away}@{spec.home}" not in self.game_key:
+            raise ValueError(f"{canonical_key(spec)} is not a leg of {self.game_key}")
+        return canonical_key(spec) + "|" + spec.rules.get("tie", "")
+
     def indicator(self, spec: LegSpec) -> np.ndarray | None:
-        k = canonical_key(spec) + "|" + spec.rules.get("tie", "")
+        """Payoff per scenario (float32), None when the family / period is not modeled."""
+        k = self._check_leg(spec)
         if k not in self._ind_cache:
-            if spec.sport != "nfl" or f"{spec.away}@{spec.home}" not in self.game_key:
-                raise ValueError(f"{canonical_key(spec)} is not a leg of {self.game_key}")
             self._ind_cache[k] = indicator(spec, self.scen)
         return self._ind_cache[k]
 
+    def grid_indicator(self, spec: LegSpec) -> np.ndarray | None:
+        """Payoff per (H, A) cell of the FG grid; None unless the leg is a modeled full-game leg."""
+        if spec.period != "FG":
+            return None
+        k = self._check_leg(spec)
+        if k not in self._grid_cache:
+            g = indicator(spec, _GRID_SCEN)
+            self._grid_cache[k] = None if g is None else g.astype(np.float64).reshape(GRID, GRID)
+        return self._grid_cache[k]
+
     def p_leg(self, spec: LegSpec) -> float | None:
+        """Marginal of one leg: exact on the FG table for full-game legs, scenario mean otherwise."""
+        g = self.grid_indicator(spec)
+        if g is not None:
+            return float((self.periods["FG"].table * g).sum())
         ind = self.indicator(spec)
         return None if ind is None else float(ind.mean(dtype=np.float64))
 
@@ -149,13 +179,27 @@ class GameModel:
 
     # -- joint ---------------------------------------------------------------------------
     def _p_joint(self, specs: Sequence[LegSpec]) -> tuple[float, list[float | None], list[str]]:
+        """(p_joint, per-leg marginals, unsupported keys). Exact on the FG grid when every
+        supported leg is a full-game leg; a Monte Carlo mean over the scenarios otherwise."""
+        unsupported = [canonical_key(s) for s in specs if self.indicator(s) is None]
+        supported = [s for s in specs if self.indicator(s) is not None]
+        if all(s.period == "FG" for s in supported):
+            table = self.periods["FG"].table
+            acc = np.ones((GRID, GRID))
+            p_legs: list[float | None] = []
+            for s in specs:
+                g = self.grid_indicator(s)
+                if g is None:
+                    p_legs.append(None)
+                    continue
+                acc *= g
+                p_legs.append(float((table * g).sum()))
+            return float((table * acc).sum()), p_legs, unsupported
         acc = np.ones(self.scen.n, dtype=np.float32)
-        p_legs: list[float | None] = []
-        unsupported: list[str] = []
+        p_legs = []
         for s in specs:
             ind = self.indicator(s)
             if ind is None:
-                unsupported.append(canonical_key(s))
                 p_legs.append(None)
                 continue
             acc = acc * ind
@@ -203,8 +247,8 @@ class GameModel:
         else:
             p_cal, level, model_err = p, "none", 0.0
         shift = p_cal - p
-        vals = [v + shift for v in (p, *shocked.values())]
-        lo, hi = min(vals) - model_err, max(vals) + model_err
+        lo, hi = interval_of([v + shift for v in (p, *shocked.values())])
+        lo, hi = lo - model_err, hi + model_err
         lo, hi = max(fr_lo, min(lo, p_cal)), min(fr_hi, max(hi, p_cal))
         return JointQuote(p_joint=p, p_independent=p_ind, frechet_lo=fr_lo, frechet_hi=fr_hi, lo=lo, hi=hi,
                           p_legs=p_legs, max_marginal_error=max(errs) if errs else None, unsupported=unsupported,
@@ -215,16 +259,21 @@ class GameModel:
 
     def shocked(self, shock: Shock) -> "GameModel":
         if shock.name not in self._shocked:
-            if shock.kind == "halves_corr":   # alternative coupling: Gaussian prior with a shifted correlation
+            if shock.kind == "halves_corr":   # diagnostic: Gaussian coupling with a shifted correlation
                 scen = couple_periods(self.periods["FG"], self.periods["1H"], self.scen.n, self.seed, corr_shift=shock.value,
-                                      h2=self.periods.get("2H"), mode="copula")
+                                      h2=self.periods.get("2H"), mode="copula", max_sweeps=self.cfg.halves_max_sweeps)
                 m = GameModel(self.game_key, self.legs, self.periods, scen, self.cfg, self.seed, self.flags, self.notes,
                               self.quotes, {}, self.parse_errors)
-            elif shock.kind == "prior_rho":
+            elif shock.kind == "prior_rho":   # diagnostic: prior margin-total correlation moved
                 cfg = EngineConfig(**{**self.cfg.__dict__, "prior_rho_mt": shock.value})
                 m = _build(self.quotes, cfg, self.seed, legs=self.legs)
             elif shock.kind == "bootstrap":
-                m = _build(self.quotes, self.cfg, self.seed, legs=self.legs, bootstrap_seed=int(shock.value))
+                k = int(shock.value)
+                r = np.random.default_rng(2000 + k)
+                cfg = EngineConfig(**{**self.cfg.__dict__, "n_scenarios": min(self.cfg.replica_scenarios, self.cfg.n_scenarios),
+                                      "prior_rho_mt": self.cfg.prior_rho_mt + r.uniform(-BOOT_RHO_SHIFT, BOOT_RHO_SHIFT),
+                                      "halves_corr_shift": self.cfg.halves_corr_shift + r.uniform(-BOOT_CORR_SHIFT, BOOT_CORR_SHIFT)})
+                m = _build(self.quotes, cfg, self.seed, legs=self.legs, bootstrap_seed=k, coupling_mode=self.scen.coupling)
             else:
                 raise ValueError(f"unknown shock {shock.kind}")
             self._shocked[shock.name] = m
@@ -262,7 +311,7 @@ def parse_quotes(quotes: Iterable[Any]) -> tuple[list[Leg], list[str]]:
 
 
 def _build(quotes: list[Any], cfg: EngineConfig, seed: int, *, legs: list[Leg] | None = None,
-           bootstrap_seed: int | None = None) -> GameModel:
+           bootstrap_seed: int | None = None, coupling_mode: str = "auto") -> GameModel:
     t0 = time.perf_counter()
     parse_errors: list[str] = []
     if legs is None:
@@ -280,9 +329,10 @@ def _build(quotes: list[Any], cfg: EngineConfig, seed: int, *, legs: list[Leg] |
     h1 = build_period(legs, "1H", cfg, rng=rng, fallback_means=half_means)
     h2 = build_period(legs, "2H", cfg, rng=rng, fallback_means=half_means)
     t2 = time.perf_counter()
-    scen = couple_periods(fg, h1, cfg.n_scenarios, seed, corr_shift=cfg.halves_corr_shift, h2=h2)
+    scen = couple_periods(fg, h1, cfg.n_scenarios, seed, corr_shift=cfg.halves_corr_shift, h2=h2, mode=coupling_mode,
+                          max_sweeps=cfg.halves_max_sweeps)
     t3 = time.perf_counter()
-    flags = [*fg.flags, *h1.flags, *h2.flags]
+    flags = [*fg.flags, *h1.flags, *h2.flags, *scen.flags]
     if scen.coupling == "copula":
         flags.append(f"halves coupling: {scen.coupling_note}; Gaussian prior with corr sd(1H)/sd(FG)")
     if scen.clamp_rate > cfg.clamp_flag:

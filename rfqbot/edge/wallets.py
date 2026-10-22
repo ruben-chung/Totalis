@@ -1,24 +1,30 @@
 """Wallet scores and the sequential block rule.
 
-Per requester public_id: running mean and variance of our realised profit per fill
-(markup earned minus the 30-minute markout, both in probability points of the combo), shrunk toward
-the population mean with ``shrink_n`` pseudo-fills. The rule, evaluated at every refresh (so it is
+Per requester public_id: running mean and variance of our realised profit per fill (markup earned
+plus the residual 30-minute markout, i.e. the print's markout minus its node's mean markout, which
+the node already charges as ``info_premium``; probability points of the combo), shrunk toward the
+population mean with ``shrink_n`` pseudo-fills. The rule, evaluated at every refresh (so it is
 sequential): block when the wallet has at least ``block_min_fills`` fills and the one-sided
 ``block_conf`` upper bound of its expected profit per fill is below zero. A block lasts
-``block_days`` unless re-triggered; a round trip (same wallet, same combo, opposite direction within
-10 s, tagged by quote assembly) blocks immediately. Manual list: ``allow`` never blocks and pays no
-premium, ``deny`` always blocks. Below the threshold the shrunk score is a per-wallet premium
+``block_days`` unless re-triggered. An actual adverse round trip (we filled the wallet and it printed
+the opposite side of the same combo within 10 s, ``rfqbot.edge.fills.adverse_round_trips``) blocks
+immediately; quote assembly's ``[round_trip]`` tag (the wallet merely polled both sides, ~43% of
+quotes) is a descriptor and never blocks. Manual list: ``allow`` never blocks and pays no premium,
+``deny`` always blocks. Below the threshold the shrunk score is a per-wallet premium
 ``wallet_k * max(0, -expected profit)``.
 """
 from __future__ import annotations
 
 import json
+import logging
 import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
 
 from .config import EdgeConfig
+
+log = logging.getLogger(__name__)
 
 Z_CONF = {0.80: 0.8416, 0.90: 1.2816, 0.95: 1.6449, 0.975: 1.96, 0.99: 2.3263}
 
@@ -38,10 +44,10 @@ def z_for(conf: float) -> float:
 @dataclass(frozen=True)
 class WalletObs:
     public_id: str
-    profit: float          # markup earned - 30-min markout (maker terms, probability points)
+    profit: float          # markup earned + residual 30-min markout (maker terms, probability points)
     at_ms: int
     win: bool = True       # counterfactual win at our actual quote (False: scored on the print as if filled)
-    round_trip: bool = False
+    round_trip: bool = False   # an actual adverse round trip on this fill (not the quoting descriptor tag)
 
 
 @dataclass
@@ -66,18 +72,27 @@ class WalletScore:
         return asdict(self)
 
 
+_last_good_manual: dict[str, dict[str, str]] = {}   # path -> the last list that parsed
+
+
 def load_manual(path: str | Path) -> dict[str, str]:
+    """The manual allow / deny list. A malformed file is logged at WARNING and the last list that parsed
+    from that path is kept (a half-written edit must not silently drop a deny)."""
     p = Path(path)
+    key = str(p)
     if not p.exists():
-        return {}
+        return dict(_last_good_manual.get(key, {}))
     try:
         raw = json.loads(p.read_text() or "{}")
-    except Exception:
-        return {}
-    out: dict[str, str] = {}
-    for k in ("allow", "deny"):
-        for pid in raw.get(k, []) or []:
-            out[str(pid)] = k
+        out: dict[str, str] = {}
+        for k in ("allow", "deny"):
+            for pid in raw.get(k, []) or []:
+                out[str(pid)] = k
+    except Exception as e:
+        log.warning("wallet list %s is malformed (%s: %s); keeping the last good list (%d entries)", p, type(e).__name__, e,
+                    len(_last_good_manual.get(key, {})))
+        return dict(_last_good_manual.get(key, {}))
+    _last_good_manual[key] = dict(out)
     return out
 
 

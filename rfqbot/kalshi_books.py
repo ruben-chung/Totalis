@@ -23,6 +23,8 @@ Storage: ``data/kalshi_books.db`` (schema below, separate from rfq.db and books.
                       venue timestamp where one exists (ws ``ts_ms``; batch ``updated_time`` is a
                       market-metadata time, NOT a quote time, stored for provenance only).
   * ``request_minutes`` request / 429 / error counts per minute for the rate report.
+  ``leg_matches.kalshi_game_date`` (added 2026-10-21, migrated on open) is the resolved ET date of the
+  Kalshi game; ``game_key`` keeps the Polymarket slug date (UTC for the NFL).
   * every REST response and websocket frame goes verbatim to a gz raw log (``KALSHI_LOG_DIR``).
 
 Verified against the public API on 2026-10-20:
@@ -56,8 +58,8 @@ loaded key object and the key id.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import base64
-import gzip
 import json
 import logging
 import sqlite3
@@ -70,6 +72,7 @@ from typing import Any, Callable, Iterable, Sequence
 
 import httpx
 
+from .db import SQLITE_IN_CHUNK, ro_connect
 from .rawlog import RawLog
 from .store import now_ms
 
@@ -81,6 +84,9 @@ DEFAULT_DB_PATH = Path("./data/kalshi_books.db")
 BATCH_MAX_TICKERS = 200        # 300 -> HTTP 414 on 2026-10-20
 BATCH_MAX_URL = 7_500          # characters of the tickers parameter; 6.5 kB passed, 9.5 kB failed
 DEPTH_WINDOW = 0.05            # near-top depth: contracts within 0.05 of the best price
+MIN_GAP_AUTH_S = 0.06          # seconds between requests with an API key (Basic tier: 20 read req/s)
+MIN_GAP_UNAUTH_S = 1.1         # without a key; ~1 req/s bursts drew 429s on 2026-10-20
+WS_MAX_FRAME = 16 * 1024 * 1024   # websocket frame cap (the unfiltered ticker channel sends large batches)
 CONFIDENCES = ("exact", "rules_differ", "shifted_line", "none")
 
 SCHEMA = """
@@ -96,7 +102,8 @@ CREATE TABLE IF NOT EXISTS leg_matches (
     confidence           TEXT NOT NULL,        -- exact | rules_differ | shifted_line | none
     notes_json           TEXT NOT NULL,        -- list[str] settlement / reason notes from the matcher
     line_candidates_json TEXT,                 -- {"below": {...}, "above": {...}} for shifted_line
-    matched_at_ms        INTEGER NOT NULL
+    matched_at_ms        INTEGER NOT NULL,
+    kalshi_game_date     TEXT                  -- resolved ET game date of the Kalshi game (NULL when none found)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS ix_leg_matches_ticker ON leg_matches(kalshi_ticker);
 CREATE INDEX IF NOT EXISTS ix_leg_matches_game ON leg_matches(game_key);
@@ -169,14 +176,16 @@ class MatchRow:
     notes: list[str] = field(default_factory=list)
     line_candidates: dict[str, Any] | None = None
     matched_at_ms: int = 0
+    kalshi_game_date: str | None = None        # resolved ET date of the Kalshi game (the Poly game_key keeps the slug date)
 
     @classmethod
     def from_row(cls, r: sqlite3.Row | dict) -> "MatchRow":
+        keys = r.keys() if hasattr(r, "keys") else r
         return cls(position_id=r["position_id"], sport=r["sport"], canonical_key=r["canonical_key"], game_key=r["game_key"],
                    kalshi_ticker=r["kalshi_ticker"], kalshi_side=r["kalshi_side"], confidence=r["confidence"],
                    notes=json.loads(r["notes_json"] or "[]"),
                    line_candidates=json.loads(r["line_candidates_json"]) if r["line_candidates_json"] else None,
-                   matched_at_ms=r["matched_at_ms"])
+                   matched_at_ms=r["matched_at_ms"], kalshi_game_date=r["kalshi_game_date"] if "kalshi_game_date" in keys else None)
 
 
 Top = tuple[float | None, float | None, float | None, float | None, float | None, float | None]
@@ -330,7 +339,7 @@ class KalshiFeedClient:
         self.auth = auth
         self._client = client
         self._own = client is None
-        self.min_gap_sec = (0.06 if auth else 1.1) if min_gap_sec is None else min_gap_sec
+        self.min_gap_sec = (MIN_GAP_AUTH_S if auth else MIN_GAP_UNAUTH_S) if min_gap_sec is None else min_gap_sec
         self.max_retries = max_retries
         self.on_response = on_response          # (kind, text, at_ms) -> raw log
         self._last_request = 0.0
@@ -424,33 +433,44 @@ class KalshiFeedClient:
 
 # ----------------------------------------------------------------------- store
 class KalshiBookStore:
+    """Writer (the feed) or read-only reader (``readonly=True``: ``rfqbot.db.ro_connect``, so a missing file
+    raises instead of being created). The writer's connection is used from the event-loop thread only;
+    the matcher's catalog work runs in a worker thread with its own read-only connections and hands
+    the rows back to the loop thread for the upsert (``compute_leg_matches`` / ``apply_leg_matches``)."""
+
     def __init__(self, path: str | Path | None, *, readonly: bool = False):
         self.path = ":memory:" if path is None else str(path)
         self.readonly = readonly and self.path != ":memory:"
-        if self.path != ":memory:" and not self.readonly:
-            Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         if self.readonly:
-            self.conn = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, isolation_level=None, check_same_thread=False)
+            self.conn = ro_connect(self.path, timeout=5, rows=True, shared=True)
         else:
+            if self.path != ":memory:":
+                Path(self.path).parent.mkdir(parents=True, exist_ok=True)
             self.conn = sqlite3.connect(self.path, isolation_level=None, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA busy_timeout=5000")
-        if not self.readonly:
+            self.conn.row_factory = sqlite3.Row
+            self.conn.execute("PRAGMA busy_timeout=5000")
             if self.path != ":memory:":
                 self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.execute("PRAGMA synchronous=NORMAL")
             self.conn.executescript(SCHEMA)
+            self._migrate()
         self._in_tx = False
-        self.last_top: dict[str, tuple] = {}
+        self.last_top: dict[str, Top] = {}      # newest (yes_bid, yes_ask, bid_size, ask_size, bid_depth, ask_depth) per ticker
         if not self.readonly:
             self._load_last_tops()
 
+    def _migrate(self) -> None:
+        """Add columns introduced after the first schema (databases created by an older feed)."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(leg_matches)")}
+        if "kalshi_game_date" not in cols:
+            self.conn.execute("ALTER TABLE leg_matches ADD COLUMN kalshi_game_date TEXT")
+
     def _load_last_tops(self) -> None:
         """Seed the change-only cache from the newest row per ticker so a restart does not duplicate rows."""
-        for r in self.conn.execute("SELECT t.ticker, t.yes_bid, t.yes_ask, t.bid_size, t.ask_size FROM kalshi_top t"
+        for r in self.conn.execute("SELECT t.ticker, t.yes_bid, t.yes_ask, t.bid_size, t.ask_size, t.bid_depth, t.ask_depth FROM kalshi_top t"
                                    " JOIN (SELECT ticker, MAX(at_ms) AS m FROM kalshi_top GROUP BY ticker) x"
                                    " ON x.ticker = t.ticker AND x.m = t.at_ms"):
-            self.last_top[r["ticker"]] = (r["yes_bid"], r["yes_ask"], r["bid_size"], r["ask_size"])
+            self.last_top[r["ticker"]] = (r["yes_bid"], r["yes_ask"], r["bid_size"], r["ask_size"], r["bid_depth"], r["ask_depth"])
 
     def begin(self) -> None:
         if not self._in_tx:
@@ -472,11 +492,17 @@ class KalshiBookStore:
     # -- quotes ---------------------------------------------------------------
     def insert_top(self, ticker: str, at_ms: int, server_ts_ms: int | None, top: Top, source: str, *,
                    force: bool = False) -> bool:
-        """Write a row only when best bid / ask price or size changed (or ``force``). Returns True if written."""
+        """Write a row only when best bid / ask price or size changed (or ``force``). Returns True if written.
+        A row without depth (batch / ws) whose best prices equal the previous row's inherits that row's
+        depth, so ``latest_quote`` keeps the last orderbook depth while the top of book is unchanged."""
+        prev = self.last_top.get(ticker)
         key = top[:4]
-        if not force and self.last_top.get(ticker) == key:
+        if not force and prev is not None and prev[:4] == key:
             return False
-        self.last_top[ticker] = key
+        if top[4] is None and top[5] is None and prev is not None and (prev[4] is not None or prev[5] is not None) \
+                and prev[0] == top[0] and prev[1] == top[1]:
+            top = (*key, prev[4], prev[5])
+        self.last_top[ticker] = top
         self.conn.execute("INSERT INTO kalshi_top VALUES (?,?,?,?,?,?,?,?,?,?)", (ticker, at_ms, server_ts_ms, *top, source))
         return True
 
@@ -510,12 +536,13 @@ class KalshiBookStore:
         """Insert / rewrite leg_matches rows. Returns Counter(new, changed, unchanged)."""
         c: Counter = Counter()
         for r in rows:
-            old = self.conn.execute("SELECT kalshi_ticker, kalshi_side, confidence, canonical_key FROM leg_matches WHERE position_id=?",
-                                    (r["position_id"],)).fetchone()
+            r = {"kalshi_game_date": None, **r}
+            old = self.conn.execute("SELECT kalshi_ticker, kalshi_side, confidence, canonical_key, kalshi_game_date FROM leg_matches"
+                                    " WHERE position_id=?", (r["position_id"],)).fetchone()
             if old is None:
                 c["new"] += 1
-            elif (old["kalshi_ticker"], old["kalshi_side"], old["confidence"], old["canonical_key"]) == \
-                    (r["kalshi_ticker"], r["kalshi_side"], r["confidence"], r["canonical_key"]):
+            elif (old["kalshi_ticker"], old["kalshi_side"], old["confidence"], old["canonical_key"], old["kalshi_game_date"]) == \
+                    (r["kalshi_ticker"], r["kalshi_side"], r["confidence"], r["canonical_key"], r["kalshi_game_date"]):
                 c["unchanged"] += 1
                 self.conn.execute("UPDATE leg_matches SET matched_at_ms=?, notes_json=?, line_candidates_json=? WHERE position_id=?",
                                   (r["matched_at_ms"], r["notes_json"], r["line_candidates_json"], r["position_id"]))
@@ -524,19 +551,19 @@ class KalshiBookStore:
                 c["changed"] += 1
             self.conn.execute(
                 "INSERT INTO leg_matches(position_id, sport, canonical_key, game_key, kalshi_ticker, kalshi_side, confidence,"
-                " notes_json, line_candidates_json, matched_at_ms) VALUES (:position_id, :sport, :canonical_key, :game_key,"
-                " :kalshi_ticker, :kalshi_side, :confidence, :notes_json, :line_candidates_json, :matched_at_ms)"
+                " notes_json, line_candidates_json, matched_at_ms, kalshi_game_date) VALUES (:position_id, :sport, :canonical_key,"
+                " :game_key, :kalshi_ticker, :kalshi_side, :confidence, :notes_json, :line_candidates_json, :matched_at_ms, :kalshi_game_date)"
                 " ON CONFLICT(position_id) DO UPDATE SET sport=excluded.sport, canonical_key=excluded.canonical_key,"
                 " game_key=excluded.game_key, kalshi_ticker=excluded.kalshi_ticker, kalshi_side=excluded.kalshi_side,"
-                " confidence=excluded.confidence, notes_json=excluded.notes_json,"
+                " confidence=excluded.confidence, notes_json=excluded.notes_json, kalshi_game_date=excluded.kalshi_game_date,"
                 " line_candidates_json=excluded.line_candidates_json, matched_at_ms=excluded.matched_at_ms", r)
         return c
 
     def matches(self, position_ids: Iterable[str]) -> dict[str, MatchRow]:
         out: dict[str, MatchRow] = {}
         ids = list(set(position_ids))
-        for i in range(0, len(ids), 500):
-            chunk = ids[i:i + 500]
+        for i in range(0, len(ids), SQLITE_IN_CHUNK):
+            chunk = ids[i:i + SQLITE_IN_CHUNK]
             for r in self.conn.execute(f"SELECT * FROM leg_matches WHERE position_id IN ({','.join('?' * len(chunk))})", chunk):
                 out[r["position_id"]] = MatchRow.from_row(r)
         return out
@@ -567,10 +594,7 @@ class KalshiBookStore:
 
 # ------------------------------------------------------------------ matching
 def _rfq_conn(rfq_db: str | Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{Path(rfq_db)}?mode=ro", uri=True, check_same_thread=False)
-    c.row_factory = sqlite3.Row
-    c.execute("PRAGMA busy_timeout=5000")
-    return c
+    return ro_connect(rfq_db, timeout=5)
 
 
 def kalshi_sync_stamp(rfq_db: str | Path) -> int:
@@ -626,13 +650,22 @@ def load_poly_legs(rfq_db: str | Path, sports: Iterable[str] | None = None) -> t
     return specs, failed
 
 
+AMBIGUOUS_NOTE = "ambiguous_game"
+
+
 def match_rows(specs: Iterable, idx, now: int) -> list[dict[str, Any]]:
+    """One leg_matches row per spec. A leg whose team pair has two Kalshi games inside the date tolerance
+    (``AmbiguousGame``) gets confidence ``none`` with an ``ambiguous_game`` note instead of aborting the
+    whole rebuild."""
     from .sports.legspec import canonical_key
-    from .sports.matcher import match
+    from .sports.matcher import AmbiguousGame, MatchResult, match
 
     rows = []
     for s in specs:
-        m = match(s, idx)
+        try:
+            m = match(s, idx)
+        except AmbiguousGame as e:
+            m = MatchResult("none", notes=[f"{AMBIGUOUS_NOTE}: {e}"])
         cands = None
         if m.below or m.above:
             cands = {k: {"ticker": c.kalshi_ticker, "side": c.kalshi_side, "line": c.line}
@@ -640,27 +673,44 @@ def match_rows(specs: Iterable, idx, now: int) -> list[dict[str, Any]]:
         rows.append({"position_id": s.venue_ids.get("position_id") or s.venue_ids.get("slug"), "sport": s.sport,
                      "canonical_key": canonical_key(s), "game_key": s.game_key, "kalshi_ticker": m.kalshi_ticker,
                      "kalshi_side": m.kalshi_side, "confidence": m.confidence, "notes_json": json.dumps(m.notes),
-                     "line_candidates_json": json.dumps(cands) if cands else None, "matched_at_ms": now})
+                     "line_candidates_json": json.dumps(cands) if cands else None, "matched_at_ms": now,
+                     "kalshi_game_date": m.game_date})
     return rows
 
 
-def refresh_leg_matches(store: KalshiBookStore, rfq_db: str | Path, *, now: int | None = None) -> dict[str, Any]:
-    """Rebuild leg_matches from the current catalog + kalshi_markets. Returns counts."""
+def compute_leg_matches(rfq_db: str | Path, now: int | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The read side of a refresh (catalog + kalshi_markets -> rows); safe to run in a worker thread,
+    it opens its own read-only connections and touches no store."""
     now = now or now_ms()
     t0 = time.monotonic()
     idx = load_kalshi_index(rfq_db)
     specs, failed = load_poly_legs(rfq_db)
     rows = match_rows(specs, idx, now)
+    info = {"now": now, "kalshi_markets": idx.n, "parse_failures": dict(failed), "sync_stamp": kalshi_sync_stamp(rfq_db),
+            "ambiguous": sum(1 for r in rows if r["confidence"] == "none" and AMBIGUOUS_NOTE in (r["notes_json"] or "")),
+            "compute_s": time.monotonic() - t0}
+    return rows, info
+
+
+def apply_leg_matches(store: KalshiBookStore, rows: list[dict[str, Any]], info: dict[str, Any]) -> dict[str, Any]:
+    """The write side of a refresh: one transaction on the store's connection (call on its owning thread)."""
     store.begin()
     changes = store.upsert_matches(rows)
-    store.set_meta("matches_refreshed_ms", now)
-    store.set_meta("matches_sync_stamp", kalshi_sync_stamp(rfq_db))
+    store.set_meta("matches_refreshed_ms", info["now"])
+    store.set_meta("matches_sync_stamp", info["sync_stamp"])
     store.commit()
     conf = Counter(r["confidence"] for r in rows)
-    log.info("leg_matches: %d legs (%s) over %d kalshi markets in %.1fs; new %d changed %d unchanged %d; poly parse failures %s",
-             len(rows), ", ".join(f"{k}={v}" for k, v in sorted(conf.items())), idx.n, time.monotonic() - t0,
-             changes["new"], changes["changed"], changes["unchanged"], dict(failed) or "none")
-    return {"legs": len(rows), "kalshi_markets": idx.n, "confidence": dict(conf), "changes": dict(changes), "parse_failures": dict(failed)}
+    log.info("leg_matches: %d legs (%s) over %d kalshi markets in %.1fs; new %d changed %d unchanged %d; ambiguous %d; poly parse failures %s",
+             len(rows), ", ".join(f"{k}={v}" for k, v in sorted(conf.items())), info["kalshi_markets"], info["compute_s"],
+             changes["new"], changes["changed"], changes["unchanged"], info["ambiguous"], info["parse_failures"] or "none")
+    return {"legs": len(rows), "kalshi_markets": info["kalshi_markets"], "confidence": dict(conf), "changes": dict(changes),
+            "parse_failures": info["parse_failures"], "ambiguous": info["ambiguous"]}
+
+
+def refresh_leg_matches(store: KalshiBookStore, rfq_db: str | Path, *, now: int | None = None) -> dict[str, Any]:
+    """Rebuild leg_matches from the current catalog + kalshi_markets (compute + apply on this thread). Returns counts."""
+    rows, info = compute_leg_matches(rfq_db, now)
+    return apply_leg_matches(store, rows, info)
 
 
 # --------------------------------------------------------------------- universe
@@ -700,7 +750,8 @@ class KalshiFeed:
         self.ws_url = ws_url
         self._universe_fn = universe or (lambda: open_kalshi_tickers(rfq_db))
         self._depth_targets_fn = depth_targets
-        self.universe: list[str] = []
+        self._universe: list[str] = []
+        self._universe_set: frozenset[str] = frozenset()
         self.counts: Counter = Counter()
         self.stopping = False
         self._stop = asyncio.Event()
@@ -714,6 +765,16 @@ class KalshiFeed:
             except sqlite3.Error as e:
                 log.warning("no RFQ leg universe (%s): depth polls cover every matched ticker", e)
         client.on_response = self._on_response
+
+    @property
+    def universe(self) -> list[str]:
+        return self._universe
+
+    @universe.setter
+    def universe(self, tickers: Iterable[str]) -> None:
+        """The membership set used by the websocket filter is rebuilt on every assignment."""
+        self._universe = list(tickers)
+        self._universe_set = frozenset(self._universe)
 
     # -- raw log --------------------------------------------------------------
     def _on_response(self, kind: str, text: str, at_ms: int) -> None:
@@ -762,7 +823,10 @@ class KalshiFeed:
             due = stamp != last_stamp or now_ms() - last_run >= self.match_refresh_sec * 1000
             if due:
                 try:
-                    await asyncio.to_thread(refresh_leg_matches, self.store, self.rfq_db)
+                    # the catalog read + matching runs off the loop; the upsert runs here, on the thread that
+                    # owns the store connection, so its transaction never interleaves with the sweeper's
+                    rows, info = await asyncio.to_thread(compute_leg_matches, self.rfq_db)
+                    apply_leg_matches(self.store, rows, info)
                     last_stamp, last_run = stamp, now_ms()
                     self.counts["match_refreshes"] += 1
                 except Exception as e:  # rfq.db may be mid-write; try again next tick
@@ -871,7 +935,7 @@ class KalshiFeed:
             headers = self.client.auth.headers("GET", httpx.URL(self.ws_url).path) if self.client.auth else {}
             got = False
             try:
-                async with connect(self.ws_url, additional_headers=headers, max_size=8 * 1024 * 1024) as ws:
+                async with connect(self.ws_url, additional_headers=headers, max_size=WS_MAX_FRAME) as ws:
                     await ws.send(json.dumps({"id": 1, "cmd": "subscribe", "params": {"channels": ["ticker"]}}))
                     log.info("kalshi ws connected, ticker channel subscribed")
                     while not self.stopping:
@@ -904,7 +968,7 @@ class KalshiFeed:
         self.counts[f"ws_{typ}"] += 1
         if typ == "ticker":
             ticker, top, ts = parse_ws_ticker(obj.get("msg") or {})
-            if self.universe and ticker not in self._universe_set():
+            if self._universe and ticker not in self._universe_set:
                 self.counts["ws_ticker_outside_universe"] += 1
                 return
             if self.rawlog is not None:
@@ -923,26 +987,37 @@ class KalshiFeed:
             if typ == "error":
                 log.warning("kalshi ws error: %s", obj.get("msg"))
 
-    _uset_cache: tuple[int, frozenset] = (0, frozenset())
-
-    def _universe_set(self) -> frozenset:
-        if self._uset_cache[0] != len(self.universe):
-            self._uset_cache = (len(self.universe), frozenset(self.universe))
-        return self._uset_cache[1]
 
 
 # --------------------------------------------------------------------- read API
-_READERS: dict[str, KalshiBookStore] = {}
+_READERS: dict[str, KalshiBookStore] = {}     # path -> read-only store, opened on first use, closed at exit
 
 
-def _reader(db: str | Path | KalshiBookStore | None) -> KalshiBookStore:
+def _reader(db: str | Path | KalshiBookStore | None) -> KalshiBookStore | None:
+    """A cached read-only store for ``db`` (a path, or the default); None while the file does not exist
+    (nothing is created: the feed owns the file, readers only ever open it read-only)."""
     if isinstance(db, KalshiBookStore):
         return db
-    path = str(db or _default_db_path())
-    s = _READERS.get(path)
+    path = Path(db or _default_db_path())
+    key = str(path)
+    s = _READERS.get(key)
     if s is None:
-        s = _READERS[path] = KalshiBookStore(path, readonly=Path(path).exists())
+        if not path.exists():
+            return None
+        s = _READERS[key] = KalshiBookStore(path, readonly=True)
     return s
+
+
+def close_readers() -> None:
+    for s in _READERS.values():
+        try:
+            s.close()
+        except sqlite3.Error:
+            pass
+    _READERS.clear()
+
+
+atexit.register(close_readers)
 
 
 def _default_db_path() -> Path:
@@ -951,15 +1026,18 @@ def _default_db_path() -> Path:
 
 
 def kalshi_quotes(tickers: Iterable[str], at_ms: int | None = None, *, db: str | Path | KalshiBookStore | None = None) -> dict[str, KalshiQuote]:
-    """Latest quote per ticker, or the latest at-or-before ``at_ms`` (never a future row)."""
-    return _reader(db).quotes(tickers, at_ms)
+    """Latest quote per ticker, or the latest at-or-before ``at_ms`` (never a future row). {} when there is no db."""
+    store = _reader(db)
+    return {} if store is None else store.quotes(tickers, at_ms)
 
 
 def kalshi_for_legs(position_ids: Iterable[str], at_ms: int | None = None, *,
                     db: str | Path | KalshiBookStore | None = None) -> dict[str, tuple[MatchRow, KalshiQuote | None]]:
     """position_id -> (MatchRow, KalshiQuote | None) through leg_matches. Legs with no leg_matches row are
-    absent; legs matched with confidence ``none`` are present with quote None."""
+    absent; legs matched with confidence ``none`` are present with quote None. {} when there is no db."""
     store = _reader(db)
+    if store is None:
+        return {}
     matches = store.matches(position_ids)
     quotes = store.quotes([m.kalshi_ticker for m in matches.values() if m.kalshi_ticker], at_ms)
     return {pid: (m, quotes.get(m.kalshi_ticker) if m.kalshi_ticker else None) for pid, m in matches.items()}

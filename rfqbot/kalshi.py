@@ -19,13 +19,14 @@ from typing import Any, Callable
 
 import httpx
 
+from .config import DEFAULT_KALSHI_API_URL
 from .sports import registry
 from .sports.legspec import LegSpec, canonical_key
 from .store import Store, now_ms
 
 log = logging.getLogger(__name__)
 
-KALSHI_API_URL = "https://api.elections.kalshi.com/trade-api/v2"
+KALSHI_API_URL = DEFAULT_KALSHI_API_URL
 
 
 class KalshiClient:

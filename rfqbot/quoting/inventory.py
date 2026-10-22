@@ -8,10 +8,13 @@ cache's refresh thread (``refresh``), never on the RFQ path.
 
 Hot path (``assess``, ~1-2 ms): the candidate's per-share exposure is derived on the book's models
 and draws; every cap is solved in closed form (outcome deltas, per-game worst loss) or linearised
-and checked (ES1); the inventory skew is ``k_inv * dES1/ds * usage``. When a quote goes out
-(``on_quoted``) its per-share vectors are absorbed into the hot exposure at the quoted size, so the
-next RFQ for the same combo sees it. The refresh thread rebuilds the exposure from the book every
-``risk_refresh_sec`` and swaps it in.
+and checked (ES1); the inventory skew is ``k_inv * dES1/ds * usage`` with ``usage`` the larger of
+the outcome-cap usage on the outcomes the candidate adds to and the ES1-cap usage. When a quote
+goes out (``on_quoted``) its per-share vectors are absorbed into the hot exposure at the quoted
+size, so the next RFQ for the same combo sees it; a re-quote of the same rfq_id first subtracts the
+previous quote, and a pending quote to the same requester on the same combo in the opposite
+direction is not netted (only the worse side counts, see ``risk.exposure.pending_worse_side``).
+The refresh thread rebuilds the exposure from the book every ``risk_refresh_sec`` and swaps it in.
 """
 from __future__ import annotations
 
@@ -24,23 +27,34 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from ..config import DEFAULT_EXPIRY_GRACE_MS, expiry_horizon_ms
+from ..db import chunks, ro_connect
 from ..risk.book import EXPIRED, FILLED, PENDING, Book, Position, PositionLeg
-from ..risk.caps import Caps, es1_limit, game_limit, notional_limits, outcome_limit
+from ..risk.caps import ES_LEVEL, Caps, es1_limit, game_limit, notional_limits, outcome_limit
 from ..risk.exposure import Exposure, ModelPool, es_at
 from .config import QuoteConfig
 
 log = logging.getLogger(__name__)
 INF = float("inf")
-DEFAULT_HORIZON_MS = 10_000 + 1_000 + 20_000     # acceptance + last look + expiry grace (config.Settings defaults)
+DEFAULT_HORIZON_MS = expiry_horizon_ms(DEFAULT_EXPIRY_GRACE_MS)     # 31 s: the listener's expiry rule
+MAX_USAGE = 2.0                                                      # usage clip for the skew (a book twice over a cap)
+STORE_BUSY_TIMEOUT_S = 5.0
 
 
-def kelly_size(margin: float, p: float, capital: float, fraction: float) -> float:
-    """Shares: fraction x capital x edge / variance per share, edge = margin earned (probability
-    points), variance = p(1-p) of the combo's payoff."""
+def kelly_size(edge: float, p: float, capital: float, fraction: float) -> float:
+    """Shares to hold: ``fraction x capital x edge / (p (1 - p))``.
+
+    This is the mean-variance approximation of binary Kelly: for a unit-payoff bet with
+    probability ``p`` taken at a price that leaves ``edge`` probability points of expected profit
+    per share, the growth-optimal stake solves ``f* = edge / variance`` with variance ``p (1 - p)``
+    (exact Kelly ``f* = edge / (price (1 - price))`` differs only through price vs p). ``edge``
+    must be the expected profit, not the gross margin: the winner's-curse and information charges
+    inside the margin are compensation for adverse selection, not profit (see ``Assembler._size``).
+    """
     var = p * (1.0 - p)
-    if margin <= 0 or var <= 1e-12:
+    if edge <= 0 or var <= 1e-12:
         return 0.0
-    return fraction * capital * margin / var
+    return fraction * capital * edge / var
 
 
 @dataclass
@@ -50,7 +64,7 @@ class Assessment:
     headroom: dict[str, float]
     detail: dict[str, str]
     d_es1_per_share: float               # dES1/ds at s -> 0 (loss per share in the book's 1% tail)
-    usage: float                         # book's use of the outcome cap on outcomes the candidate adds to
+    usage: float                         # max(outcome-cap usage on outcomes the candidate adds to, ES1-cap usage)
     e_i: float                           # inventory skew (probability points; negative = hedge, tightens)
     pending_same_combo: int
     pending_requesters: int
@@ -67,19 +81,21 @@ class Assessment:
 class Inventory:
     def __init__(self, cache: Any, cfg: QuoteConfig | None = None, caps: Caps | None = None, *,
                  store_path: str | Path | None = None, horizon_ms: int = DEFAULT_HORIZON_MS, now_ms=None,
-                 n_draws: int = 20_000, seed: int = 0):
+                 n_draws: int | None = None, seed: int | None = None):
         self.cache = cache
         self.cfg = cfg or QuoteConfig()
         self.caps = caps or Caps.from_env()
         self.store_path = None if store_path in (None, ":memory:") else str(store_path)
         self.horizon_ms = horizon_ms
         self._now = now_ms or (lambda: int(time.time() * 1000))
-        self.n_draws, self.seed = n_draws, seed
+        self.n_draws = self.caps.n_draws if n_draws is None else n_draws
+        self.seed = self.caps.seed if seed is None else seed
         self.book = Book()
         self.pool = ModelPool(cache=cache, build=False)
-        self.state: Exposure = Exposure(self.book, self.pool, n_draws=n_draws, seed=seed)
+        self.state: Exposure = Exposure(self.book, self.pool, n_draws=self.n_draws, seed=self.seed)
         self._lock = threading.Lock()
         self._pending_by_combo: dict[str, dict[str, str]] = {}      # condition_id -> {rfq_id: requester}
+        self._pending_cand: dict[str, tuple[Exposure, float]] = {}   # rfq_id -> (per-share exposure absorbed, size)
         self._conn: sqlite3.Connection | None = None
         self.last_refresh_ms = 0
         self.refresh_ms = 0.0
@@ -96,13 +112,16 @@ class Inventory:
         detail: dict[str, str] = {}
         head["outcome"], detail["outcome"], usage = outcome_limit(base, cand, self.caps.limit("outcome"))
         head["game"], detail["game"] = game_limit(base, cand, self.caps.limit("game"))
-        head["es1"], slope = es1_limit(base, cand, self.caps.limit("es1"), candidate.size or 1.0)
+        es1_cap = self.caps.limit("es1")
+        head["es1"], slope, es_now = es1_limit(base, cand, es1_cap, candidate.size or 1.0)
         detail["es1"] = "portfolio"
+        if es1_cap:
+            usage = max(usage, es_now / es1_cap)         # the skew acts where ES1 binds, not only on single outcomes
         for cap, (s, lbl) in notional_limits(self.book, candidate, self.caps).items():
             head[cap], detail[cap] = s, lbl
         allowed = min(head.values())
         binding = min(head, key=head.get) if allowed < INF else None     # type: ignore[arg-type]
-        usage = min(usage, 2.0)
+        usage = min(usage, MAX_USAGE)
         e_i = self.cfg.k_inv * slope * usage + self.cfg.inventory_skew
         pend = self._pending_by_combo.get(condition_id, {})
         a = Assessment(allowed, binding, head, {k: v for k, v in detail.items() if v}, slope, usage, e_i, len(pend),
@@ -111,15 +130,58 @@ class Inventory:
         return a
 
     def on_quoted(self, position: Position, assessment: Assessment, *, requester: str = "", condition_id: str = "") -> None:
-        """A quote went out: pending at the quoted size, visible to the next RFQ immediately."""
+        """A quote went out: pending at the quoted size, visible to the next RFQ immediately.
+
+        A re-quote of the same ``rfq_id`` replaces the earlier quote (its exposure is subtracted
+        first). When the same requester already has a pending quote on this combo in the other
+        direction, only the side with the larger collateral at risk stays absorbed (at most one of
+        them can fill); the refresh thread's rebuild applies the same rule to the whole book.
+        """
         with self._lock:
+            prev = self._pending_cand.pop(position.rfq_id, None)
+            if prev is not None:
+                self.state.absorb(prev[0], -prev[1])
             self.book.add(position)
             if condition_id:
                 self._pending_by_combo.setdefault(condition_id, {})[position.rfq_id] = requester
             if assessment.cand is not None and position.size > 0:
-                self.state.absorb(assessment.cand, position.size)
+                if self._absorb_against_opposite(position, assessment.cand, requester, condition_id):
+                    self.state.absorb(assessment.cand, position.size)
+                    self._pending_cand[position.rfq_id] = (assessment.cand, position.size)
         self.stats["quoted"] += 1
         self.e_i_samples.append(assessment.e_i)
+
+    def _absorb_against_opposite(self, position: Position, cand: Exposure, requester: str, condition_id: str) -> bool:
+        """Pending quotes of the opposite sign to the same requester on this combo: keep the worse
+        side absorbed. Returns whether the new quote should be absorbed (caller holds the lock)."""
+        others = [self.book.positions[rid] for rid, req in self._pending_by_combo.get(condition_id, {}).items()
+                  if req == requester and rid != position.rfq_id and rid in self.book.positions]
+        opposite = [p for p in others if p.status == PENDING and p.sign != position.sign]
+        if not opposite:
+            return True
+        risk_other = sum(p.size * p.max_loss_per_share for p in opposite)
+        if position.size * position.max_loss_per_share <= risk_other:
+            self.stats["pending_opposite_not_absorbed"] += 1
+            return False
+        for p in opposite:                                   # the new side is worse: it replaces the others' exposure
+            prev = self._pending_cand.pop(p.rfq_id, None)
+            if prev is not None:
+                self.state.absorb(prev[0], -prev[1])
+        self.stats["pending_opposite_replaced"] += 1
+        return True
+
+    # -- fills (store sync, backtest) -------------------------------------------------------
+    def fill_pending(self, rfq_id: str, size: float | None = None, price: float | None = None) -> Position | None:
+        """A pending quote filled (at ``size`` shares and ``price`` when known): the position
+        becomes a filled one and leaves the pending bookkeeping. Returns the position, or None
+        when the rfq is not in the book. Public hook for the backtest and the store sync."""
+        with self._lock:
+            if rfq_id not in self.book.positions:
+                return None
+            p = self.book.fill(rfq_id, size=size, price=price)
+            self._forget_pending(rfq_id)
+        self.stats["filled"] += 1
+        return p
 
     # -- refresh thread ---------------------------------------------------------------------
     def refresh(self, now_ms: int | None = None, force: bool = False) -> bool:
@@ -140,12 +202,17 @@ class Inventory:
         state.monte_carlo()
         with self._lock:
             self.state = state
+            # the rebuild holds every pending quote it kept (the worse side per combo and requester);
+            # keep the per-share exposures of those so a re-quote can still subtract its predecessor
+            present = {p.rfq_id for p in state.positions}
+            self._pending_cand = {k: v for k, v in self._pending_cand.items() if k in present}
         self.last_refresh_ms = now
         self.refresh_ms = (time.perf_counter() - t0) * 1000
         self.stats["refreshes"] += 1
         return True
 
     def _forget_pending(self, rfq_id: str) -> None:
+        self._pending_cand.pop(rfq_id, None)
         for cond, d in list(self._pending_by_combo.items()):
             if d.pop(rfq_id, None) is not None and not d:
                 del self._pending_by_combo[cond]
@@ -154,8 +221,7 @@ class Inventory:
         if self.store_path is None or not Path(self.store_path).exists():
             return None
         if self._conn is None:
-            self._conn = sqlite3.connect(f"file:{self.store_path}?mode=ro", uri=True, check_same_thread=False, timeout=5)
-            self._conn.row_factory = sqlite3.Row
+            self._conn = ro_connect(self.store_path, timeout=STORE_BUSY_TIMEOUT_S)
         return self._conn
 
     def _sync_store(self, now: int) -> None:
@@ -173,11 +239,8 @@ class Inventory:
             ex = c.execute("SELECT 1 FROM executions WHERE rfq_id=? LIMIT 1", (p.rfq_id,)).fetchone()
             if ex is not None or r["status"] in ("SELECTED", "EXECUTING", "SETTLED"):
                 t = c.execute("SELECT size_e6, price_e6 FROM trades WHERE rfq_id=? AND is_ours=1", (p.rfq_id,)).fetchone()
-                with self._lock:
-                    self.book.fill(p.rfq_id, size=(t["size_e6"] / 1e6) if t and t["size_e6"] else None,
-                                   price=(t["price_e6"] / 1e6) if t and t["price_e6"] else None)
-                    self._forget_pending(p.rfq_id)
-                self.stats["filled"] += 1
+                self.fill_pending(p.rfq_id, size=(t["size_e6"] / 1e6) if t and t["size_e6"] else None,
+                                  price=(t["price_e6"] / 1e6) if t and t["price_e6"] else None)
             elif r["status"] in ("EXPIRED", "FILLED_BY_OTHER", "CANCELLED", "FAILED"):
                 with self._lock:
                     p.status = EXPIRED
@@ -186,9 +249,7 @@ class Inventory:
         conds = {l.condition_id for p in filled for l in p.legs if l.condition_id}
         if conds:
             res: dict[str, str] = {}
-            cl = list(conds)
-            for i in range(0, len(cl), 500):
-                chunk = cl[i:i + 500]
+            for chunk in chunks(list(conds)):
                 for r in c.execute(f"SELECT condition_id, resolved_outcome FROM market_resolutions WHERE resolved_outcome IS NOT NULL"
                                    f" AND condition_id IN ({','.join('?' * len(chunk))})", chunk):
                     res[r[0]] = r[1]
@@ -215,7 +276,7 @@ class Inventory:
     def book_summary(self, state: Exposure | None = None) -> dict[str, Any]:
         state = state or self.state
         act = self.book.active()
-        es1 = es_at(state.pnl_draws(), 0.01) if (state.game_vec or state.factor_delta) else 0.0
+        es1 = es_at(state.pnl_draws(), ES_LEVEL) if (state.game_vec or state.factor_delta) else 0.0
         return {"positions": len(act), "pending": sum(1 for p in act if p.status == PENDING),
                 "notional": round(sum(p.notional for p in act), 2), "es1": round(es1, 2),
                 "es1_frac": round(es1 / self.caps.capital_usd, 4) if self.caps.capital_usd else None}

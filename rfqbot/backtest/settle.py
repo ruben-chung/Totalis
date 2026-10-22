@@ -17,10 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from ..slugs import E6
 from .asof import ro
 from .store import BacktestStore
 
-E6 = 1_000_000
 VOID_WORDS = {"50-50", "void", "n/a", "unknown", "cancelled", "canceled"}
 
 
@@ -108,11 +108,16 @@ def last_fairs(store: BacktestStore, run_id: str, cond_ids: Iterable[str]) -> di
     return out
 
 
-def settle_run(store: BacktestStore, run_id: str, rfq_db: str | Path, history_db: str | Path | None) -> dict[str, Any]:
+def settle_run(store: BacktestStore, run_id: str, rfq_db: str | Path, history_db: str | Path | None,
+               ref_run_id: str | None = None) -> dict[str, Any]:
+    """Settle one run. ``mark``/``unrealized`` are marked to the run's own last fair (the per-run report);
+    ``mark_ref``/``unrealized_ref`` to ``ref_run_id``'s last fair on the same combo (the paired comparisons, so a
+    difference between runs is not partly model disagreement); with no reference they equal the own marks."""
     fills = fills_of(store, run_id)
     legs_by_fill = {r["rfq_id"]: json.loads(r["legs_json"]) for r in fills}
     res = load_resolutions(rfq_db, history_db, (l.get("condition_id") for ls in legs_by_fill.values() for l in ls))
     marks = last_fairs(store, run_id, (r["condition_id"] for r in fills))
+    ref_marks = last_fairs(store, ref_run_id, (r["condition_id"] for r in fills)) if ref_run_id and ref_run_id != run_id else marks
     rows, summ = [], {"fills": len(fills), "won": 0, "lost": 0, "void": 0, "unresolved": 0, "realized": 0.0, "unrealized": 0.0,
                       "no_mark": 0, "mark_age_s_median": None}
     ages = []
@@ -122,7 +127,7 @@ def settle_run(store: BacktestStore, run_id: str, rfq_db: str | Path, history_db
         status, payoff = combo_status(sts)
         sign = sign_of(r["maker_action"])
         size, price = r["fill_size_e6"] / E6, r["price_e6"] / E6
-        pnl = mark = unreal = None
+        pnl = mark = unreal = mark_ref = unreal_ref = None
         if payoff is not None:
             pnl = sign * size * (payoff - price)
             summ["realized"] += pnl
@@ -136,20 +141,31 @@ def settle_run(store: BacktestStore, run_id: str, rfq_db: str | Path, history_db
                 mark = m[0]
                 unreal = sign * size * (mark - price)
                 summ["unrealized"] += unreal
+                mref = ref_marks.get(r["condition_id"]) or m
+                mark_ref = mref[0]
+                unreal_ref = sign * size * (mark_ref - price)
                 ages.append((store.conn.execute("SELECT MAX(at_ms) FROM decisions WHERE run_id=?", (run_id,)).fetchone()[0] - m[1]) / 1000)
         summ[status] += 1
         srcs = sorted({x.source for l in ls if (x := res.get(l.get("condition_id"))) is not None})
         resolved_ms = max([x.resolved_ms or 0 for l in ls if (x := res.get(l.get("condition_id"))) is not None], default=None)
         rows.append((run_id, r["rfq_id"], status, payoff, pnl, mark, unreal, sum(s is not None for s in sts), len(sts),
-                     ",".join(srcs) or None, resolved_ms or None))
+                     ",".join(srcs) or None, resolved_ms or None, mark_ref, unreal_ref))
     store.conn.execute("DELETE FROM settlements WHERE run_id=?", (run_id,))
-    store.conn.executemany("INSERT INTO settlements(run_id, rfq_id, status, payoff, pnl, mark, unrealized, legs_resolved, legs_total, source, settled_ms)"
-                           " VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+    store.conn.executemany("INSERT INTO settlements(run_id, rfq_id, status, payoff, pnl, mark, unrealized, legs_resolved, legs_total, source, settled_ms, mark_ref, unrealized_ref)"
+                           " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     if ages:
         ages.sort()
         summ["mark_age_s_median"] = ages[len(ages) // 2]
     summ["unresolved_share"] = (summ["unresolved"] / summ["fills"]) if summ["fills"] else None
     return summ
+
+
+def base_run_id(store: BacktestStore, run_id: str) -> str | None:
+    """The group's run named 'base' (the common reference for paired marks), if the run belongs to a group that has one."""
+    r = store.run(run_id)
+    if not r or not r["group_id"]:
+        return None
+    return next((x["run_id"] for x in store.runs(r["group_id"]) if x["name"] == "base"), None)
 
 
 def settle_runs(args: Any) -> list[tuple[str, dict[str, Any]]]:
@@ -163,11 +179,17 @@ def settle_runs(args: Any) -> list[tuple[str, dict[str, Any]]]:
     out = []
     store.begin()
     for rid in run_ids:
-        s = settle_run(store, rid, args.rfq_db, getattr(args, "history_db", None))
+        s = settle_run(store, rid, args.rfq_db, getattr(args, "history_db", None), ref_run_id=base_run_id(store, rid))
         out.append((rid, s))
-        sh = s["unresolved_share"]
-        print(f"{rid:<28} fills {s['fills']:>5}  won {s['won']:>4} lost {s['lost']:>4} void {s['void']:>3} unresolved {s['unresolved']:>5}"
-              f" ({'-' if sh is None else f'{sh:.0%}'})  realized {s['realized']:+10.2f}  unrealized {s['unrealized']:+10.2f}")
     store.commit()
     store.close()
     return out
+
+
+def format_settlements(settled: list[tuple[str, dict[str, Any]]]) -> str:
+    L = []
+    for rid, s in settled:
+        sh = s["unresolved_share"]
+        L.append(f"{rid:<28} fills {s['fills']:>5}  won {s['won']:>4} lost {s['lost']:>4} void {s['void']:>3} unresolved {s['unresolved']:>5}"
+                 f" ({'-' if sh is None else f'{sh:.0%}'})  realized {s['realized']:+10.2f}  unrealized {s['unrealized']:+10.2f}")
+    return "\n".join(L)

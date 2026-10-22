@@ -60,6 +60,13 @@ def test_point_in_time_never_uses_future_rows(tmp_path):
     assert by["p_ml_b"].at_ms == 0
 
 
+def test_ro_alias_is_shared_connector():
+    """`ladders._ro` stays importable for one release (rfqbot.marginals.sources) and is rfqbot.db.ro_connect."""
+    from rfqbot.db import ro_connect
+    from rfqbot.ladders import _ro
+    assert _ro is ro_connect
+
+
 def test_unknown_game_and_coverage(tmp_path):
     books_db, rfq_db = _dbs(tmp_path)
     assert game_markets("nba-nope-nope-2026-01-01", books_db=books_db, rfq_db=rfq_db) == []

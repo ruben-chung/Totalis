@@ -38,7 +38,7 @@ class Fairs:
 
 
 def test_fake_gateway_end_to_end_report(tmp_path):
-    cfg = ProbeConfig(mode="dry", db=tmp_path / "probe.db", delay_sec=5, horizons_sec=(60, 300), max_per_hour=100, max_per_combo=6,
+    cfg = ProbeConfig(mode="dry", db=tmp_path / "probe.db", delay_sec=5, horizons_sec=(60, 300), max_per_hour=100, max_per_minute=100, max_per_combo=6,
                       min_spacing_sec=0, disguise=True, size_usd=20)
     rng = random.Random(1)
     decisions, prints = [], []

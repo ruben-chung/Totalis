@@ -4,6 +4,10 @@ references (model, Polymarket-only, Kalshi-only). Rows live in data/edge.db ``ma
 filled in as horizons mature, so the monitor can run on a timer.
 
 markout_h = -(fair_h - fair_0) for a BUY print (maker sold YES), +(fair_h - fair_0) for a SELL.
+
+Segment of a print: ``Segment.of(sport, n_legs, direction, same_game, rfq_sigma(sigma_m, 0), cuts)``, the
+same function and cuts decisions use; a print has no quoting-time dependence term, so u_d = 0 is its
+proxy (every disjoint combo decision has u_d = 0 as well, so those bucket identically).
 """
 from __future__ import annotations
 
@@ -15,11 +19,12 @@ from .config import EdgeConfig
 from .curse import adverse_move
 from .data import Print, load_prints
 from .fairs import FairSource
-from .segments import Segment
+from .segments import Segment, rfq_sigma
 from .store import EdgeStore, now_ms
 
 REFS = ("model", "poly", "kalshi")
 SETTLE_MS = 30_000      # a horizon is computed once it is this far in the past
+RETRY_MS = 30 * 60_000  # a row with no markout is recomputed while its horizon matured less than this long ago
 
 
 def refresh_markouts(cfg: EdgeConfig, store: EdgeStore, fairs: FairSource, *, since_ms: int | None = None,
@@ -28,7 +33,7 @@ def refresh_markouts(cfg: EdgeConfig, store: EdgeStore, fairs: FairSource, *, si
     """Compute every (print, ref, horizon) not yet stored with a later fair. Returns counts."""
     now = now if now is not None else now_ms()
     prints = list(prints) if prints is not None else load_prints(cfg, since_ms, until_ms, sports=cfg.sports)
-    done = store.markout_done()
+    done = store.markout_done(retry_ms=RETRY_MS, now=now)
     rows: list[dict[str, Any]] = []
     counts = {"prints": len(prints), "computed": 0, "missing_fair0": 0, "missing_fair_h": 0, "pending": 0}
     for p in prints:
@@ -38,7 +43,8 @@ def refresh_markouts(cfg: EdgeConfig, store: EdgeStore, fairs: FairSource, *, si
             continue
         t0 = p.executed_at_ms
         f0 = fairs.combo(p.position_ids, p.prefixes, t0)
-        seg = Segment.of(p.sport, p.n_legs, p.direction, p.same_game, f0.sigma_m, cfg.sigma_cuts)
+        sigma = None if f0.sigma_m is None else rfq_sigma(f0.sigma_m, 0.0)     # u_d proxy 0, see module docstring
+        seg = Segment.of(p.sport, p.n_legs, p.direction, p.same_game, sigma, cfg.sigma_cuts)
         for ref, h in todo:
             th = t0 + h * 60_000
             if th + SETTLE_MS > now:
@@ -47,15 +53,15 @@ def refresh_markouts(cfg: EdgeConfig, store: EdgeStore, fairs: FairSource, *, si
             fair0 = f0.ref(ref)
             if fair0 is None:
                 counts["missing_fair0"] += 1
-                rows.append(_row(p, ref, h, t0, None, None, None, seg, f0.sigma_m, now))
+                rows.append(_row(p, ref, h, t0, None, None, None, seg, sigma, now))
                 continue
             fh = fairs.combo(p.position_ids, p.prefixes, th).ref(ref)
             if fh is None:
                 counts["missing_fair_h"] += 1
-                rows.append(_row(p, ref, h, t0, fair0, None, None, seg, f0.sigma_m, now))
+                rows.append(_row(p, ref, h, t0, fair0, None, None, seg, sigma, now))
                 continue
             counts["computed"] += 1
-            rows.append(_row(p, ref, h, t0, fair0, fh, adverse_move(p.direction, fair0, fh) * -1.0, seg, f0.sigma_m, now))
+            rows.append(_row(p, ref, h, t0, fair0, fh, adverse_move(p.direction, fair0, fh) * -1.0, seg, sigma, now))
     store.put_markouts(rows)
     return counts
 
@@ -109,10 +115,16 @@ def node_means(rows: Iterable[Any], *, ref: str = "model", horizon_min: int = 30
     return {k: (sum(v) / len(v), len(v)) for k, v in acc.items()}
 
 
-def info_premium_for(node_key: str, means: dict[str, tuple[float, int]], n_min: int) -> tuple[float, str, int]:
-    """max(0, -mean 30-min markout) at the first node on the ladder with n_min observations."""
+def node_mean_for(node_key: str, means: dict[str, tuple[float, int]], n_min: int) -> tuple[float, str, int]:
+    """(mean 30-min markout, node, n) at the first node on the ladder with n_min observations; (0.0, empty, 0) if none."""
     for s in Segment.parse(node_key).ladder():
         hit = means.get(s.key)
         if hit is not None and hit[1] >= n_min:
-            return max(0.0, -hit[0]), s.key, hit[1]
+            return hit[0], s.key, hit[1]
     return 0.0, "", 0
+
+
+def info_premium_for(node_key: str, means: dict[str, tuple[float, int]], n_min: int) -> tuple[float, str, int]:
+    """max(0, -mean 30-min markout) at the first node on the ladder with n_min observations."""
+    mean, key, n = node_mean_for(node_key, means, n_min)
+    return max(0.0, -mean), key, n

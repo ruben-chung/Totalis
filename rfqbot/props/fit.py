@@ -20,11 +20,10 @@ Everything is reported with its sample size; nothing is smoothed.
 from __future__ import annotations
 
 import json
-import math
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from itertools import combinations
 from pathlib import Path
 from typing import Any, Iterable
@@ -38,6 +37,8 @@ MIN_GAMES = 5
 LINE_BUCKETS = {"pts": (0, 10, 15, 20, 25, 30, 99), "reb": (0, 4, 6, 8, 10, 12, 99), "ast": (0, 2, 4, 6, 8, 10, 99), "fg3m": (0, 1, 2, 3, 4, 99)}
 MARGIN_BINS = (0, 5, 10, 15, 20, 30, 200)
 SOURCE_ORDER = ("polymarket", "kalshi")
+STALE_PRICE_MIN = 120      # a last trade older than this before the pre-tip offset is not the closing probability
+PRETIP_OFFSET_MIN = 15
 
 
 def bucket(x: float, edges: tuple) -> str:
@@ -103,15 +104,30 @@ class Row:
     team_pts_line: float | None
 
 
-def load_rows(store: PropsStore, season_types: tuple[int, ...] = (2, 3, 5)) -> list[Row]:
+def _utc_s(iso: str | None) -> int | None:
+    try:
+        return int(datetime.fromisoformat(str(iso).replace("Z", "+00:00")).replace(tzinfo=timezone.utc).timestamp()) if iso else None
+    except ValueError:
+        return None
+
+
+def load_rows(store: PropsStore, season_types: tuple[int, ...] = (2, 3, 5)) -> tuple[list[Row], dict[str, int]]:
     """Roster rows with their lines. Lines in a final game whose player has no roster row at all (ESPN omits
-    some inactive players) are added as synthetic did-not-play rows so the DNP mass counts them."""
+    some inactive players) are added as synthetic did-not-play rows so the DNP mass counts them.
+    Returns (rows, join diagnostics). A price whose last trade is more than STALE_PRICE_MIN before the pre-tip
+    offset is dropped from the implied line (the line itself is kept) and counted in ``stale_priced_lines``."""
     types = ",".join(str(int(t)) for t in season_types)
     lines: dict[tuple[str, str, str, str], dict[str, list]] = defaultdict(lambda: {"k": [], "p": []})
     # (game_key, player_key, stat, source) -> ladder; Kalshi rows carry the team, Polymarket rows do not
-    for r in store.rows("SELECT game_key, player_key, team, stat, line, p_over, source FROM prop_lines"):
+    tips = {r["game_key"]: _utc_s(r["tip_utc"]) for r in store.rows("SELECT game_key, tip_utc FROM games")}
+    stale_priced = 0
+    for r in store.rows("SELECT game_key, player_key, team, stat, line, p_over, t, source FROM prop_lines"):
+        p_over = r["p_over"]
+        tip = tips.get(r["game_key"])
+        if p_over is not None and r["t"] is not None and tip is not None and (tip - PRETIP_OFFSET_MIN * 60 - r["t"]) / 60 > STALE_PRICE_MIN:
+            p_over, stale_priced = None, stale_priced + 1
         lines[(r["game_key"], r["player_key"], r["stat"], r["source"])]["k"].append(r["line"])
-        lines[(r["game_key"], r["player_key"], r["stat"], r["source"])]["p"].append(r["p_over"])
+        lines[(r["game_key"], r["player_key"], r["stat"], r["source"])]["p"].append(p_over)
     tpl = {(r["game_key"], r["team"]): r["team_pts_line"] for r in store.rows("SELECT game_key, team, team_pts_line FROM game_lines")}
     box = store.rows(f"""SELECT p.*, t.points AS team_pts, t.opp_points, t.margin FROM box_player p
                          JOIN box_team t ON t.game_id = p.game_id AND t.team = p.team
@@ -135,8 +151,7 @@ def load_rows(store: PropsStore, season_types: tuple[int, ...] = (2, 3, 5)) -> l
         out.append(Row(r["game_key"], r["team"], r["opponent"], f"{r['team']}:{r['player_id']}", r["player_key"], position_group(r["position"]),
                        int(r["starter"]), int(r["played"]), r["minutes"], int(r["team_pts"]), int(r["opp_points"]), int(r["margin"]),
                        {s: r[s] for s in STATS}, line, src, tpl.get((r["game_key"], r["team"]))))
-    load_rows.ambiguous_lines = len(ambiguous)      # join diagnostics for the report
-    load_rows.players_multi_team = _multi_team(box)
+    diag = {"ambiguous_lines": len(ambiguous), "players_multi_team": _multi_team(box), "stale_priced_lines": stale_priced}
     seen = {(r.game_key, r.player_key) for r in out}
     finals = {r["game_key"]: (r["away"], r["home"]) for r in store.rows(f"SELECT game_key, away, home FROM games WHERE status='final' AND season_type IN ({types})")}
     missing: dict[tuple[str, str], dict] = {}
@@ -148,7 +163,7 @@ def load_rows(store: PropsStore, season_types: tuple[int, ...] = (2, 3, 5)) -> l
     for (gk, pk), m in missing.items():
         team = m["team"] or "?"
         out.append(Row(gk, team, "?", f"{team}:{pk}", pk, "?", 0, 0, None, 0, 0, 0, {s: None for s in STATS}, m["line"], m["src"], None))
-    return out
+    return out, diag
 
 
 def _multi_team(box) -> int:
@@ -176,6 +191,19 @@ def season_shares(rows: list[Row], stat: str) -> dict[tuple[str, str], float]:
     return out
 
 
+def _team_pts_loo(rows: list[Row]) -> dict[tuple[str, str], float]:
+    """(team, game_key) -> the team's average points over its other games (a pre-game figure for that game)."""
+    per: dict[tuple[str, str], int] = {}
+    for r in rows:
+        if r.played:
+            per[(r.team, r.game_key)] = r.team_pts
+    tot: dict[str, list[int]] = defaultdict(list)
+    for (team, _), pts in per.items():
+        tot[team].append(pts)
+    sums = {t: (sum(v), len(v)) for t, v in tot.items()}
+    return {(team, gk): (sums[team][0] - pts) / (sums[team][1] - 1) for (team, gk), pts in per.items() if sums[team][1] > 1}
+
+
 def _resid_summary(e: np.ndarray) -> dict[str, Any]:
     return {"n": int(len(e)), "mean": float(e.mean()) if len(e) else None, "sd": float(e.std()) if len(e) > 1 else None,
             "skew": skewness(e), "p10": float(np.percentile(e, 10)) if len(e) else None, "p90": float(np.percentile(e, 90)) if len(e) else None}
@@ -183,6 +211,7 @@ def _resid_summary(e: np.ndarray) -> dict[str, Any]:
 
 def fit_stat(rows: list[Row], stat: str, *, min_minutes: float = 0.0) -> dict[str, Any]:
     shares = season_shares(rows, stat)
+    team_avg = _team_pts_loo(rows)
     recs = []     # per played row with an s
     n_line_rows = n_line_dnp = 0
     for r in rows:
@@ -198,7 +227,12 @@ def fit_stat(rows: list[Row], stat: str, *, min_minutes: float = 0.0) -> dict[st
         s = s_line if s_line is not None else s_season
         if s is None:
             continue
-        expected = r.line[stat] if has_line else s * r.team_pts   # bucket key: the line, or the model's own expectation
+        # bucket key: the line, or s times a PRE-game team-points figure (the game's line, else the team's leave-one-out
+        # season average); never s * the realized team points, which would sort rows by their own outcome
+        base = r.team_pts_line or team_avg.get((r.team, r.game_key))
+        expected = r.line[stat] if has_line else (s * base if base else None)
+        if expected is None:
+            continue
         recs.append((r, s, "line" if s_line is not None else "season", r.stats[stat] - s * r.team_pts, expected, s_line, s_season))
     res: dict[str, Any] = {"stat": stat, "rows_with_line": n_line_rows, "dnp_with_line": n_line_dnp,
                            "dnp_mass_with_line": (n_line_dnp / n_line_rows) if n_line_rows else None,
@@ -221,6 +255,13 @@ def fit_stat(rows: list[Row], stat: str, *, min_minutes: float = 0.0) -> dict[st
         by_b[bucket(x[4], edges)].append(x[3])
     for b, v in sorted(by_b.items(), key=lambda kv: edges.index(int(kv[0].split("-")[0].rstrip("+")))):
         res["by_line_bucket"][b] = _resid_summary(np.array(v))
+    res["by_line_bucket_by_source"] = {}
+    for src in ("line", "season"):
+        bs: dict[str, list[float]] = defaultdict(list)
+        for x in recs:
+            if x[2] == src:
+                bs[bucket(x[4], edges)].append(x[3])
+        res["by_line_bucket_by_source"][src] = {b: _resid_summary(np.array(v)) for b, v in sorted(bs.items(), key=lambda kv: edges.index(int(kv[0].split("-")[0].rstrip("+"))))}
     sd_of = {b: (v["sd"] or 1.0) for b, v in res["by_line_bucket"].items()}
     # the same table split by position (G / F / C): sd(line, position) for the extension
     by_pb: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
@@ -323,58 +364,20 @@ def dnp_summary(rows: list[Row]) -> dict[str, Any]:
             "lines_without_roster_row": unlisted}
 
 
-def fit_all(rows: list[Row], *, min_minutes: float = 0.0) -> dict[str, Any]:
+def fit_all(rows: list[Row], *, min_minutes: float = 0.0, join: dict[str, int] | None = None) -> dict[str, Any]:
     games = {r.game_key for r in rows}
     per_stat = {s: fit_stat(rows, s, min_minutes=min_minutes) for s in STATS}
     cross = cross_stat_teammates(per_stat, rows)
     for s in per_stat:
         per_stat[s].pop("_z", None)
     return {"generated": date.today().isoformat(), "model": "stat = s * team_points + e", "n_games": len(games),
-            "join": {"ambiguous_lines": getattr(load_rows, "ambiguous_lines", 0), "players_multi_team": getattr(load_rows, "players_multi_team", 0)},
+            "join": dict(join or {}),
             "n_player_games": len(rows), "n_played": sum(1 for r in rows if r.played),
             "n_with_team_pts_line": sum(1 for r in rows if r.team_pts_line is not None),
             "min_minutes": min_minutes, "dnp": dnp_summary(rows), "stats": per_stat, "cross_stat": cross}
 
 
 # ------------------------------------------------------------------ report
-FINDINGS = """## Findings (first run, 2026-10-20)
-
-* **Sources.** stats.nba.com times out and cdn.nba.com answers 403 from this machine, so box scores come
-  from ESPN's public site API (one scoreboard call per day, one summary per game; raw JSON cached under
-  `data/props/raw/espn`). Full 2025-26: 1,231 regular-season, 6 play-in and 81 playoff games, plus the
-  2026-27 preseason and opening night; 4 games answer 404 on ESPN. Team points equal the sum of player
-  points in every game. ESPN lists inactive and coach's-decision players as did-not-play rows but omits
-  some injured players entirely, which is why lined player-games without a roster row count as DNP.
-* **Lines.** Polymarket props exist only from 2025-12-07 (none in Oct-Nov 2025), one line per player-stat
-  (a second line on ~5%); they come from the Data Engineer's `history.db` (read-only, one writer). Rows in
-  the older "X: Points Over 13.5" title grammar (Dec-Apr) are recovered from the slug. Pre-tip prices
-  (`hist_prices`, 15-min offset) were still being pulled when this ran, so `priced` is 0 for Polymarket
-  and the share comes from the line itself; the implied-median logic kicks in once prices exist. Kalshi
-  KXNBAPTS/REB/AST/3PT settled markets are public with the actual stat in `expiration_value`, but the
-  series only started 2026-10-06, so they cover a few hundred preseason / opening-night player-games.
-  Polymarket has no threes ladder (20 markets all season), so `fg3m` is season-share only.
-* **Share model.** `s = line / team_pts_line` and the leave-one-out season share agree (corr 0.86-0.88,
-  same means), so the line is a fair share proxy. Residuals are right-skewed at low lines (median line
-  below the mean) and widen with the line: points sd 5.1 at lines under 10 to 8.3 at 30+, rebounds 2.2
-  to 4.2, assists 1.3 to 3.4. Lined rows show a positive mean residual (+0.5 pts) because the line is a
-  median of a skewed stat; the engine should centre on the mean, not the line.
-* **Blowouts.** Starters' points residual falls from about +1.2 in games decided by 5 or less to -0.9
-  at 30+ margins (slope -0.07 pts per point of |margin|); rebounds -0.03 per point; assists flat.
-  The effect is symmetric in the sign of the margin (winning big and losing big both cut minutes).
-* **Dependence.** Teammate residuals are nearly independent for points (-0.02; centres -0.10 with each
-  other) and assists (0.00), slightly positive for rebounds (+0.04). Opponent-pair residuals are
-  positive everywhere (points +0.02, rebounds +0.05, centre-centre +0.11): pace. Rebound residuals are
-  negatively tied to the game total (-0.16: made shots are not rebounded) and to opponent points;
-  points and assists residuals are orthogonal to the total and margin by construction of the share.
-  These are the defaults the extension should start from; the share already carries the player-vs-team
-  dependence (corr(stat, team pts) 0.13 for points).
-* **Join problems.** (1) Name key collisions on one roster (`j.williams` on OKC: Jalen and Jaylin
-  Williams): the fit keys players by ESPN id and drops lines whose key matches two rostered players in
-  that game (`join.ambiguous_lines`). (2) Mid-season trades: the leave-one-out share is per (team, player)
-  and restarts after a trade (`join.players_multi_team`). (3) Rescheduled games: Polymarket slugs carry the
-  original date; props for a game moved to another day do not join (counted under lines whose game is not
-  final). (4) ESPN exhibition games against non-NBA teams (Guangzhou, Melbourne United) are skipped.
-"""
 
 
 def _f(x, nd=3):
@@ -387,13 +390,13 @@ def render_notes(res: dict[str, Any], *, counts: dict[str, int] | None = None, c
          "closing ladders from `data/history.db`, Kalshi settled props). Model `stat = s * team_points + e` with `s` from "
          "the line when a line and a team-points line exist (`line`), else the leave-one-out season share (`season`). "
          "Residual sds are by line bucket; pair correlations are on standardized residuals `z = e / sd(bucket)`. "
-         "Parameters: `rfqbot/props/props_fit.json`.", ""]
+         "Parameters: `claude-sessions/props_fit.json`.", ""]
     if counts:
         L += ["## Dataset", "", "| table | rows |", "|---|---|"] + [f"| {k} | {v:,} |" for k, v in counts.items()] + [""]
     if coverage:
         L += ["Lines per source / stat (rows, with a pre-tip price, settled, joined to a box row):", "", "| source | stat | lines | priced | settled | joined |", "|---|---|---|---|---|---|"]
         L += [f"| {a} | {b} | {c:,} | {d:,} | {e:,} | {f:,} |" for a, b, c, d, e, f in coverage] + [""]
-    L += FINDINGS.splitlines() + [""]
+    L += ["Findings of the first run (prose, hand-written): `claude-sessions/props-fit-findings.md`.", ""]
     j = res.get("join") or {}
     L += [f"Join diagnostics: {j.get('ambiguous_lines', 0):,} lines dropped for a key shared by two rostered players; "
           f"{j.get('players_multi_team', 0):,} players seen on more than one team.", ""]
@@ -453,8 +456,8 @@ def render_notes(res: dict[str, Any], *, counts: dict[str, int] | None = None, c
 
 def run_fit(store: PropsStore, *, out_json: str | Path, out_md: str | Path, season_types: tuple[int, ...] = (2, 3, 5),
             min_minutes: float = 0.0, out=print) -> dict[str, Any]:
-    rows = load_rows(store, season_types)
-    res = fit_all(rows, min_minutes=min_minutes)
+    rows, join = load_rows(store, season_types)
+    res = fit_all(rows, min_minutes=min_minutes, join=join)
     coverage = [tuple(r) for r in store.rows("""SELECT l.source, l.stat, COUNT(*), SUM(l.p_over IS NOT NULL), SUM(l.result IN ('yes','no')),
                                                    SUM(b.player_id IS NOT NULL) FROM prop_lines l
                                                    LEFT JOIN box_player b ON b.game_key=l.game_key AND b.player_key=l.player_key AND (l.team IS NULL OR b.team=l.team)

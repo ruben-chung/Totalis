@@ -13,12 +13,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
+from ..slugs import E6
 from .auth import headers_for, redact
 from .config import ProbeConfig
 
 log = logging.getLogger(__name__)
 SIDE_YES = "YES"
-E6 = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -42,8 +42,17 @@ class ProbeRequest:
                 "requested_size": {"unit": self.unit, "value_e6": str(self.value_e6)}}
 
     def body_json(self, cfg: ProbeConfig) -> str:
-        """The exact wire serialization (the signature covers these bytes)."""
-        return json.dumps(self.body(cfg), separators=(",", ":"))
+        """The exact wire serialization (the signature covers these bytes). py-clob-client signs
+        ``str(body).replace("'", '"')`` and posts ``json=body`` through requests, which is ``json.dumps``
+        with its default separators (", " and ": ") in insertion order; for a body of strings, ints,
+        lists and dicts (ours) the two are byte-identical, so that is what we sign and send as
+        ``content=`` (an httpx ``json=`` would be compact and the venue would reject the signature)."""
+        return serialize_body(self.body(cfg))
+
+
+def serialize_body(body: dict[str, Any]) -> str:
+    """py-clob-client's signed-body form: ``json.dumps`` default separators == ``str(dict).replace("'", '"')``."""
+    return json.dumps(body, separators=(", ", ": "))
 
 
 @dataclass
@@ -98,11 +107,14 @@ class Gateway(Protocol):
 
 
 class HttpGateway:
-    """POST {gateway_url}{path} with the account (and builder) headers. Accept is intentionally absent."""
+    """POST {gateway_url}{path} with the account (and builder) headers. Accept is intentionally absent.
+    Constructs only under PROBE_MODE=live with the full credential set."""
     name = "http"
 
     def __init__(self, cfg: ProbeConfig, client: Any | None = None):
         self.cfg = cfg
+        if cfg.mode != "live":
+            raise RuntimeError(f"HttpGateway needs PROBE_MODE=live (mode is {cfg.mode!r}); use DryRunGateway")
         missing = cfg.missing_credentials()
         if missing:
             raise RuntimeError("probe gateway credentials missing: " + ", ".join(missing))

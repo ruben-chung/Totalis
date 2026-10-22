@@ -20,6 +20,7 @@ from ..marginals import MarginalConfig, Marginal, compute_game, load_config, spo
 from .config import QuoteConfig
 
 log = logging.getLogger(__name__)
+INFORMATIVE_SPREAD = 0.1      # a leg whose book is wider than this is a placeholder: its mid does not trigger a model rebuild
 
 
 @dataclass
@@ -87,7 +88,7 @@ class GameCache:
             entry.model, entry.model_built_at, entry.model_mids, entry.model_error = old.model, old.model_built_at, old.model_mids, old.model_error
             entry.refreshes = old.refreshes
         if self.build_models and sport == "nfl" and quotes:
-            mids = {q.position_id: q.mid for q in quotes if q.mid is not None and (q.best_ask - q.best_bid) <= 0.1}
+            mids = {q.position_id: q.mid for q in quotes if q.mid is not None and (q.best_ask - q.best_bid) <= INFORMATIVE_SPREAD}
             moved = old is None or entry.model is None or any(abs(mids.get(k, m) - m) > self.cfg.model_rebuild_move for k, m in entry.model_mids.items())
             if moved:
                 try:
@@ -112,6 +113,11 @@ class GameCache:
                 del self.entries[oldest.prefix]
         self.stats["refreshes"] += 1
         return entry
+
+    def set_model_builder(self, fn: Callable[[list[Any]], Any] | None) -> None:
+        """Replace the joint-model builder (``quotes -> GameModel``); None restores the default.
+        Public hook for the backtest's lazy models."""
+        self._model_builder = fn
 
     @staticmethod
     def _default_builder(quotes: list[Any]) -> Any:

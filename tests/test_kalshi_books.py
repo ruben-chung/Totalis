@@ -1,6 +1,7 @@
 """Kalshi price feed + leg matches. Fixtures are real public responses (no credentials anywhere)."""
 import base64
 import json
+import sqlite3
 from pathlib import Path
 
 import httpx
@@ -356,4 +357,105 @@ def test_ticker_seen_tracks_observations_not_only_changes(tmp_path):
     s.mark_seen(["T"], 9000, "batch")                                 # ... but still observed
     assert s.seen_since(5000) == {"T"} and s.seen_since(500) == {"T", "U"}
     assert s.scalar("SELECT source FROM ticker_seen WHERE ticker='T'") == "batch"
+    s.close()
+
+
+# ------------------------------------------------------------ review fixes (2026-10-21)
+def test_batch_rows_carry_the_last_orderbook_depth_while_prices_are_unchanged(tmp_path):
+    s = KalshiBookStore(tmp_path / "kb.db")
+    s.insert_top("T", 1000, None, (0.35, 0.36, 10.0, 20.0, None, None), "batch")
+    assert s.insert_top("T", 2000, None, (0.35, 0.36, 10.0, 20.0, 80.0, 90.0), "orderbook", force=True)
+    # same prices, size change -> batch row written with the orderbook depth carried forward
+    assert s.insert_top("T", 3000, None, (0.35, 0.36, 12.0, 20.0, None, None), "batch")
+    q = s.latest_quote("T")
+    assert q.source == "batch" and q.bid_size == 12.0 and (q.bid_depth, q.ask_depth) == (80.0, 90.0)
+    # a price change invalidates the depth
+    assert s.insert_top("T", 4000, None, (0.34, 0.36, 12.0, 20.0, None, None), "batch")
+    assert s.latest_quote("T").bid_depth is None
+    # the carried depth survives a restart (cache seeded with depth)
+    s.insert_top("T", 5000, None, (0.34, 0.36, 12.0, 20.0, 5.0, 6.0), "orderbook", force=True)
+    s.close()
+    s2 = KalshiBookStore(tmp_path / "kb.db")
+    assert s2.insert_top("T", 6000, None, (0.34, 0.36, 13.0, 20.0, None, None), "batch")
+    assert s2.latest_quote("T").bid_depth == 5.0
+    s2.close()
+    assert kb.MIN_GAP_AUTH_S < kb.MIN_GAP_UNAUTH_S and kb.WS_MAX_FRAME == 16 * 1024 * 1024
+    assert KalshiFeedClient(min_gap_sec=None).min_gap_sec == kb.MIN_GAP_UNAUTH_S
+
+
+def test_readers_never_create_the_db_and_see_it_once_the_feed_does(tmp_path, monkeypatch):
+    path = tmp_path / "later.db"
+    monkeypatch.setattr(kb, "_READERS", {})
+    assert kalshi_quotes(["A"], db=path) == {} and kalshi_for_legs(["p"], db=path) == {}
+    assert not path.exists()                                   # a reader before the feed must not create a write-mode db
+    w = KalshiBookStore(path)
+    w.insert_top("A", 1000, None, (0.3, 0.32, 1, 1, None, None), "batch")
+    w.commit()
+    q = kalshi_quotes(["A"], db=path)
+    assert q["A"].yes_bid == 0.3 and kb._READERS[str(path)].readonly
+    with pytest.raises(sqlite3.OperationalError):
+        kb._READERS[str(path)].conn.execute("INSERT INTO meta VALUES ('x', '1')")   # read-only connection
+    kb.close_readers()
+    assert kb._READERS == {}
+    w.close()
+
+
+def test_universe_setter_rebuilds_the_ws_filter_even_at_equal_length(tmp_path):
+    s = KalshiBookStore(None)
+    feed = KalshiFeed(s, KalshiFeedClient(min_gap_sec=0), tmp_path / "none.db", universe=lambda: [], depth_targets=lambda: set())
+    tick = next(f for f in WS if f.get("type") == "ticker")
+
+    def frame(ticker):
+        return json.dumps({**tick, "msg": {**tick["msg"], "market_ticker": ticker, "yes_bid_dollars": "0.0100", "yes_ask_dollars": "0.0200",
+                                           "yes_bid_size_fp": "1.00", "yes_ask_size_fp": "2.00"}})
+    feed.universe = ["AAA"]
+    feed.on_ws_frame(frame("BBB"), 1000)
+    assert feed.counts["ws_ticker_outside_universe"] == 1
+    feed.universe = ["BBB"]                                    # same length: the old cache would have kept {"AAA"}
+    feed.on_ws_frame(frame("BBB"), 2000)
+    assert feed.counts["ws_ticker_outside_universe"] == 1 and s.latest_quote("BBB") is not None
+    s.close()
+
+
+def test_ambiguous_game_marks_the_leg_none_instead_of_failing_the_rebuild(rfq_db, tmp_path, monkeypatch):
+    from rfqbot.sports import matcher as mm
+    real = mm.match
+    bears = next(r for r in NFL_POLY if r["slug"] == "nfl-chi-sea-2026-11-03" and r["outcome"] == "Bears")
+
+    def flaky(spec, idx):
+        if spec.venue_ids.get("position_id") == bears["position_id"]:
+            raise mm.AmbiguousGame("CHI@SEA has Kalshi games on ['2026-11-02', '2026-11-03']")
+        return real(spec, idx)
+    monkeypatch.setattr(mm, "match", flaky)
+    s = KalshiBookStore(tmp_path / "kb.db")
+    res = refresh_leg_matches(s, rfq_db, now=5000)
+    assert res["legs"] == len(NFL_POLY) and res["ambiguous"] == 1 and res["confidence"].get("exact", 0) >= 1
+    m = s.matches([bears["position_id"]])[bears["position_id"]]
+    assert m.confidence == "none" and m.kalshi_ticker is None and any(n.startswith(kb.AMBIGUOUS_NOTE) for n in m.notes)
+    s.close()
+
+
+def test_kalshi_game_date_is_stored_and_migrated(rfq_db, tmp_path):
+    import threading
+    # old-schema database (no kalshi_game_date column) is migrated on open
+    old = tmp_path / "old.db"
+    c = sqlite3.connect(old)
+    c.executescript(kb.SCHEMA.replace(",\n    kalshi_game_date     TEXT                  -- resolved ET game date of the Kalshi game (NULL when none found)", ""))
+    c.execute("INSERT INTO leg_matches(position_id, sport, canonical_key, game_key, kalshi_ticker, kalshi_side, confidence, notes_json,"
+              " line_candidates_json, matched_at_ms) VALUES ('p0','nfl','k','g','T','yes','exact','[]',NULL,1)")
+    c.commit(); c.close()
+    s = KalshiBookStore(old)
+    assert s.matches(["p0"])["p0"].kalshi_game_date is None
+    # B1 split: rows computed on a worker thread, applied on this thread
+    box = {}
+    t = threading.Thread(target=lambda: box.update(zip(("rows", "info"), kb.compute_leg_matches(rfq_db, 5000))))
+    t.start(); t.join()
+    res = kb.apply_leg_matches(s, box["rows"], box["info"])
+    assert res["changes"]["new"] == len(NFL_POLY) and s.get_meta("matches_sync_stamp") == 1000
+    bears = next(r for r in NFL_POLY if r["slug"] == "nfl-chi-sea-2026-11-03" and r["outcome"] == "Bears")
+    m = s.matches([bears["position_id"]])[bears["position_id"]]
+    assert m.game_key == "nfl|2026-11-03|CHI@SEA" and m.kalshi_game_date == "2026-11-02"      # slug date UTC, Kalshi date ET
+    assert s.scalar("SELECT kalshi_game_date FROM leg_matches WHERE position_id=?", bears["position_id"]) == "2026-11-02"
+    # a changed game date rewrites the row
+    assert s.upsert_matches([{**box["rows"][0], "kalshi_game_date": "1999-01-01"}]) == {"changed": 1}
     s.close()

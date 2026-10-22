@@ -1,10 +1,9 @@
 """Share-model fit on synthetic data with known parameters."""
 import random
 
-import numpy as np
 import pytest
 
-from rfqbot.props.fit import (Row, bucket, cross_stat_teammates, fit_all, fit_stat, implied_line, load_rows, position_group,
+from rfqbot.props.fit import (Row, bucket, fit_all, fit_stat, implied_line, load_rows, position_group,
                               render_notes, season_shares)
 from rfqbot.props.store import PropsStore
 
@@ -66,7 +65,7 @@ def _synthetic(store: PropsStore, *, n_games=300, seed=7, team_corr=0.4, share_s
 def test_fit_recovers_synthetic_parameters(tmp_path):
     store = PropsStore(tmp_path / "props.db")
     _synthetic(store)
-    rows = load_rows(store, (2,))
+    rows, join = load_rows(store, (2,))
     assert len(rows) == 300 * 16 and sum(1 for r in rows if "pts" in r.line) == 150 * 16
     assert all(r.team_pts_line == 113.0 for r in rows)
     shares = season_shares(rows, "pts")
@@ -92,8 +91,8 @@ def test_fit_recovers_synthetic_parameters(tmp_path):
     big = [v for bs in res["by_position_line_bucket"].values() for v in bs.values() if v["n"] >= 200]
     assert big and all(4.0 < v["sd"] < 8.0 for v in big)
 
-    full = fit_all(rows)
-    assert full["join"] == {"ambiguous_lines": 0, "players_multi_team": 0}
+    full = fit_all(rows, join=join)
+    assert full["join"] == {"ambiguous_lines": 0, "players_multi_team": 0, "stale_priced_lines": 0}
     assert full["n_games"] == 300 and full["stats"]["pts"]["fitted_rows"] == res["fitted_rows"] and "_z" not in full["stats"]["pts"]
     assert full["dnp"]["dnp_rows"] > 0 and full["stats"]["reb"]["fitted_rows"] > 0
     md = render_notes(full, counts=store.counts())
@@ -113,11 +112,11 @@ def test_shared_key_lines_are_dropped_and_unlisted_lines_count_as_dnp(tmp_path):
                                  "game_key": gk, "stat": "pts", "line": 20.5, "p_over": None, "t": None, "result": None, "actual": None,
                                  "open_time": None, "close_time": None}])
     store.conn.commit()
-    rows = load_rows(store, (2,))
+    rows, join = load_rows(store, (2,))
     ghost = [r for r in rows if r.player_key == "ghost"]
     assert len(ghost) == 1 and ghost[0].played == 0 and ghost[0].line == {"pts": 20.5} and ghost[0].position == "?"
     assert all("pts" not in r.line for r in rows if r.player_key == "aaa0")
-    res = fit_all(rows, min_minutes=0)
+    res = fit_all(rows, min_minutes=0, join=join)
     assert res["join"]["ambiguous_lines"] > 0 and res["dnp"]["lines_without_roster_row"] == 1
     assert res["stats"]["pts"]["dnp_with_line"] >= 1
     store.close()
@@ -125,6 +124,19 @@ def test_shared_key_lines_are_dropped_and_unlisted_lines_count_as_dnp(tmp_path):
 
 def test_fit_handles_empty_store(tmp_path):
     store = PropsStore(tmp_path / "props.db")
-    res = fit_all(load_rows(store))
+    res = fit_all(load_rows(store)[0])
     assert res["n_games"] == 0 and res["stats"]["pts"]["fitted_rows"] == 0 and "## pts" in render_notes(res)
+    store.close()
+
+
+def test_season_rows_are_bucketed_on_pregame_team_points_not_the_realized_ones(tmp_path):
+    from rfqbot.props.fit import _team_pts_loo
+    mk = lambda gk, pts: Row(gk, "AAA", "BBB", "AAA:1", "x.y", "G", 1, 1, 30.0, pts, 100, 0, {"pts": 10}, {}, {}, None)
+    avg = _team_pts_loo([mk("g1", 100), mk("g2", 110), mk("g3", 150)])
+    assert avg[("AAA", "g1")] == 130 and avg[("AAA", "g3")] == 105          # the game's own total never enters its own key
+    assert _team_pts_loo([mk("g1", 100)]) == {}                            # one game: no pre-game figure
+    store = PropsStore(tmp_path / "props.db")
+    _synthetic(store)
+    rows, _ = load_rows(store, (2,))
+    assert set(fit_stat(rows, "pts")["by_line_bucket_by_source"]) == {"line", "season"}
     store.close()

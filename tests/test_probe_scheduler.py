@@ -1,3 +1,5 @@
+import pytest
+
 from rfqbot.edge.data import DecisionRec, LegInfo, Print
 from rfqbot.probe.config import ProbeConfig
 from rfqbot.probe.gateway import DryRunGateway, E6
@@ -73,6 +75,70 @@ def test_build_request_sizes_both_directions():
     assert buy.unit == "notional" and buy.value_e6 == 20 * E6 and buy.leg_position_ids == ("p1", "p2")
     sell = build_request(type("P", (), {"trigger": t, "direction": "SELL", "horizon_sec": 5})(), CFG, None)
     assert sell.unit == "shares" and abs(sell.value_e6 / E6 - 20 / 0.21) < 1e-6          # shares worth $20 at our price
+
+
+def test_per_minute_budget_pacing_and_http_refusal():
+    from rfqbot.probe.gateway import FakeGateway
+    store = ProbeStore(None)
+    cfg = ProbeConfig(**{**CFG.__dict__, "max_per_hour": 100, "max_per_minute": 3, "min_spacing_sec": 0, "max_per_combo": 100})
+    trigs = [trig(i, cond=f"0xc{i}") for i in range(4)]
+    plans, st = plan(trigs, store, cfg, T0 + 7_000)
+    assert len(plans) == 3 and st.budget_remaining == 3 and st.dropped_hourly == 5       # 8 due, 3 per minute
+    # live sends are paced 60 / max_per_minute seconds apart through `pace`; dry / fake gateways are not
+
+    class Http(FakeGateway):
+        name = "http"
+    live = ProbeConfig(**{**cfg.__dict__, "mode": "live"})
+    sleeps = []
+    rows = execute(plans, Http(lambda req: 0.23), store, live, now=T0 + 7_000, pool=[], metas={}, pace=sleeps.append)
+    assert sleeps == [20.0, 20.0] and {r["mode"] for r in rows} == {"live"}       # http rows are 'live' rows for the budget
+    sleeps.clear()
+    execute(plans, FakeGateway(lambda req: 0.23), ProbeStore(None), cfg, now=T0 + 7_000, pool=[], metas={}, pace=sleeps.append)
+    assert sleeps == []
+    # the minute's budget is spent
+    plans2, st2 = plan(trigs, store, cfg, T0 + 8_000)
+    assert plans2 == [] and st2.budget_remaining == 0
+    assert plan(trigs, store, cfg, T0 + 70_000)[1].budget_remaining == 3
+    # the http gateway is refused outside live mode, even before any send
+    with pytest.raises(RuntimeError, match="PROBE_MODE"):
+        execute(plans, Http(lambda req: 0.23), ProbeStore(None), cfg, now=T0 + 7_000, pool=[], metas={})
+
+
+def test_combo_cap_ignores_error_failed_and_skipped_rows():
+    from rfqbot.probe.gateway import FakeGateway
+    store = ProbeStore(None)
+    cfg = ProbeConfig(**{**CFG.__dict__, "max_per_hour": 100, "min_spacing_sec": 0, "max_per_combo": 2})
+    plans, _ = plan([trig(1)], store, cfg, T0 + 7_000)
+    rows = execute(plans, FakeGateway(lambda req: None), store, cfg, now=T0 + 7_000, pool=[], metas={})   # NO_QUOTES -> FAILED
+    assert [r["status"] for r in rows] == ["FAILED", "FAILED"] and store.combo_count_since("0xc1", T0) == 0
+    store.put({**rows[0], "status": "ERROR", "trigger_rfq_id": "rfq-other", "created_ms": T0 + 8_000})
+    assert store.combo_count_since("0xc1", T0) == 0 and store.count_since(T0) == 3      # the hourly count still sees them
+    plans, st = plan([trig(1)], store, cfg, T0 + 70_000)                 # 60 s horizon due; the cap of 2 is untouched
+    assert st.dropped_combo_cap == 0 and [(p.horizon_sec, p.direction) for p in plans] == [(60, "BUY"), (60, "SELL")]
+    rows = execute(plans, FakeGateway(lambda req: 0.2), store, cfg, now=T0 + 70_000, pool=[], metas={})
+    assert store.combo_count_since("0xc1", T0) == 2
+
+
+def test_buy_safety_max_rejects_an_expensive_disguised_buy():
+    from rfqbot.probe.disguise import ExtraLeg
+    from rfqbot.probe.gateway import FakeGateway
+    cfg = ProbeConfig(**{**CFG.__dict__, "disguise": True, "buy_safety_max": 0.90909})
+    hot = trig(1)
+    hot.decision.price = 0.95                                           # our quote on a heavy favourite combo
+    extra = ExtraLeg("x1", "c-x1", "nfl-dal-phi-2026-10-26", "Yes", 0.995, 0.99, 1.0, T0 + 86_400_000, T0)
+    type("P", (), {})
+    with pytest.raises(ValueError, match="BUY_SAFETY_MAX"):
+        build_request(type("P", (), {"trigger": hot, "direction": "BUY", "horizon_sec": 5})(), cfg, extra)
+    sell = build_request(type("P", (), {"trigger": hot, "direction": "SELL", "horizon_sec": 5})(), cfg, extra)
+    assert sell.unit == "shares"                                        # SELL is not capped
+    assert build_request(type("P", (), {"trigger": trig(2), "direction": "BUY", "horizon_sec": 5})(), cfg, extra).unit == "notional"
+    # through execute: the BUY is recorded as SKIPPED (so it is not re-planned) and does not count against the combo
+    store = ProbeStore(None)
+    plans, _ = plan([hot], store, cfg, T0 + 7_000)
+    rows = execute(plans, FakeGateway(lambda req: 0.9), store, cfg, now=T0 + 7_000, pool=[extra], metas={})
+    by = {r["direction"]: r for r in rows}
+    assert by["BUY"]["status"] == "SKIPPED" and "BUY_SAFETY_MAX" in by["BUY"]["error"] and by["SELL"]["status"] == "AWAITING_REQUESTER_ACCEPTANCE"
+    assert store.done("rfq-1", 5, "BUY") and store.combo_count_since("0xc1", T0) == 1
 
 
 def test_execute_records_rows_and_learns_requester_id():

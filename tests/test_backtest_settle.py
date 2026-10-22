@@ -2,11 +2,10 @@
 import json
 import sqlite3
 from argparse import Namespace
-from pathlib import Path
 
 import pytest
 
-from rfqbot.backtest.compare import SUITE, compare_group, fmt_compare, run_compare
+from rfqbot.backtest.compare import SUITE, fmt_compare, run_compare
 from rfqbot.backtest.config import BacktestConfig, WindowConfig
 from rfqbot.backtest.report import attribution, build_report, fill_table, fmt, funnel, margin_terms, pnl_section
 from rfqbot.backtest.settle import combo_status, leg_status, load_resolutions, settle_run, Resolution
@@ -14,8 +13,8 @@ from rfqbot.backtest.stats import cluster_ids, cluster_mean_se, cluster_total_se
 from rfqbot.backtest.store import ALL_DECISION_COLS, BacktestStore
 from rfqbot.store import Store
 
-from test_backtest_replay import LEGS, frames, world
-from test_backtest_world import G1, G2, T0, add_print, build_world, rfq_frame, write_raw
+from test_backtest_replay import LEGS, world
+from backtest_world import T0, add_print
 
 E6 = 1_000_000
 
@@ -238,9 +237,27 @@ def test_game_total_se_splits_cross_game_rows_and_never_joins_dates():
     games = [["a"], ["b"], ["a", "b"], ["c"]]
     vals = [1.0, 3.0, 2.0, -2.0]
     assert len(set(cluster_ids(games))) == 2                 # union-find fuses a and b
-    tot, se, g = game_total_se(vals, games)
-    assert tot == pytest.approx(4.0) and g == 3
+    tot, se, g, gu = game_total_se(vals, games)
+    assert tot == pytest.approx(4.0) and g == 3 and gu == 3
     mean = 1.0                                               # centred scores: a=0+.5*... computed by hand
     sa, sb, sc = (1 - mean) + (2 - mean) / 2, (3 - mean) + (2 - mean) / 2, (-2 - mean)
     assert se == pytest.approx((3 / 2 * (sa * sa + sb * sb + sc * sc)) ** 0.5)
     assert game_total_se([1.0], [["a"]])[1] is None
+    _, _, ev, uni = game_total_se([1.0, 2.0, 0.0], [["a"], ["b"], ["c"]])
+    assert (ev, uni) == (2, 3)                      # the zero-valued game is universe, not evidence
+
+
+def test_unresolved_fills_are_marked_to_the_reference_run_for_paired_deltas(tmp_path):
+    legs_ = [leg("p1", "c1", "Yes")]
+    st = BacktestStore(tmp_path / "bt.db")
+    for rid, fair in (("base", 0.50), ("alt", 0.56)):
+        st.start_run(rid, rid, BacktestConfig().to_json(), json.dumps({}), WindowConfig(0, 1).to_json(), group_id="g")
+        st.insert_decisions([drow("q1", legs_, run_id=rid, fair=fair, price=0.52, action="buy_yes", size=100)])
+    rfq_db = resolutions_db(tmp_path, [])
+    for rid, ref in (("base", None), ("alt", "base")):
+        settle_run(st, rid, rfq_db, None, ref_run_id=ref)
+    alt = st.conn.execute("SELECT mark, mark_ref, unrealized, unrealized_ref FROM settlements WHERE run_id='alt'").fetchone()
+    assert alt["mark"] == pytest.approx(0.56) and alt["mark_ref"] == pytest.approx(0.50)          # own model vs the base run's fair
+    assert alt["unrealized"] == pytest.approx(100 * (0.56 - 0.52)) and alt["unrealized_ref"] == pytest.approx(100 * (0.50 - 0.52))
+    from rfqbot.backtest.settle import base_run_id
+    assert base_run_id(st, "alt") == "base"

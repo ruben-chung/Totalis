@@ -29,7 +29,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from .legspec import LegSpec, canonical_key, complement_side, contract_key, et_date_candidates
+from .legspec import LegSpec, complement_side, contract_key, et_date_candidates
 
 CONFIDENCES = ("exact", "rules_differ", "shifted_line", "none")
 _COMPARED_KEYS = ("ot", "tie", "cancel", "postpone", "group")

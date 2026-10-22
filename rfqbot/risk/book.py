@@ -20,11 +20,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping
 
+from ..slugs import E6, game_prefix_of
 from ..sports import registry
 from ..sports.legspec import LegSpec, LegSpecError, canonical_key, parse_canonical_key
 
 PENDING, FILLED, SETTLED, EXPIRED = "pending", "filled", "settled", "expired"
-SHARE_E6 = 1_000_000
 DEFAULT_PENDING_WINDOW_MS = 60_000     # decisions log carries no deadline; treat a quote as live this long
 
 
@@ -267,7 +267,7 @@ class Book:
                 legs.append(PositionLeg(pid, key, spec, p, game, m["slug"] if m else None, m["outcome"] if m else None,
                                         m["condition_id"] if m else None))
             sign = -1 if row["direction"] == "BUY" else 1      # requester buys -> maker sold YES
-            book.add(Position(row["rfq_id"], legs, sign, row["size_e6"] / SHARE_E6, row["price_e6"] / SHARE_E6,
+            book.add(Position(row["rfq_id"], legs, sign, row["size_e6"] / E6, row["price_e6"] / E6,
                               FILLED if filled else PENDING, int(row["created_at_ms"]), None if filled else deadline,
                               source="store"))
         return book
@@ -299,7 +299,6 @@ def _spec_from_catalog(m: Any) -> tuple[LegSpec | None, str | None, str | None]:
     """(LegSpec, game prefix, canonical key) for a catalog row via the sports registry."""
     if m is None or not m["slug"]:
         return None, None, None
-    from ..quoting.assemble import game_prefix_of
     game = game_prefix_of(m["slug"])
     sp = registry.sport_for_slug(m["slug"])
     if sp is None:
@@ -343,7 +342,7 @@ def position_from_decision(r: Mapping[str, Any], cat: _Catalog | None = None) ->
     sign = -1 if r["maker_action"] == "sell_yes" else 1
     keys = r.keys() if hasattr(r, "keys") else ()
     expires = r["expires_ms"] if "expires_ms" in keys else None
-    return Position(r["rfq_id"], legs, sign, r["size_e6"] / SHARE_E6, r["price_e6"] / SHARE_E6, PENDING,
+    return Position(r["rfq_id"], legs, sign, r["size_e6"] / E6, r["price_e6"] / E6, PENDING,
                     int(r["at_ms"]), int(expires) if expires is not None else None, clusters, source="decisions",
                     requester=(r["requester"] if "requester" in keys else None) or "",
                     condition_id=(r["condition_id"] if "condition_id" in keys else None) or "")

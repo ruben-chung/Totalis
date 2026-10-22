@@ -1,9 +1,9 @@
 """Re-normalize recorded raw frames into a fresh store.
 
 Sources:
-  * a raw-log directory (data/raw) or a single .jsonl / .jsonl.gz file written by RawLog
+  * a raw-log directory (data/raw) or a single .jsonl / .jsonl.gz / .ndjson file written by RawLog
     (lines: {"t","d","c","s","p"}), or the simpler fixture form {"received_at_ms","direction","payload"};
-  * an existing rfq.db (reads its raw_messages table — complete only if it was recorded with RAW_DB_TYPES=all).
+  * an existing rfq.db (streams its raw_messages table — complete only if it was recorded with RAW_DB_TYPES=all).
 
 The replay clock is the recorded receive time; the expiry sweeper runs against
 that clock (once per replay-second) before each message, so no decision sees
@@ -14,18 +14,23 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 from . import messages as m
-from .config import ACCEPTANCE_WINDOW_MS, LAST_LOOK_WINDOW_MS, SUBMISSION_WINDOW_MS
+from .config import DEFAULT_EXPIRY_GRACE_MS, SUBMISSION_WINDOW_MS, expiry_horizon_ms
 from .normalizer import Normalizer, PaperQuote
 from .rawlog import iter_rawlog_dir, iter_rawlog_file
 from .store import RawRow, Store
 
 log = logging.getLogger(__name__)
+RAW_FILE_SUFFIXES = (".jsonl", ".jsonl.gz", ".ndjson")
+COMMIT_EVERY = 10_000          # frames per transaction
 
 
-def _row_from_obj(i: int, obj: dict) -> RawRow:
+def _row_from_obj(i: int, obj: Any) -> RawRow | None:
+    if not isinstance(obj, dict):
+        log.warning("skipping raw line #%d: not a JSON object (%s)", i, type(obj).__name__)
+        return None
     if "p" in obj:  # RawLog format
         text = obj["p"]
         ts, direction, conn_id, seq = int(obj.get("t", 0)), obj.get("d", "in"), obj.get("c"), obj.get("s")
@@ -42,28 +47,28 @@ def _row_from_obj(i: int, obj: dict) -> RawRow:
 
 
 def iter_source(source: Path) -> Iterator[RawRow]:
-    if source.is_dir():
-        for i, obj in enumerate(iter_rawlog_dir(source), 1):
-            yield _row_from_obj(i, obj)
-    elif source.name.endswith((".jsonl", ".jsonl.gz", ".ndjson", ".json")):
-        for i, obj in enumerate(iter_rawlog_file(source), 1):
-            yield _row_from_obj(i, obj)
+    if source.is_dir() or source.name.endswith(RAW_FILE_SUFFIXES):
+        objs = iter_rawlog_dir(source) if source.is_dir() else iter_rawlog_file(source)
+        for i, obj in enumerate(objs, 1):
+            row = _row_from_obj(i, obj)
+            if row is not None:
+                yield row
     else:
         src = Store(source, wal=False)
         try:
-            yield from list(src.iter_raw())
+            yield from src.iter_raw()          # streamed: a recorded db does not fit in memory
         finally:
             src.close()
 
 
-def replay(source: Path, target: Store, *, expiry_grace_ms: int = 5_000, raw_db_types: str = "non_request",
+def replay(source: Path, target: Store, *, expiry_grace_ms: int = DEFAULT_EXPIRY_GRACE_MS, raw_db_types: str = "non_request",
            final_sweep: bool = True, progress_every: int = 100_000) -> dict[str, int]:
     norm = Normalizer(target, expiry_grace_ms=expiry_grace_ms)
     counts: dict[str, int] = {}
     last_ms = 0
     last_sweep_ms = 0
     n = 0
-    tx = target.tx(); tx.__enter__()
+    target.begin()
     try:
         for row in iter_source(source):
             n += 1
@@ -98,15 +103,14 @@ def replay(source: Path, target: Store, *, expiry_grace_ms: int = 5_000, raw_db_
                 log.warning("skip raw #%s: %s", row.id, e)
                 continue
             norm.apply(msg, at_ms=ts, raw_id=raw_id)
-            if n % 10_000 == 0:
-                tx.__exit__(None, None, None); tx = target.tx(); tx.__enter__()
+            if n % COMMIT_EVERY == 0:
+                target.commit(); target.begin()
             if progress_every and n % progress_every == 0:
                 log.info("replayed %d frames", n)
         if final_sweep and last_ms:
             # Close out anything still open at the end of the recording using the last
             # observed timestamp plus the full expiry horizon (no real clock involved).
-            norm.expire_stale(last_ms + SUBMISSION_WINDOW_MS + ACCEPTANCE_WINDOW_MS + LAST_LOOK_WINDOW_MS
-                              + expiry_grace_ms + 1)
+            norm.expire_stale(last_ms + SUBMISSION_WINDOW_MS + expiry_horizon_ms(expiry_grace_ms) + 1)
     finally:
-        tx.__exit__(None, None, None)
+        target.commit()
     return counts

@@ -3,54 +3,55 @@
   "cross": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434819873831572,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "group",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.8038262346735413,
-   "lambda_se": 0.08763855037021656,
+   "lambda": 0.8038262346735405,
+   "lambda_group": 0.8038262346735405,
+   "lambda_pair": 0.8038262346735405,
+   "lambda_se": 0.08813509003992208,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677556995859677,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 85034,
    "n_games": 89,
    "n_hi": 3578,
    "n_lo": 23445,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "within_FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.2211460297880685,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "group",
    "lambda": 1.0018442743758544,
    "lambda_group": 1.0018442743758544,
    "lambda_pair": 1.0018442743758544,
-   "lambda_se": 0.08142280569824699,
+   "lambda_se": 0.0818739050266036,
    "lambda_status": "group",
    "lo": {
-    "a": 0.0010685507326233913,
-    "b": 1.0058057911061635,
+    "b": -0.025543768122019212,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 56701,
    "n_games": 91,
    "n_hi": 2305,
    "n_lo": 15719,
-   "resid": 0.011798865668287764
+   "resid": 0.012118751048776412
   },
   "within_half": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "group",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -58,6 +59,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 84,
    "n_games": 1,
    "n_hi": 0,
@@ -66,406 +68,410 @@
   }
  },
  "meta": {
-  "fitted_at": "2026-10-20 20:26",
+  "engine_config_hash": "e94665f4dfb9aff2",
+  "fitted_at": "2026-10-21 23:17",
   "folds": 5,
   "games": 91,
   "hi_cut": 0.8,
   "lo_cut": 0.05,
-  "logloss_group_oos": 0.40351192365747657,
-  "logloss_pair_oos": 0.40306958853583735,
+  "logloss_group_oos": 0.40334797516805504,
+  "logloss_pair_oos": 0.40301350148186743,
   "n": 141819,
   "offset": 15,
+  "schema": 2,
   "scores_db": "data/engine_validation_v2.db",
-  "shrinkage": "precision-weighted with game-clustered variances; market_pinned pairs keep 1.0 unless the 95% CI excludes it"
+  "shrinkage": "precision-weighted with game-clustered variances (G/(G-1)); prior = leave-one-pair-out group, prior variance >= 0.1^2; market_pinned pairs keep 1.0 unless the 95% CI excludes it",
+  "tail_form": "hinge p + b (p - cut)"
  },
  "pairs": {
   "exact_margin/FG x exact_margin/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.22115603619414817,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "structural",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
+   "lambda_group": 1.0018724346728305,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "fixed",
    "lo": {
-    "a": 0.0010685507326233913,
-    "b": 1.0058057911061635,
+    "b": -0.025574769362675675,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 1,
-   "resid": 0.011798865668287764
+   "resid": 0.012118751048776412
   },
   "exact_margin/FG x moneyline/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44348778716189163,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.804059236431115,
+   "lambda_group": 0.804059236431115,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2678418297815086,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 1,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "exact_margin/FG x moneyline/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.2215657457753817,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "structural",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.3808416320986671,
-   "lambda_se": 0.4876340558476332,
+   "lambda_group": 1.0030253984338493,
+   "lambda_pair": 0.3808416320986673,
+   "lambda_se": 0.5036262872910563,
    "lambda_status": "fixed",
    "lo": {
-    "a": 0.00037792298338076526,
-    "b": 2.016307365349021e-05,
+    "b": -0.027196965306284727,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 140,
    "n_games": 16,
    "n_hi": 0,
    "n_lo": 50,
-   "resid": 0.000413567757670856
+   "resid": 0.00430476914188728
   },
   "exact_margin/FG x spread/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347183494188835,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8034181153073703,
+   "lambda_group": 0.8034181153073703,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26771510137980076,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 2,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "exact_margin/FG x spread/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434882936147877,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8040795778205998,
+   "lambda_group": 0.8040795778205998,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26784704103334256,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 1,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "exact_margin/FG x spread/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.05822952908781031,
-    "b": 1.043596812227072,
+    "b": -0.2586829495752822,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "structural",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.9888315911812139,
-   "lambda_se": 0.24649864679546443,
+   "lambda_group": 1.0023104304211283,
+   "lambda_pair": 0.9888315911812136,
+   "lambda_se": 0.24809412394868433,
    "lambda_status": "fixed",
    "lo": {
-    "a": -0.00084582076260027,
-    "b": 0.9954847596847339,
+    "b": 0.049613538885597976,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 4989,
    "n_games": 78,
    "n_hi": 393,
    "n_lo": 1799,
-   "resid": 0.027438606655536286
+   "resid": 0.026967263703173098
   },
   "exact_margin/FG x team_total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434816864609848,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8038141424895276,
+   "lambda_group": 0.8038141424895276,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26782904045979183,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 12,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 3,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "exact_margin/FG x team_total/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434841174614051,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8039118211501619,
+   "lambda_group": 0.8039118211501619,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26782763444357127,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 2,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "exact_margin/FG x team_total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.2212960444871237,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
+   "lambda_group": 1.002266443394744,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0010685507326233913,
-    "b": 1.0058057911061635,
+    "b": -0.025996007208386292,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 1,
-   "resid": 0.011798865668287764
+   "resid": 0.012118751048776412
   },
   "exact_margin/FG x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44348226936753615,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8038375656094902,
+   "lambda_group": 0.8038375656094902,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.267764585595415,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 1,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "exact_margin/FG x total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.16902668320290096,
-    "b": 1.175375091698985,
+    "b": -0.013315858443400915,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.49536021510455897,
-   "lambda_se": 2.2385044959207083,
+   "lambda_group": 1.0020336138615527,
+   "lambda_pair": 0.49536021510456063,
+   "lambda_se": 2.2542134921279837,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0003549354248000033,
-    "b": 0.9205167228511443,
+    "b": -0.03542415673059894,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 1916,
    "n_games": 72,
    "n_hi": 160,
    "n_lo": 694,
-   "resid": 0.03463131006219371
+   "resid": 0.03563920258042927
   },
   "moneyline/1H x moneyline/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44346076281992347,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8131612537445717,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.813102557203431,
+   "lambda_group": 0.8029726581041388,
    "lambda_pair": 1.227450068058925,
-   "lambda_se": 0.5838337331264549,
+   "lambda_se": 0.6395578109316211,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26756186702426576,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 24,
    "n_games": 6,
    "n_hi": 0,
    "n_lo": 2,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/1H x spread/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4436688004480675,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.7905006794863041,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.4347602690228614,
-   "lambda_se": 0.45281325375126424,
+   "lambda": 0.7947739878898256,
+   "lambda_group": 0.8111616713630397,
+   "lambda_pair": 0.43476026902286163,
+   "lambda_se": 0.46870624684124645,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.00033459438904579175,
-    "b": 2.221154864276581e-05,
+    "b": -0.27193203047268605,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 498,
    "n_games": 15,
    "n_hi": 0,
    "n_lo": 94,
-   "resid": 0.04366448945307799
+   "resid": 0.04589744881666523
   },
   "moneyline/1H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44346400384472723,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8082153503914743,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.8158839737713628,
-   "lambda_se": 1.327900509818515,
+   "lambda": 0.8084084990352882,
+   "lambda_group": 0.8031030918145536,
+   "lambda_pair": 1.8158839737713617,
+   "lambda_se": 1.3780274836956632,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.00033459438904579175,
-    "b": 2.221154864276581e-05,
+    "b": -0.26805453122303885,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 194,
    "n_games": 14,
    "n_hi": 0,
    "n_lo": 22,
-   "resid": 0.06997984614355592
+   "resid": 0.06997686031526029
   },
   "moneyline/2H x moneyline/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44346478807044515,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8031346477093402,
+   "lambda_group": 0.8031346477093402,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26758664964507317,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 2,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/2H x spread/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434847225821595,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.803936132302882,
+   "lambda_group": 0.803936132302882,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677827718952827,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/2H x spread/2H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -473,6 +479,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
@@ -482,54 +489,55 @@
   "moneyline/2H x spread/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4377238725677031,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8517945225947513,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8524931341797019,
+   "lambda_group": 0.7935509166423027,
    "lambda_pair": 1.819034231293898,
-   "lambda_se": 0.3935366053696519,
+   "lambda_se": 0.40494582613608704,
    "lambda_status": "shrunk",
    "lo": {
-    "a": -0.0001817217280834942,
-    "b": 0.8174845641559016,
+    "b": -0.26645190211734887,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 448,
    "n_games": 18,
    "n_hi": 4,
-   "n_lo": 77,
-   "resid": 0.0830988523291972
+   "n_lo": 78,
+   "resid": 0.08672248721613483
   },
   "moneyline/2H x team_total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347961004923386,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8037306967605612,
+   "lambda_group": 0.8037306967605612,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677323558130907,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 12,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/2H x team_total/2H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -537,6 +545,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
@@ -546,294 +555,295 @@
   "moneyline/2H x team_total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434741483068853,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8035111389055298,
+   "lambda_group": 0.8035111389055298,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26767870466179194,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/2H x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434806474708267,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8037723897882103,
+   "lambda_group": 0.8037723897882103,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677425420825855,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/2H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.43905175373607747,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8006821637722745,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8009818001036972,
+   "lambda_group": 0.8048360113640389,
    "lambda_pair": 0.0,
-   "lambda_se": 1.3985535397046032,
+   "lambda_se": 1.4415959918208856,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.011542262463124474,
-    "b": 0.8384503017215373,
+    "b": -0.2674385043131669,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 220,
    "n_games": 17,
    "n_hi": 3,
    "n_lo": 41,
-   "resid": 0.06650085381902171
+   "resid": 0.07060441203226892
   },
   "moneyline/FG x spread/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434251689714971,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8098001324530436,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.9716858887614566,
-   "lambda_se": 0.4562161036306433,
+   "lambda": 0.8088717102049465,
+   "lambda_group": 0.8015380247872909,
+   "lambda_pair": 0.9716858887614563,
+   "lambda_se": 0.4711779657688316,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.013138398166003326,
-    "b": 0.3311105464637863,
+    "b": -0.26706447031917147,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 387,
    "n_games": 16,
    "n_hi": 0,
    "n_lo": 79,
-   "resid": 0.03615897043410387
+   "resid": 0.0328360769117555
   },
   "moneyline/FG x spread/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434158882791114,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8125194451382193,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.1485417671084495,
-   "lambda_se": 0.5448653024459339,
+   "lambda": 0.8117972264138518,
+   "lambda_group": 0.8011633028306938,
+   "lambda_pair": 1.148541767108449,
+   "lambda_se": 0.562734464613165,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.012773117415915166,
-    "b": 0.49047850547654226,
+    "b": -0.2676990889580154,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 434,
    "n_games": 16,
    "n_hi": 0,
    "n_lo": 122,
-   "resid": 0.0919021575446871
+   "resid": 0.08922652729371934
   },
   "moneyline/FG x spread/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.22311590036846138,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "structural",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.858085113109505,
-   "lambda_se": 0.21114556548586605,
+   "lambda_group": 1.0075197886165328,
+   "lambda_pair": 0.8580851131095053,
+   "lambda_se": 0.21764386721974915,
    "lambda_status": "fixed",
    "lo": {
-    "a": 0.00026737633620058847,
-    "b": 1.0275385614979322,
+    "b": -0.03064629773450903,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 522,
    "n_games": 17,
    "n_hi": 0,
    "n_lo": 154,
-   "resid": 0.05398758814636819
+   "resid": 0.05347597674699369
   },
   "moneyline/FG x team_total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4435226446643435,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.7944581594997514,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.5551458787645195,
-   "lambda_se": 0.442947744552396,
+   "lambda": 0.794042403731146,
+   "lambda_group": 0.8054574090867798,
+   "lambda_pair": 0.5551458787645194,
+   "lambda_se": 0.457474463437751,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2685807482444887,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 216,
    "n_games": 16,
    "n_hi": 0,
    "n_lo": 17,
-   "resid": 0.05896437312825031
+   "resid": 0.052176487873773034
   },
   "moneyline/FG x team_total/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434971573690092,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8017591263325066,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.5845552484020851,
-   "lambda_se": 0.8983536837356237,
+   "lambda": 0.8019105410319208,
+   "lambda_group": 0.8044354561936456,
+   "lambda_pair": 0.5845552484020852,
+   "lambda_se": 0.9278156949632415,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.013467878579218264,
-    "b": 0.744300557399458,
+    "b": -0.26118352229164277,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 216,
    "n_games": 16,
    "n_hi": 0,
    "n_lo": 43,
-   "resid": 0.07454388478535343
+   "resid": 0.07454144209887087
   },
   "moneyline/FG x team_total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.22091123361230788,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
+   "lambda_group": 1.0011834870745033,
    "lambda_pair": 1.0478644352436266,
-   "lambda_se": 0.22065005212495772,
+   "lambda_se": 0.22788639392526924,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0010555943013358848,
-    "b": 1.025271858134725,
+    "b": -0.02344392870959486,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 312,
    "n_games": 16,
    "n_hi": 0,
    "n_lo": 49,
-   "resid": 0.07125866406959043
+   "resid": 0.07135092859169079
   },
   "moneyline/FG x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44346217655425263,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8090187549843809,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8091747887864524,
+   "lambda_group": 0.8030295573099256,
    "lambda_pair": 2.0,
-   "lambda_se": 1.3272677576812595,
+   "lambda_se": 1.392050168147062,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26760895781446775,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 60,
    "n_games": 11,
    "n_hi": 0,
    "n_lo": 3,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/FG x total/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4436000699087588,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.7975664461520389,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8012800188672768,
+   "lambda_group": 0.8085583901623031,
    "lambda_pair": 0.0,
-   "lambda_se": 0.9892334472154032,
+   "lambda_se": 1.0492405180538342,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26895355717069197,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 64,
    "n_games": 9,
    "n_hi": 0,
    "n_lo": 2,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "moneyline/FG x total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.19774413816101025,
-    "b": 1.1990300224930945,
+    "b": -0.22156845453688884,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.40527133127035486,
-   "lambda_se": 1.3836290229614496,
+   "lambda_group": 1.0030330208250873,
+   "lambda_pair": 0.4052713312703547,
+   "lambda_se": 1.4262121520850553,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0010241921133108812,
-    "b": 1.0306307088823623,
+    "b": -0.027060912165951693,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 450,
    "n_games": 17,
    "n_hi": 0,
    "n_lo": 47,
-   "resid": 0.040068415587661575
+   "resid": 0.039097440959136594
   },
   "spread/1H x spread/1H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -841,6 +851,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
@@ -850,54 +861,55 @@
   "spread/1H x spread/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44348490721394385,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8039435497876788,
+   "lambda_group": 0.8039435497876788,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677846061604231,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "spread/1H x spread/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.16097626520223124,
-    "b": 1.172146799099907,
+    "b": -0.19380067729388697,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.764113444095144,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.6755650441599417,
-   "lambda_se": 0.13086404538083413,
+   "lambda": 0.7907702676121268,
+   "lambda_group": 0.8644274623408537,
+   "lambda_pair": 0.6755650441599412,
+   "lambda_se": 0.13160549066484709,
    "lambda_status": "shrunk",
    "lo": {
-    "a": -0.00048818867781043784,
-    "b": 0.8662040321844928,
+    "b": 0.020952031694849695,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 16646,
    "n_games": 89,
-   "n_hi": 878,
-   "n_lo": 4993,
-   "resid": 0.01402595806645119
+   "n_hi": 883,
+   "n_lo": 5000,
+   "resid": 0.013196097224481642
   },
   "spread/1H x team_total/1H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -905,6 +917,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 24,
    "n_games": 1,
    "n_hi": 0,
@@ -914,54 +927,55 @@
   "spread/1H x team_total/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44348042645283353,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.803763507558176,
+   "lambda_group": 0.803763507558176,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26774037187989547,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 16,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "spread/1H x team_total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44350233885314466,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8046433789018648,
+   "lambda_group": 0.8046433789018648,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2679574640114121,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "spread/1H x total/1H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -969,6 +983,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
@@ -978,78 +993,79 @@
   "spread/1H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": 0.2727058909139719,
-    "b": 0.7023629133414107,
+    "b": 0.18371394629838778,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.8010725966353365,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8028586896181906,
+   "lambda_group": 0.8064332258583515,
    "lambda_pair": 0.6157740402384466,
-   "lambda_se": 0.7189153839058785,
+   "lambda_se": 0.7234511726485894,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.00872498009682289,
-    "b": 0.7124476262924359,
+    "b": -0.11318978861794789,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 6751,
    "n_games": 80,
    "n_hi": 314,
    "n_lo": 1826,
-   "resid": 0.03055239989419412
+   "resid": 0.03223451364602492
   },
   "spread/2H x spread/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.283182449935717,
-    "b": 1.278572020927027,
+    "b": -0.4295316166326406,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.8365290650439815,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.052217787237733,
-   "lambda_se": 0.22506928600835505,
+   "lambda": 0.8039110129985456,
+   "lambda_group": 0.7554437196694305,
+   "lambda_pair": 1.0522177872377332,
+   "lambda_se": 0.2263444763037599,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.010484077126620483,
-    "b": 0.9040005385213464,
+    "b": -0.2563008883637592,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 18099,
    "n_games": 89,
-   "n_hi": 1126,
-   "n_lo": 5963,
-   "resid": 0.023894313603628908
+   "n_hi": 1128,
+   "n_lo": 5936,
+   "resid": 0.023928489474859257
   },
   "spread/2H x team_total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434797077333764,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8037346227403995,
+   "lambda_group": 0.8037346227403995,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677333149248739,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 12,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "spread/2H x team_total/2H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -1057,6 +1073,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
@@ -1066,246 +1083,247 @@
   "spread/2H x team_total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347426354471786,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.803515772340363,
+   "lambda_group": 0.803515772340363,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26767983679852764,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "spread/2H x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44348068154008324,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8037737589436107,
+   "lambda_group": 0.8037737589436107,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.26774287661585877,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "spread/2H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.10029184001693005,
-    "b": 1.066200853169525,
+    "b": -0.3947178479914869,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.7992231022018489,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.6134844466851506,
-   "lambda_se": 0.5566979183049493,
+   "lambda": 0.8023122467100459,
+   "lambda_group": 0.8083290227050879,
+   "lambda_pair": 0.6134844466851505,
+   "lambda_se": 0.5602102428531035,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.01200197170004037,
-    "b": 0.8899661226411567,
+    "b": -0.2823940021903722,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 6820,
    "n_games": 80,
    "n_hi": 400,
    "n_lo": 2234,
-   "resid": 0.023429986010481397
+   "resid": 0.025949849300808153
   },
   "spread/FG x spread/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.36325501943759125,
-    "b": 1.3934049066305192,
+    "b": -0.16359910584233645,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "structural",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.9400366407551454,
-   "lambda_se": 0.10071390645692051,
+   "lambda_group": 1.0307256222234997,
+   "lambda_pair": 0.940036640755145,
+   "lambda_se": 0.10129776008117022,
    "lambda_status": "fixed",
    "lo": {
-    "a": 0.0004671015463759122,
-    "b": 0.9923973022515732,
+    "b": -0.0004933296897934748,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 9208,
    "n_games": 87,
    "n_hi": 518,
    "n_lo": 3003,
-   "resid": 0.03414486998875625
+   "resid": 0.03373591679655335
   },
   "spread/FG x team_total/1H": {
    "group": "cross",
    "hi": {
-    "a": 0.12455908750748884,
-    "b": 0.8204927796727912,
+    "b": -0.4655593107699227,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.7651636365378289,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 0.5726458869794167,
-   "lambda_se": 0.19556226371755994,
+   "lambda": 0.7915532154576107,
+   "lambda_group": 0.8481340551059665,
+   "lambda_pair": 0.5726458869794163,
+   "lambda_se": 0.19669596749745274,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.012001068055305769,
-    "b": 0.8367530660824525,
+    "b": -0.2752022807096825,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 8992,
    "n_games": 87,
-   "n_hi": 193,
-   "n_lo": 1973,
-   "resid": 0.017551606892169003
+   "n_hi": 195,
+   "n_lo": 1981,
+   "resid": 0.016368713192436244
   },
   "spread/FG x team_total/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.004993064556411025,
-    "b": 0.9439205748364956,
+    "b": -0.2976653501175346,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.8228722788911268,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.1424144781865455,
-   "lambda_se": 0.35896896356904795,
+   "lambda": 0.8045563991442165,
+   "lambda_group": 0.7786455964923857,
+   "lambda_pair": 1.1424144781865453,
+   "lambda_se": 0.361099361878089,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.014081529200989354,
-    "b": 0.8111976904502042,
+    "b": -0.17420796027018248,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 9137,
    "n_games": 85,
    "n_hi": 377,
-   "n_lo": 2487,
-   "resid": 0.043123567788832154
+   "n_lo": 2485,
+   "resid": 0.05302076201070965
   },
   "spread/FG x team_total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.2004120346563251,
-    "b": 1.2014297457315153,
+    "b": -0.2272466622547198,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 1.0222201394748296,
-   "lambda_se": 0.12452623288645269,
+   "lambda_group": 0.9940742907413824,
+   "lambda_pair": 1.0222201394748294,
+   "lambda_se": 0.12523176959702031,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0015129230058215503,
-    "b": 0.9961861269594571,
+    "b": -0.058687583777756736,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 11796,
    "n_games": 89,
    "n_hi": 331,
    "n_lo": 2969,
-   "resid": 0.018536073944502466
+   "resid": 0.017849803457541027
   },
   "spread/FG x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44639150592583643,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.7945595268882935,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8051313709237623,
+   "lambda_group": 0.8171690295885963,
    "lambda_pair": 0.0,
-   "lambda_se": 0.8115133539154266,
+   "lambda_se": 0.817828728181549,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.011242890824690968,
-    "b": 0.8661310425772437,
+    "b": -0.26997848423186044,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 2978,
    "n_games": 65,
    "n_hi": 10,
-   "n_lo": 472,
-   "resid": 0.05414679890054633
+   "n_lo": 471,
+   "resid": 0.05325844576914959
   },
   "spread/FG x total/2H": {
    "group": "cross",
    "hi": {
-    "a": 0.019127227365021194,
-    "b": 0.9357338765927616,
+    "b": -0.44666852607601565,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.7817611260823846,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.7952608120398308,
+   "lambda_group": 0.8240558131756426,
    "lambda_pair": 0.0,
-   "lambda_se": 0.5216499692933931,
+   "lambda_se": 0.5255284611282202,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.0077900956990591816,
-    "b": 0.8173488535338623,
+    "b": -0.13506811297831095,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 3344,
    "n_games": 68,
    "n_hi": 36,
-   "n_lo": 655,
-   "resid": 0.026444929663739722
+   "n_lo": 657,
+   "resid": 0.029021007694699823
   },
   "spread/FG x total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.13692761830232858,
-    "b": 1.1348682651608442,
+    "b": -0.24242294221447483,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 0.2783275335591175,
-   "lambda_se": 0.5112057051333089,
+   "lambda_group": 1.0429749489859887,
+   "lambda_pair": 0.27832753355911777,
+   "lambda_se": 0.5140696250495703,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0010463187931417234,
-    "b": 1.0425995828485692,
+    "b": -0.06629723228975479,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 17573,
    "n_games": 90,
    "n_hi": 559,
    "n_lo": 4149,
-   "resid": 0.014592745357588935
+   "resid": 0.015089781024479079
   },
   "team_total/1H x team_total/1H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -1313,6 +1331,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 12,
    "n_games": 1,
    "n_hi": 0,
@@ -1322,54 +1341,55 @@
   "team_total/1H x team_total/2H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347381667809516,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8034978046815417,
+   "lambda_group": 0.8034978046815417,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2676754466771094,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 24,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "team_total/1H x team_total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347526553558,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8035560582229361,
+   "lambda_group": 0.8035560582229361,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2676896811028273,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 12,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "team_total/1H x total/1H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -1377,6 +1397,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 12,
    "n_games": 1,
    "n_hi": 0,
@@ -1386,30 +1407,31 @@
   "team_total/1H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.006288905501646044,
-    "b": 0.958375380059424,
+    "b": -0.45594921909323477,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.8254838350344712,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8161181479689373,
+   "lambda_group": 0.7874751700501539,
    "lambda_pair": 1.1487897160152272,
-   "lambda_se": 0.33860769216257935,
+   "lambda_se": 0.3407993505906202,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.005447779463812702,
-    "b": 0.6211416076802534,
+    "b": -0.2785614779131546,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 3529,
    "n_games": 78,
    "n_hi": 75,
-   "n_lo": 791,
-   "resid": 0.02630780433837314
+   "n_lo": 786,
+   "resid": 0.02769806835874256
   },
   "team_total/2H x team_total/2H": {
    "group": "within_half",
    "hi": null,
+   "hi_source": null,
    "kind": "prior",
    "lambda": 1.0,
    "lambda_group": 1.0,
@@ -1417,6 +1439,7 @@
    "lambda_se": null,
    "lambda_status": "group",
    "lo": null,
+   "lo_source": null,
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
@@ -1426,194 +1449,194 @@
   "team_total/2H x team_total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347341569420357,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8034816813489813,
+   "lambda_group": 0.8034816813489813,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2676815952860062,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 1,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "team_total/2H x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4434781389528023,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.803671568978047,
+   "lambda_group": 0.803671568978047,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2677179126701344,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 8,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "team_total/2H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": 0.087239912144707,
-    "b": 0.8459047330547051,
+    "b": -0.4224265831495808,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "prior",
-   "lambda": 0.8269942155354878,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.1252974809218281,
-   "lambda_se": 0.31447063389586133,
+   "lambda": 0.821512724047787,
+   "lambda_group": 0.791192762008878,
+   "lambda_pair": 1.1252974809218284,
+   "lambda_se": 0.31653275850842866,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.015146796965971801,
-    "b": 0.7842992855520948,
+    "b": -0.3012693674345396,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 3281,
    "n_games": 77,
    "n_hi": 121,
    "n_lo": 944,
-   "resid": 0.040942416688406084
+   "resid": 0.039053410097610104
   },
   "team_total/FG x total/1H": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44347566102589964,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8038262346735413,
-   "lambda_group": 0.8038262346735413,
+   "lambda": 0.8035719583793398,
+   "lambda_group": 0.8035719583793398,
    "lambda_pair": null,
    "lambda_se": null,
    "lambda_status": "group",
    "lo": {
-    "a": 0.012383854309744412,
-    "b": 0.8233778083444406,
+    "b": -0.2676935668896471,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 4,
    "n_games": 1,
    "n_hi": 0,
    "n_lo": 0,
-   "resid": 0.012268707810147049
+   "resid": 0.012137347396947367
   },
   "team_total/FG x total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.11730834733140663,
-    "b": 1.1200536551906848,
+    "b": -0.2274989372489019,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "market_pinned",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 1.2139308889860299,
-   "lambda_se": 0.1618390447676039,
+   "lambda_group": 0.9798603928149882,
+   "lambda_pair": 1.2139308889860303,
+   "lambda_se": 0.1628601214253321,
    "lambda_status": "uninformative",
    "lo": {
-    "a": 0.0012488098636096812,
-    "b": 0.9991918982514278,
+    "b": -0.040263389929257036,
     "cut": 0.05
    },
+   "lo_source": "pair",
    "n": 4591,
    "n_games": 80,
    "n_hi": 145,
    "n_lo": 1199,
-   "resid": 0.01621564673111845
+   "resid": 0.015589984028436987
   },
   "total/1H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.4464394558939565,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.8321359178435108,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.059600401908107,
-   "lambda_se": 0.24841881107441052,
+   "lambda": 0.8302892967601867,
+   "lambda_group": 0.7937607738267111,
+   "lambda_pair": 1.0596004019081064,
+   "lambda_se": 0.25055120049540003,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.00033459438904579175,
-    "b": 2.221154864276581e-05,
+    "b": -0.2723594791595648,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 1210,
    "n_games": 59,
    "n_hi": 14,
    "n_lo": 284,
-   "resid": 0.060401455566001835
+   "resid": 0.06175482861763596
   },
   "total/2H x total/FG": {
    "group": "cross",
    "hi": {
-    "a": -0.02117592946523522,
-    "b": 0.9745431636750338,
+    "b": -0.44780955230464814,
     "cut": 0.8
    },
+   "hi_source": "group",
    "kind": "prior",
-   "lambda": 0.829559691697966,
-   "lambda_group": 0.8038262346735413,
-   "lambda_pair": 1.204777077578306,
-   "lambda_se": 0.33464750809091365,
+   "lambda": 0.8239892507007059,
+   "lambda_group": 0.7905443985199737,
+   "lambda_pair": 1.2047770775783053,
+   "lambda_se": 0.337424713453706,
    "lambda_status": "shrunk",
    "lo": {
-    "a": 0.004896879610876074,
-    "b": 0.8603256036775803,
+    "b": -0.2716837124461618,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 1302,
    "n_games": 61,
    "n_hi": 18,
    "n_lo": 329,
-   "resid": 0.0358191562617673
+   "resid": 0.04274997015568452
   },
   "total/FG x total/FG": {
    "group": "within_FG",
    "hi": {
-    "a": -0.3110463567565761,
-    "b": 1.3339537390773217,
+    "b": -0.15485143778429897,
     "cut": 0.8
    },
+   "hi_source": "pair",
    "kind": "structural",
    "lambda": 1.0,
-   "lambda_group": 1.0018442743758544,
-   "lambda_pair": 1.2496905522417217,
-   "lambda_se": 0.13477783386467979,
+   "lambda_group": 0.9522557218484231,
+   "lambda_pair": 1.249690552241721,
+   "lambda_se": 0.13562817563687696,
    "lambda_status": "fixed",
    "lo": {
-    "a": 0.0006802475001269709,
-    "b": 0.03411588823013596,
+    "b": 0.014269523703843026,
     "cut": 0.05
    },
+   "lo_source": "group",
    "n": 5196,
    "n_games": 80,
    "n_hi": 199,
    "n_lo": 1605,
-   "resid": 0.018709502157983775
+   "resid": 0.021086266293831105
   }
  }
 }

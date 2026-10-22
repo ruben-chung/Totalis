@@ -9,7 +9,7 @@ sizes are shares, time is seconds.
     c_stale = C_STALE_PREGAME before kickoff, C_STALE_INPLAY once game_start_time <= now
     staleness_v = seconds since the quote was last confirmed (its row, or the feed's last activity
                   while the instrument was subscribed: both stores are change-only)
-    precision_v = 1 / sigma_v^2  (x KALSHI_PRIOR[sport] for Kalshi, x RULES_DIFFER_SCALE if rules differ)
+    precision_v = 1 / sigma_v^2  (Kalshi: KALSHI_PRIOR[sport] / (sigma^2 + RULES_DIFFER_BIAS^2 when rules differ))
 """
 from __future__ import annotations
 
@@ -42,8 +42,12 @@ class MarginalConfig:
     # --- venue prior and match confidence ---
     kalshi_prior: dict[str, float] = field(default_factory=lambda: {"nfl": 2.0, "nba": 1.0})
     kalshi_prior_default: float = 1.0
-    rules_differ_scale: float = 0.25
+    rules_differ_bias: float = 0.02   # rules_differ: a Kalshi payoff bias (tie convention, ...) added to its variance: sigma_k^2 += bias^2
     # --- combination / error ---
+    hs_floor: dict[str, float] = field(default_factory=lambda: {"poly": 0.0005, "kalshi": 0.005})   # half a tick: a locked book is not a zero-width one
+    disagree_k: float = 2.0        # venues disagree when |p_poly - p_kalshi| > disagree_k * sqrt(sigma_p^2 + sigma_k^2)
+    err_rho: float = 0.5           # venue errors are correlated: err >= err_rho * min sigma_v of the venues used
+    micro_d0: float = 500.0        # microprice shift toward the heavy side is shrunk by depth / (depth + micro_d0)
     err_floor: float = 0.005
     degenerate_lo: float = 0.015
     degenerate_hi: float = 0.985
@@ -52,6 +56,13 @@ class MarginalConfig:
     err_cap: float = 0.5           # err is an absolute probability error; beyond this it carries no information
     gap_skip: float = 0.10         # |p_poly - p_kalshi| beyond this -> disagree_hard, tier skip
     tier_w_min: float = 0.05       # a venue's wide/thin/stale flags set the tier only if its weight is at least this
+
+    def __post_init__(self) -> None:
+        bad = {k: v for k, v in self.kalshi_prior.items() if not v > 0}
+        if bad or not self.kalshi_prior_default > 0:
+            raise ValueError(f"kalshi_prior values must be > 0, got {bad or self.kalshi_prior_default}")
+        if self.rules_differ_bias < 0 or any(not v > 0 for v in self.hs_floor.values()):
+            raise ValueError("rules_differ_bias must be >= 0 and hs_floor values > 0")
 
     def prior_for(self, sport: str | None) -> float:
         return self.kalshi_prior.get((sport or "").lower(), self.kalshi_prior_default)
@@ -63,7 +74,7 @@ class MarginalConfig:
 _FLOAT_KEYS = (
     "c_thin", "d0", "c_stale_pregame", "c_stale_inplay", "stale_warn_pregame_s", "stale_drop_pregame_s",
     "stale_warn_inplay_s", "stale_drop_inplay_s", "inplay_fresh_s", "k_wide", "wide_floor", "d_min",
-    "kalshi_prior_default", "rules_differ_scale", "err_floor", "degenerate_lo", "degenerate_hi",
+    "kalshi_prior_default", "rules_differ_bias", "disagree_k", "err_rho", "micro_d0", "err_floor", "degenerate_lo", "degenerate_hi",
     "degenerate_err_floor", "one_sided_sigma", "err_cap", "gap_skip", "tier_w_min",
 )
 

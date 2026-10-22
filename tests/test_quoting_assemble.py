@@ -111,18 +111,24 @@ def test_same_game_cluster_uses_joint(world, nfl_entry):
     cache, store, asm = world
     a = leg(nfl_entry, "-spread-home-3pt5", "Eagles")
     b = leg(nfl_entry, "-total-44pt5", "Over")
-    q = asm.handle(rfq([a, b], rid="r4"), store)
+    asm.handle(rfq([a, b], rid="r4"), store)
     d = asm.decisions.read("r4")[-1]
     cl = json.loads(d["clusters_json"])
     assert d["decision"] == "quoted" and len(cl) == 1 and cl[0]["source"] == "joint" and d["certified"] == 0
     jq = nfl_entry.model.joint([nfl_entry.specs[a], nfl_entry.specs[b]])
     assert abs(d["p_fair"] - jq.p_cal) < 1e-9 and d["u_d"] > 0 and abs(d["u_d"] - (jq.hi - jq.lo) / 2) < 1e-9
     assert d["model_built_at"] == 1.0 and "1 joint" in d["reason"]
-    # opposite sides of one market: impossible, still priced (sell YES at the margin)
+    # opposite sides of one market: impossible, still priced (sell YES at the margin). With the
+    # default $500 cap on collateral at risk (0.995 per share at 0.005) the notional is under $5.
     over, under = b, leg(nfl_entry, "-total-44pt5", "Under")
     asm.handle(rfq([over, under], rid="r5"), store)
     d5 = asm.decisions.read("r5")[-1]
-    assert d5["p_fair"] == 0 and "[impossible]" in d5["reason"] and d5["price_e6"] == 5_000
+    assert d5["p_fair"] == 0 and d5["decision"] == "skipped:size_below_min" and "at 0.005" in d5["reason"]
+    big = Assembler(cache, QuoteConfig(max_size_usd=100_000), decisions=DecisionLog(None), now_ms=lambda: 1_000_000)
+    big.handle(rfq([over, under], rid="r5b"), store)
+    d5b = big.decisions.read("r5b")[-1]
+    assert d5b["p_fair"] == 0 and "[impossible]" in d5b["reason"] and d5b["price_e6"] == 5_000
+    assert d5b["size_e6"] * (1_000_000 - 5_000) / 1e12 <= 100_000 + 1e-6      # collateral at risk within the cap
 
 
 def test_skip_reasons(world, nfl_entry):
@@ -134,7 +140,7 @@ def test_skip_reasons(world, nfl_entry):
     asm.handle(rfq([a, "pol1"], rid="s2"), store)
     assert asm.decisions.read("s2")[-1]["decision"] == "skipped:unpriceable_dependence"
     store.add("tt1", "atp-doubles-ab-cd-2026-10-21-winner", "Yes", "ctt")
-    asm.handle(rfq([tt := "tt1"], rid="s3"), store)
+    asm.handle(rfq(["tt1"], rid="s3"), store)
     assert asm.decisions.read("s3")[-1]["decision"] == "skipped:leg:sport_not_quoted"
     # NBA same-game pair: no engine
     asm.handle(rfq(["n1", "n3"], rid="s4"), store)
@@ -172,24 +178,77 @@ def test_skip_reasons(world, nfl_entry):
     assert asm.stats()["seen"] == 11
 
 
+def collateral_usd(q):
+    """Maker sells YES: collateral at risk per share is 1 - price (Position.notional)."""
+    return q.size_e6 * (1_000_000 - q.price_e6) / 1e12
+
+
 def test_size_caps(world, nfl_entry):
     cache, store, asm = world
     a = leg(nfl_entry, "-total-44pt5", "Over")
     q = asm.handle(rfq([a], value=10_000_000_000, rid="c1"), store)      # $10k requested
-    assert q.size_e6 * q.price_e6 / 1e12 <= 500.0 + 1e-6                 # QUOTE_MAX_SIZE_USD
+    assert collateral_usd(q) <= 500.0 + 1e-6 and collateral_usd(q) > 490   # QUOTE_MAX_SIZE_USD caps collateral at risk
     qq, m, _ = nfl_entry.marginals[a]
     nfl_entry.marginals[a] = (qq, m, marginal(a, m.p if m else 0.5, 0.01, "stale", ("stale:poly",)))
     q2 = asm.handle(rfq([a], value=10_000_000_000, rid="c2"), store)
-    assert q2.size_e6 * q2.price_e6 / 1e12 <= 500.0 * 0.25 + 1e-6        # stale tier x0.25
+    assert collateral_usd(q2) <= 500.0 * 0.25 + 1e-6                     # stale tier x0.25
     nfl_entry.marginals[a] = (qq, m, _)
+    # a SELL (maker buys YES at ~0.58): collateral is the price, so the share cap is 500 / price
+    s = asm.handle(rfq([a], "SELL", "shares", 10_000_000_000, rid="c3"), store)
+    assert s.size_e6 * s.price_e6 / 1e12 <= 500.0 + 1e-6 and s.size_e6 * s.price_e6 / 1e12 > 490
     legs4 = [a, leg(nfl_entry, "-1h-total-22pt5", "Over"), "n3", leg(nfl_entry, "-team-total-phi-23pt5", "Over")]
-    # 4 legs of which 3 same game -> joint cluster + nba leg; cap x0.25 for 4 legs
-    q4 = asm.handle(rfq(legs4, value=10_000_000_000, rid="c4"), store)
+    # 4 legs of which 3 same game -> joint cluster + nba leg; the 1H leg x FG legs is a three-leg joint set
+    asm.handle(rfq(legs4, value=10_000_000_000, rid="c4"), store)
     d4 = asm.decisions.read("c4")[-1]
-    if q4 is not None:
-        assert q4.size_e6 * q4.price_e6 / 1e12 <= 500.0 * 0.25 + 1e-6
+    assert d4["decision"] == "quoted", d4["reason"]
+    cl = {c["source"]: c for c in json.loads(d4["clusters_json"])}
+    assert "joint" in cl and len(cl["joint"]["position_ids"]) == 3 and "level=group-extrapolated" in cl["joint"]["notes"][0]
+    assert d4["size_e6"] * (1_000_000 - d4["price_e6"]) / 1e12 <= 500.0 * 0.25 + 1e-6      # cap x0.25 for 4 legs
     asm.handle(rfq([a], value=1_000_000, rid="c5"), store)                # $1 requested < min $5
     assert asm.decisions.read("c5")[-1]["decision"] == "skipped:size_below_min"
+
+
+def test_invariant_breach_is_an_explicit_error_not_an_assert(world, nfl_entry):
+    from rfqbot.quoting.assemble import PriceInvariantError
+    cache, store, asm = world
+    with pytest.raises(PriceInvariantError):
+        asm._price(0.5, -0.1, True)          # an ask below fair
+    with pytest.raises(PriceInvariantError):
+        asm._price(0.5, -0.1, False)         # a bid above fair
+    assert asm._price(0.5, 0.01, True) == pytest.approx(0.51) and asm._price(0.5, 0.01, False) == pytest.approx(0.49)
+    # on the RFQ path a breach becomes a counted skip, never an exception out of handle()
+    a = leg(nfl_entry, "-total-44pt5", "Over")
+    bad = Assembler(cache, QuoteConfig(base_edge=-0.2, risk=False, edge=False), decisions=DecisionLog(None), now_ms=lambda: 1)
+    assert bad.handle(rfq([a], rid="inv"), store) is None
+    assert bad.decisions.read("inv")[-1]["decision"] == "skipped:invariant_error" and bad.stats()["invariant_errors"] == 1
+
+
+def test_sport_not_quoted_is_counted_and_sampled(world, nfl_entry):
+    from rfqbot.quoting.assemble import SPORT_SKIP_SAMPLE
+    cache, store, asm = world
+    for i in range(2 * SPORT_SKIP_SAMPLE + 1):
+        store.add(f"soc{i}", f"epl-ars-che-2026-10-2{i % 10}-winner", "Arsenal", f"csoc{i}")
+        asm.handle(rfq([f"soc{i}"], rid=f"soc{i}"), store)
+    st = asm.stats()
+    assert st["sport_not_quoted"] == 2 * SPORT_SKIP_SAMPLE + 1 and st["counts"]["skipped:leg:sport_not_quoted"] == 2 * SPORT_SKIP_SAMPLE + 1
+    assert dict(asm.decisions.counts())["skipped:leg:sport_not_quoted"] == 3        # rows 1, 101, 201
+    assert asm.decisions.read("soc0")[-1]["decision"] == "skipped:leg:sport_not_quoted" and asm.decisions.read("soc1") == []
+
+
+def test_decision_log_buffers_and_flushes(tmp_path):
+    import sqlite3
+    from rfqbot.quoting.decisions import DecisionLog, FLUSH_ROWS
+    log = DecisionLog(tmp_path / "d.db")
+    row = {"rfq_id": "x", "at_ms": 1, "n_legs": 1, "legs_json": "[]", "clusters_json": "[]", "decision": "quoted"}
+    for i in range(FLUSH_ROWS - 1):
+        log.write({**row, "rfq_id": f"x{i}"})
+    other = sqlite3.connect(tmp_path / "d.db")
+    assert other.execute("SELECT COUNT(*) FROM decisions").fetchone()[0] == 0 and log.written == FLUSH_ROWS - 1 and log.flushed == 0
+    log.write({**row, "rfq_id": "last"})                                     # the buffer is full: one executemany
+    assert other.execute("SELECT COUNT(*) FROM decisions").fetchone()[0] == FLUSH_ROWS and log.flushed == FLUSH_ROWS
+    log.write({**row, "rfq_id": "tail"})
+    assert log.read("tail")[0]["rfq_id"] == "tail"                             # reads flush first
+    log.close()
 
 
 def test_round_trip_flag_and_decision_round_trip(world, nfl_entry, tmp_path):

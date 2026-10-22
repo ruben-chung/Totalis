@@ -17,6 +17,8 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from .db import SQLITE_IN_CHUNK, chunks, ro_connect
+
 PRICE_SCALE = 10_000
 
 DEFAULT_BOOKS_DB = Path("./data/books.db")
@@ -47,11 +49,8 @@ class MarketQuote:
         return (self.best_bid + self.best_ask) / 2
 
 
-def _ro(path: str | Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{Path(path)}?mode=ro", uri=True, check_same_thread=False)
-    c.execute("PRAGMA busy_timeout=5000")
-    c.row_factory = sqlite3.Row
-    return c
+# Deprecated alias kept for one release: rfqbot.marginals.sources imports `_ro` from here. Use rfqbot.db.ro_connect.
+_ro = ro_connect
 
 
 def _px(v: int | None) -> float | None:
@@ -67,15 +66,14 @@ def _catalog_rows(cat: sqlite3.Connection, game_prefix: str) -> list[sqlite3.Row
 def game_markets(game_prefix: str, at_ms: int | None = None, *,
                  books_db: str | Path = DEFAULT_BOOKS_DB, rfq_db: str | Path = DEFAULT_RFQ_DB) -> list[MarketQuote]:
     """All catalog markets under `game_prefix` with the latest book_top row per token (at or before `at_ms`)."""
-    cat, books = _ro(rfq_db), _ro(books_db)
+    cat, books = ro_connect(rfq_db), ro_connect(books_db)
     try:
         rows = _catalog_rows(cat, game_prefix)
         if not rows:
             return []
         pids = [r["position_id"] for r in rows]
         tokens: dict[str, sqlite3.Row] = {}
-        for i in range(0, len(pids), 500):
-            chunk = pids[i:i + 500]
+        for chunk in chunks(pids, SQLITE_IN_CHUNK):
             for t in books.execute(f"SELECT position_id, token_id, game_start_time FROM leg_tokens"
                                    f" WHERE token_id IS NOT NULL AND position_id IN ({','.join('?' * len(chunk))})", chunk):
                 tokens[t["position_id"]] = t
@@ -106,7 +104,7 @@ def game_coverage(game_prefix: str, *, books_db: str | Path = DEFAULT_BOOKS_DB,
                   rfq_db: str | Path = DEFAULT_RFQ_DB) -> dict[str, int]:
     """Counts for one game: catalog positions, positions with a token, tokens with any book row."""
     quotes = game_markets(game_prefix, books_db=books_db, rfq_db=rfq_db)
-    cat = _ro(rfq_db)
+    cat = ro_connect(rfq_db)
     try:
         n_cat = len(_catalog_rows(cat, game_prefix))
     finally:

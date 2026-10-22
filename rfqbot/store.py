@@ -11,8 +11,15 @@ Layout is sized for that:
   * events are recorded only for the quote/confirmation/execution path;
     RECEIVED / EXPIRED are implied by the rfqs row.
 
-Single-writer: one Store per process, used from the asyncio loop. WAL mode keeps
-readers (stats, backtest) from blocking the listener.
+Single-writer: one Store per process, used from the asyncio loop (the connection is not shared
+with other threads; readers in worker threads open their own ``rfqbot.db.ro_connect``). WAL mode
+keeps readers (stats, backtest) from blocking the listener.
+
+Transactions: ``begin()`` / ``commit()`` bracket the listener's and the replay's long-lived
+batches; ``tx()`` is the nestable unit used by the normalizer. The outermost ``tx()`` is a plain
+BEGIN/COMMIT, inner levels are SAVEPOINTs, so a handler that fails half-way through a message is
+rolled back to the message boundary and the batch keeps the earlier good rows. ``close()`` rolls
+back whatever was not committed.
 """
 from __future__ import annotations
 
@@ -55,6 +62,7 @@ CREATE TABLE IF NOT EXISTS raw_messages (
 );
 CREATE INDEX IF NOT EXISTS ix_raw_rfq  ON raw_messages(rfq_id);
 CREATE INDEX IF NOT EXISTS ix_raw_type ON raw_messages(msg_type);
+CREATE INDEX IF NOT EXISTS ix_raw_time ON raw_messages(received_at_ms);
 
 CREATE TABLE IF NOT EXISTS requesters (
     id        INTEGER PRIMARY KEY,
@@ -249,6 +257,24 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+class SchemaMismatch(RuntimeError):
+    """The database was written by another schema version."""
+
+
+def _schema_tables_and_columns(schema: str) -> dict[str, set[str]]:
+    """Parse the CREATE TABLE / VIEW statements of SCHEMA into {name: columns} (for count_by validation)."""
+    out: dict[str, set[str]] = {}
+    c = sqlite3.connect(":memory:")
+    c.executescript(schema)
+    for (name,) in c.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')"):
+        out[name] = {r[1] for r in c.execute(f"PRAGMA table_info({name})")}
+    c.close()
+    return out
+
+
+SCHEMA_COLUMNS = _schema_tables_and_columns(SCHEMA)
+
+
 @dataclass
 class RawRow:
     id: int
@@ -268,7 +294,7 @@ class Store:
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         # the listener writes continuously; side tools (kalshi-sync, stats) wait for the lock
-        self.conn = sqlite3.connect(self.path, isolation_level=None, check_same_thread=False, timeout=busy_timeout_sec)
+        self.conn = sqlite3.connect(self.path, isolation_level=None, timeout=busy_timeout_sec)
         self.conn.row_factory = sqlite3.Row
         if wal and self.path != ":memory:":
             self.conn.execute("PRAGMA journal_mode=WAL")
@@ -276,31 +302,68 @@ class Store:
         self.conn.execute("PRAGMA cache_size=-65536")  # 64 MB
         self.conn.executescript(SCHEMA)
         self.conn.execute("INSERT OR IGNORE INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+        found = self.conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
+        if str(found) != str(SCHEMA_VERSION):
+            self.conn.close()
+            raise SchemaMismatch(f"{self.path}: schema_version {found} in the database, this code writes {SCHEMA_VERSION}; "
+                                 "replay the raw log into a new file (python -m rfqbot replay)")
         self._tx_depth = 0
         self._combo_cache: dict[str, int] = {}
         self._requester_cache: dict[str, int] = {}
 
     def close(self) -> None:
+        """Close the connection; an open transaction is rolled back (call commit() first to keep it)."""
         if self._tx_depth:
-            self.conn.execute("COMMIT")
+            self.conn.execute("ROLLBACK")
             self._tx_depth = 0
         self.conn.close()
 
-    # -- transactions (nestable: only the outermost BEGINs/COMMITs) -------
+    # -- transactions ----------------------------------------------------------------------
+    # Depth 0 -> 1 is BEGIN/COMMIT; deeper levels are SAVEPOINT sp<depth>/RELEASE, rolled back to the
+    # savepoint on an exception so a failed message leaves no partial rows in the enclosing batch.
+    def begin(self) -> None:
+        """Open the outermost transaction for a long-lived batch (no-op when one is open)."""
+        if self._tx_depth == 0:
+            self.conn.execute("BEGIN")
+            self._tx_depth = 1
+
+    def commit(self) -> None:
+        """Commit the outermost transaction opened by begin() (no-op when none is open)."""
+        if self._tx_depth == 1:
+            self.conn.execute("COMMIT")
+            self._tx_depth = 0
+        elif self._tx_depth > 1:
+            raise RuntimeError("commit() inside a nested tx()")
+
+    @property
+    def in_transaction(self) -> bool:
+        return self._tx_depth > 0
+
     class _Tx:
         def __init__(self, store: "Store"):
             self.store = store
+            self.level = 0
 
         def __enter__(self):
-            if self.store._tx_depth == 0:
-                self.store.conn.execute("BEGIN")
-            self.store._tx_depth += 1
+            st = self.store
+            if st._tx_depth == 0:
+                st.conn.execute("BEGIN")
+            else:
+                st.conn.execute(f"SAVEPOINT sp{st._tx_depth}")
+            st._tx_depth += 1
+            self.level = st._tx_depth
             return self
 
         def __exit__(self, exc_type, exc, tb):
-            self.store._tx_depth -= 1
-            if self.store._tx_depth == 0:
-                self.store.conn.execute("COMMIT" if exc_type is None else "ROLLBACK")
+            st = self.store
+            st._tx_depth -= 1
+            if self.level == 1:
+                st.conn.execute("COMMIT" if exc_type is None else "ROLLBACK")
+            else:
+                sp = f"sp{self.level - 1}"
+                if exc_type is not None:
+                    st.conn.execute(f"ROLLBACK TO {sp}")
+                st.conn.execute(f"RELEASE {sp}")
             return False
 
     def tx(self) -> "Store._Tx":
@@ -363,14 +426,17 @@ class Store:
 
     def combo_id(self, condition_id: str, legs: Iterable[str] = (), *, yes: str = "", no: str = "",
                  at_ms: int = 0) -> int | None:
-        """Intern a combo by condition_id; records legs/yes/no the first time it is seen."""
+        """Intern a combo by condition_id. Legs are recorded the first time they are supplied; the
+        yes/no position ids are backfilled whenever they are supplied and the row still has NULLs
+        (a trade broadcast carries neither, a later request carries both)."""
         if not condition_id:
             return None
         cid = self._combo_cache.get(condition_id)
-        if cid is not None:
+        if cid is not None and not (yes or no):
             return cid
         legs = list(legs)
-        row = self.conn.execute("SELECT id, n_legs FROM combos WHERE condition_id=?", (condition_id,)).fetchone()
+        row = self.conn.execute("SELECT id, n_legs, yes_position_id, no_position_id FROM combos WHERE condition_id=?",
+                                (condition_id,)).fetchone()
         if row is None:
             cur = self.conn.execute(
                 "INSERT INTO combos(condition_id, yes_position_id, no_position_id, n_legs, first_seen_ms)"
@@ -385,9 +451,10 @@ class Store:
             if row[1] == 0 and legs:  # seen first via a message without legs; fill them now
                 self.conn.executemany("INSERT OR IGNORE INTO combo_legs(combo_id, leg_index, position_id) VALUES (?,?,?)",
                                       [(cid, i, p) for i, p in enumerate(legs)])
-                self.conn.execute("UPDATE combos SET n_legs=?, yes_position_id=COALESCE(yes_position_id,?),"
-                                  " no_position_id=COALESCE(no_position_id,?) WHERE id=?",
-                                  (len(legs), yes or None, no or None, cid))
+                self.conn.execute("UPDATE combos SET n_legs=? WHERE id=?", (len(legs), cid))
+            if (yes and row[2] is None) or (no and row[3] is None):
+                self.conn.execute("UPDATE combos SET yes_position_id=COALESCE(yes_position_id,?),"
+                                  " no_position_id=COALESCE(no_position_id,?) WHERE id=?", (yes or None, no or None, cid))
         if len(self._combo_cache) > 500_000:
             self._combo_cache.clear()
         self._combo_cache[condition_id] = cid
@@ -418,15 +485,27 @@ class Store:
     def set_rfq_status(self, rfq_id: str, status: str, at_ms: int) -> None:
         self.conn.execute("UPDATE rfqs SET status=?, status_at_ms=? WHERE rfq_id=?", (status, at_ms, rfq_id))
 
-    def expire_open_rfqs(self, *, cutoff_ms: int, horizon_ms: int, now_ms: int,
-                         default_window_ms: int) -> list[str]:
-        """Mark open RFQs whose deadline + horizon is before cutoff as EXPIRED (skipping any with executions).
-        Uses the partial index on open RFQs, so cost is proportional to open RFQs only."""
+    RFQ_STUB_FIELDS = ("requester_id", "combo_id", "direction", "side", "size_unit", "size_value_e6", "submission_deadline_ms")
+
+    def fill_rfq_stub(self, rfq_id: str, **fields: Any) -> None:
+        """Complete a placeholder RFQ row (created by a later-lifecycle message) with the request's
+        details; clears the stub flag. Only RFQ_STUB_FIELDS are accepted."""
+        bad = set(fields) - set(self.RFQ_STUB_FIELDS)
+        if bad:
+            raise ValueError(f"not rfq stub fields: {sorted(bad)}")
+        sets = ", ".join(f"{k}=?" for k in fields)
+        self.conn.execute(f"UPDATE rfqs SET {sets}{', ' if sets else ''}stub=0 WHERE rfq_id=?", (*fields.values(), rfq_id))
+
+    def expire_open_rfqs(self, *, horizon_ms: int, now_ms: int, default_window_ms: int) -> list[str]:
+        """Mark open RFQs whose deadline (first seen + default window when unknown) plus ``horizon_ms``
+        is before ``now_ms`` as EXPIRED, skipping any with executions. The scan covers the open RFQs
+        only (partial index ``ix_rfqs_open`` on status); the COALESCE keeps it from being a range
+        scan on the deadline, which is fine while the open set is a few thousand rows."""
         ids = [r[0] for r in self.conn.execute(
             "SELECT rfq_id FROM rfqs WHERE status IN ('RECEIVED','QUOTED')"
             " AND COALESCE(submission_deadline_ms, first_seen_ms + ?) + ? < ?"
             " AND NOT EXISTS (SELECT 1 FROM executions e WHERE e.rfq_id = rfqs.rfq_id)",
-            (default_window_ms, horizon_ms, cutoff_ms),
+            (default_window_ms, horizon_ms, now_ms),
         )]
         if ids:
             self.conn.executemany("UPDATE rfqs SET status='EXPIRED', status_at_ms=? WHERE rfq_id=?",
@@ -582,6 +661,10 @@ class Store:
 
     # -- stats --------------------------------------------------------------
     def count_by(self, table: str, column: str, limit: int = 30) -> list[tuple[Any, int]]:
+        """Counts per distinct value; ``table`` and ``column`` must exist in SCHEMA (they are interpolated)."""
+        cols = SCHEMA_COLUMNS.get(table)
+        if cols is None or column not in cols:
+            raise ValueError(f"count_by: unknown {table}.{column}")
         return [(r[0], r[1]) for r in self.conn.execute(
             f"SELECT {column}, COUNT(*) FROM {table} GROUP BY 1 ORDER BY 2 DESC LIMIT {int(limit)}")]
 

@@ -16,8 +16,10 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
+from ..db import ro_connect
+
 DEFAULT_DB = Path("./data/props.db")
-DEFAULT_PARAMS = Path(__file__).with_name("props_fit.json")     # committed artifact, like rfqbot/pricing/calibration.json
+DEFAULT_PARAMS = Path(__file__).resolve().parents[2] / "claude-sessions" / "props_fit.json"   # a report; nothing in the package reads it
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -129,7 +131,7 @@ class PropsStore:
     def __init__(self, path: str | Path | None = DEFAULT_DB, *, readonly: bool = False):
         self.path = ":memory:" if path is None else str(path)
         if readonly and self.path != ":memory:":
-            self.conn = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, check_same_thread=False)
+            self.conn = ro_connect(self.path, timeout=5.0)
         else:
             if self.path != ":memory:":
                 Path(self.path).parent.mkdir(parents=True, exist_ok=True)

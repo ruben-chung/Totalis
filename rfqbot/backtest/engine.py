@@ -36,13 +36,14 @@ from ..quoting.cache import GameCache, GameEntry
 from ..quoting.config import QuoteConfig, load_quote_config
 from ..quoting.decisions import decision_row
 from ..quoting.inventory import Inventory, position_from_decision_legs
-from ..risk.book import FILLED, PENDING
+from ..risk.book import PENDING
 from ..risk.caps import Caps
 from ..sports.legspec import canonical_key
 from .asof import CatalogRO, Clock, KalshiAsOf, PolyAsOf
 from .config import BacktestConfig, WindowConfig
 from .feed import SportIndex, iter_requests
 from .lazy import ReplayCache
+from ..slugs import game_prefix_of
 from .fills import E6, FillResult, evaluate_fill, load_print_index
 from .store import BacktestStore
 
@@ -169,8 +170,12 @@ class Strategy:
         self.cfg_on = self.qcfg
         self.cfg_off = replace(self.qcfg, edge=False)
         if self.table is not None and self.qcfg.edge:
-            self.asm._edge_table = self.table              # frozen snapshot, not the file the edge monitor may rewrite
-            self.asm.edge_table_fitted_at = self.table.fitted_at_ms
+            # frozen snapshot, not the file the edge monitor may rewrite
+            if hasattr(self.asm, "set_edge_table"):
+                self.asm.set_edge_table(self.table)
+            else:                                           # pre-hook quoting: private fallback
+                self.asm._edge_table = self.table
+                self.asm.edge_table_fitted_at = self.table.fitted_at_ms
         self.config_json = self.qcfg.to_json()
         self.rows: list[dict[str, Any]] = []
         self.counts: Counter[str] = Counter()
@@ -245,17 +250,20 @@ class Strategy:
             pos = self.inv.book.positions.get(rid)
             if pos is None or pos.status != PENDING or when >= (pos.expires_ms or 1 << 62):
                 continue
-            with self.inv._lock:
-                self.inv.book.fill(rid, size=fr.fill_size_e6 / E6, price=pos.price)
-                self.inv._forget_pending(rid)
+            if hasattr(self.inv, "fill_pending"):
+                self.inv.fill_pending(rid, fr.fill_size_e6 / E6)
+            else:                                           # pre-hook quoting: private fallback
+                with self.inv._lock:
+                    self.inv.book.fill(rid, size=fr.fill_size_e6 / E6, price=pos.price)
+                    self.inv._forget_pending(rid)
             self.inv.stats["filled"] += 1
             self.n_filled += 1
             self.dirty = True
         if t - self.inv.last_refresh_ms >= self.risk_refresh_ms and (self.dirty or self._has_expiring(t)):
-            before = sum(1 for p in self.inv.book.positions.values() if p.status == PENDING)
+            # pending quotes past their expiry are dropped by the refresh; count them here, by expires_ms
+            self.n_expired += sum(1 for p in self.inv.book.positions.values()
+                                  if p.status == PENDING and p.expires_ms is not None and p.expires_ms <= t)
             self.inv.refresh(t, force=True)
-            after = sum(1 for p in self.inv.book.positions.values() if p.status == PENDING)
-            self.n_expired += max(0, before - after - 0)
             self.dirty = False
             s = self.inv.book_summary()
             row = (t, s["es1"], s["es1_frac"], s["positions"], s["pending"], s["notional"])
@@ -271,6 +279,20 @@ class Strategy:
         store.insert_es1(self.run_id, self.es1_rows)
         self.rows = []
         self.es1_rows = []
+
+
+def provenance(mcfg: Any, table: Any) -> dict[str, Any]:
+    """Parameters a run inherits from outside the backtest config, and where each came from (a result reader needs to
+    know which were measured on data inside the replayed window, i.e. are in-sample)."""
+    from dataclasses import asdict, is_dataclass
+    return {
+        "marginal_config": asdict(mcfg) if is_dataclass(mcfg) else str(mcfg),
+        "kalshi_prior": "NBA 1.0 / NFL 2.0 were measured on 2026-10-21 on Polymarket and Kalshi books that include the replayed "
+                        "window (claude-sessions/venue-weight-notes.md); the pre-measurement NBA value was 2.0. In-sample for any window "
+                        "after 2026-10-20. No run with the old NBA prior exists: it needs its own replay.",
+        "margin_table_fitted_at_ms": getattr(table, "fitted_at_ms", None),
+        "margin_table": "fitted on recorded flow that overlaps the window: in-sample unless the fills are after fitted_at_ms",
+    }
 
 
 def _pct(xs: list[float], q: float) -> float | None:
@@ -343,7 +365,8 @@ class Replayer:
             st = Strategy(run_id, bc, qc, cache, clock, prints, poly, group_id=self.group_id,
                           risk_refresh_ms=w.risk_refresh_ms or int(qc.risk_refresh_sec * 1000), table=table, table_json=table_json,
                           fill_rule=bc.fill_rule)
-            store.start_run(run_id, bc.name, bc.to_json(), qc.to_json(), w.to_json(), group_id=self.group_id, table_json=table_json)
+            cfg_json = json.dumps({**json.loads(bc.to_json()), "provenance": provenance(cache.mcfg, table)}, sort_keys=True, default=str)
+            store.start_run(run_id, bc.name, cfg_json, qc.to_json(), w.to_json(), group_id=self.group_id, table_json=table_json)
             self.strategies.append(st)
         names = [s.run_id for s in self.strategies]
         if len(set(names)) != len(names):
@@ -413,7 +436,6 @@ class Replayer:
 def _game_of(m: Any) -> str | None:
     if m is None:
         return None
-    from ..quoting.assemble import game_prefix_of
     return game_prefix_of(m["slug"])
 
 

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from .semantics import BUY_SAFETY_MAX
+
 
 @dataclass(frozen=True)
 class QuoteConfig:
@@ -20,14 +22,14 @@ class QuoteConfig:
     k_inv: float = 0.04                     # e_i = k_inv x dES1/ds (loss per share in the tail) x outcome-cap usage; 1 pt at corr 1, usage 0.5
     risk_refresh_sec: float = 2.0           # live book / exposure rebuild period (refresh thread)
     edge: bool = True                       # margin from rfqbot.edge's fitted table (QUOTE_EDGE=0: base_edge + k_m u_m + k_d u_d)
-    edge_table: Path | None = None          # margin table path (default rfqbot/edge/margin_table.json); reloaded on the refresh thread
+    edge_table: Path | None = None          # margin table path (default data/margin_table.json); reloaded on the refresh thread
     probe_requester_id: str = ""            # our own probe wallet (PROBE_REQUESTER_ID); its RFQs are skipped so the probe never measures us
     max_size_usd: float = 500.0             # per quote, notional at our price
     min_size_usd: float = 5.0               # below this: skip
     tick: float = 0.001                     # price rounding, away from fair
     price_min: float = 0.001
     price_max: float = 0.999
-    buy_safety_max: float = 0.90909         # docs: BUY quotes above this are rejected
+    buy_safety_max: float = BUY_SAFETY_MAX  # docs: BUY quotes above this are rejected (one source: semantics)
     tier_size_mult: dict[str, float] = field(default_factory=lambda: {
         "ok": 1.0, "thin": 0.5, "wide": 0.5, "stale": 0.25, "disagree": 0.1, "skip": 0.0})
     legs_size_mult: dict[int, float] = field(default_factory=lambda: {1: 1.0, 2: 1.0, 3: 0.5, 4: 0.25})  # >4: last

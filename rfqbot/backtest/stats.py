@@ -70,8 +70,9 @@ def cluster_total_se(values: Sequence[float], clusters: Sequence[str]) -> tuple[
     return mean * n, (None if se is None else se * n), g
 
 
-def game_total_se(values: Sequence[float], games_per_row: Sequence[Sequence[str]]) -> tuple[float, float | None, int]:
-    """(total, per-game cluster-robust SE of the total, number of games with a non-zero row).
+def game_total_se(values: Sequence[float], games_per_row: Sequence[Sequence[str]]) -> tuple[float, float | None, int, int]:
+    """(total, per-game cluster-robust SE of the total, evidence games, universe games): evidence games are those with a
+    non-zero row (what the verdict is gated on), universe games every game any row names (the G in the G/(G-1) factor).
 
     A row touching k games is attached to each of them with weight 1/k, so the per-game scores add up to the total
     and different game dates are never joined (the union-find components can fuse a whole day through cross-game
@@ -81,7 +82,7 @@ def game_total_se(values: Sequence[float], games_per_row: Sequence[Sequence[str]
     """
     n = len(values)
     if n == 0:
-        return 0.0, None, 0
+        return 0.0, None, 0, 0
     mean = sum(values) / n
     score: dict[str, float] = {}
     evidence: set[str] = set()
@@ -93,10 +94,10 @@ def game_total_se(values: Sequence[float], games_per_row: Sequence[Sequence[str]
                 evidence.add(g)
     g = len(score)
     if g < 2 or not evidence:
-        return mean * n, None, len(evidence)
+        return mean * n, None, len(evidence), g
     # the G/(G-1) factor counts every game in the universe; the returned count is the games with a non-zero row
     # (evidence in games, not the zero-valued games a comparison universe carries)
-    return mean * n, math.sqrt(g / (g - 1) * sum(v * v for v in score.values())), len(evidence)
+    return mean * n, math.sqrt(g / (g - 1) * sum(v * v for v in score.values())), len(evidence), g
 
 
 def verdict(diff: float, se: float | None, g: int) -> str:

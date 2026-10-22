@@ -2,18 +2,23 @@
 from __future__ import annotations
 
 import json
-import math
 import sqlite3
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from .settle import E6, sign_of
-from .stats import MIN_CLUSTERS, cluster_ids, cluster_mean_se, cluster_total_se, game_total_se, n_games, verdict
+from ..slugs import E6, game_prefix_of
+from .settle import sign_of
+from .stats import cluster_ids, cluster_mean_se, cluster_total_se, game_total_se, n_games, verdict
 from .store import BacktestStore
 
 N_LEG_BUCKETS = (("1", lambda n: n == 1), ("2", lambda n: n == 2), ("3-4", lambda n: 3 <= n <= 4), ("5+", lambda n: n >= 5))
 TERMS = ("base", "u_m", "u_d", "info", "wallet", "inventory", "floor", "rounding")
+
+MARKOUT_FAIR_SOURCE = ("rfqbot.edge FairSource -> marginals.compute_game on the live book stores read up to the instant (exact, no bucketing); "
+                       "the decision's p_fair comes from the replay's own as-of readers, so the two can differ slightly "
+                       "(catalog and leg_matches are end-of-recording in both)")
+ES1_HALF_CAP_FRAC = 0.075            # half of the 15% ES1 cap
 
 
 def n_legs_bucket(n: int) -> str:
@@ -24,8 +29,10 @@ def n_legs_bucket(n: int) -> str:
 def margin_terms(r: sqlite3.Row | dict, qcfg: dict[str, Any]) -> dict[str, float]:
     """The logged margin split into its terms, per share, in probability points. Sums to |price - p_fair|.
 
-    margin0 is the table's  base + curse*(u_m+u_d) + info + wallet  when a fitted node priced it, else the stage 2
-    k_m u_m + k_d u_d + e_b (+ info + wallet); then + e_i, floored at 0; the remainder to |price - fair| is tick rounding.
+    For a fitted node the curse is approximated as curse_mult * (u_m + u_d), which equals the live rule's
+    ``MarginTerms.curse(sigma)`` at the node's own sigma and differs from it away from it; the difference
+    lands in ``floor`` together with the clamp at the curse term. Without a node it is the stage 2 formula
+    k_m u_m + k_d u_d + e_b (+ info + wallet). Then + e_i; the remainder to |price - fair| is tick rounding.
     """
     g = (lambda k: r[k] if r[k] is not None else 0.0)
     u_m, u_d, e_b, e_i, margin = g("u_m"), g("u_d"), g("e_b"), g("e_i"), g("margin")
@@ -63,7 +70,9 @@ def fill_table(store: BacktestStore, run_id: str) -> list[dict[str, Any]]:
             "n_legs": r["n_legs"], "pair_class": r["pair_class"], "games": json.loads(r["games_json"] or "[]"), "sign": sign, "size": size,
             "price": price, "fair": fair, "markup": -sign * size * (price - fair), "status": status, "payoff": payoff,
             "realized": s["pnl"] if s else None, "mark": mark, "unrealized": s["unrealized"] if s else None,
-            "model_pnl": sign * size * (value - price), "pricing_error": sign * size * (value - fair),
+            "unrealized_ref": s["unrealized_ref"] if s else None,
+            "model_pnl": sign * size * (value - price),
+            "model_pnl_ref": (s["pnl"] if s and s["pnl"] is not None else (s["unrealized_ref"] if s and s["unrealized_ref"] is not None else sign * size * (value - price))), "pricing_error": sign * size * (value - fair),
             "fill_strict": r["fill_strict"], "terms": terms, "legs_json": r["legs_json"], "condition_id": r["condition_id"],
         })
     return out
@@ -104,8 +113,8 @@ def pnl_section(fills: list[dict[str, Any]]) -> dict[str, Any]:
     def block(sel: list[int], field: str) -> dict[str, Any]:
         vals = [fills[i][field] for i in sel]
         tot, se, g = cluster_total_se(vals, [cl[i] for i in sel]) if vals else (0.0, None, 0)
-        _, gse, gg = game_total_se(vals, [fills[i]["games"] for i in sel]) if vals else (0.0, None, 0)
-        return {"n": len(sel), "total": tot, "se": se, "clusters": g, "se_game": gse, "game_groups": gg,
+        _, gse, gg, gu = game_total_se(vals, [fills[i]["games"] for i in sel]) if vals else (0.0, None, 0, 0)
+        return {"n": len(sel), "total": tot, "se": se, "clusters": g, "se_game": gse, "game_groups": gg, "game_universe": gu,
                 "flag_game": verdict(tot, gse, gg) if sel else "none", "games": n_games(fills[i]["games"] for i in sel),
                 "per_fill": (tot / len(sel)) if sel else None, "flag": verdict(tot, se, g) if sel else "none"}
     decisive = [i for i, f in enumerate(fills) if f["realized"] is not None]
@@ -115,7 +124,7 @@ def pnl_section(fills: list[dict[str, Any]]) -> dict[str, Any]:
     mk = block(allf, "markup")
     for i in allf:
         fills[i]["_marked"] = fills[i]["realized"] if fills[i]["realized"] is not None else fills[i]["unrealized"]
-    marked_vals = [i for i in allf if fills[i]["_marked"] is not None]
+    [i for i in allf if fills[i]["_marked"] is not None]
     return {"fills": len(fills), "gross_markup": mk,
             "realized": block(decisive, "realized"), "mark_to_model_unresolved": block(
                 [i for i in marked if fills[i]["unrealized"] is not None], "unrealized"),
@@ -146,7 +155,7 @@ def es1_section(store: BacktestStore, run_id: str) -> dict[str, Any]:
         m = max(rows, key=lambda r: r["es1"])
         out.update(max_es1=m["es1"], max_es1_frac=m["es1_frac"], max_at_ms=m["at_ms"], max_positions=m["positions"], max_pending=m["pending"],
                    max_notional=max(r["notional"] for r in rows), final_es1=rows[-1]["es1"],
-                   share_of_time_above_half_cap=sum(1 for r in rows if (r["es1_frac"] or 0) >= 0.075) / len(rows))
+                   share_of_time_above_half_cap=sum(1 for r in rows if (r["es1_frac"] or 0) >= ES1_HALF_CAP_FRAC) / len(rows))
     caps = store.conn.execute("SELECT binding_cap, decision, requested_shares, kelly_size, size_e6 FROM decisions WHERE run_id=? AND binding_cap IS NOT NULL", (run_id,)).fetchall()
     binding: Counter = Counter()
     cut: defaultdict = defaultdict(float)
@@ -170,7 +179,6 @@ def latency_section(store: BacktestStore, run_id: str) -> dict[str, Any]:
 
 def markouts_section(fills: list[dict[str, Any]], rfq_db: Path, books_db: Path, kalshi_db: Path, horizons=(1, 5, 15, 30)) -> dict[str, Any]:
     from ..edge.config import EdgeConfig
-    from ..edge.data import game_prefix_of
     from ..edge.fairs import FairSource
     cfg = EdgeConfig(rfq_db=rfq_db, books_db=books_db, kalshi_db=kalshi_db)
     fs = FairSource(cfg, bucket_ms=1)       # exact instants: the default minute bucket reuses one compute per minute
@@ -191,7 +199,7 @@ def markouts_section(fills: list[dict[str, Any]], rfq_db: Path, books_db: Path, 
                 missing[f"fair_{h}m"] += 1
                 continue
             res[h].append((f["sign"] * (ch - c0), f["sign"] * (ch - f["price"]), f["games"]))
-    out: dict[str, Any] = {"missing": dict(missing)}
+    out: dict[str, Any] = {"missing": dict(missing), "fair_source": MARKOUT_FAIR_SOURCE}
     for h, rows in res.items():
         if not rows:
             out[f"{h}m"] = {"n": 0}
@@ -248,6 +256,7 @@ def fmt(rep: dict[str, Any]) -> str:
                  + ", ".join(f"{t} {v:+.2f}" for t, v in a["margin_terms"].items()))
     mo = rep.get("markouts")
     if mo:
+        L.append("markouts fair source: " + (mo.get("fair_source") or MARKOUT_FAIR_SOURCE))
         L.append("markouts (per share, maker): " + "  ".join(
             f"{h}: n{v['n']} fair {v['vs_fair_at_fill']:+.4f}" + ("" if v['se_fair'] is None else f"±{v['se_fair']:.4f}") + f" price {v['vs_our_price']:+.4f}"
             for h, v in mo.items() if h != "missing" and v.get("n")))
@@ -261,7 +270,9 @@ def fmt(rep: dict[str, Any]) -> str:
     return "\n".join(L)
 
 
-def report_cli(args: Any) -> None:
+def report_runs(args: Any) -> list[tuple[str, Path]]:
+    """Build and write the report JSON of each selected run; returns (formatted report, path) per run."""
+    out: list[tuple[str, Path]] = []
     store = BacktestStore(args.out)
     ids = [r["run_id"] for r in store.runs(args.group)] if args.group else [args.run]
     for rid in ids:
@@ -270,6 +281,6 @@ def report_cli(args: Any) -> None:
         path = Path(args.json) if args.json and len(ids) == 1 else Path(getattr(args, "reports_dir", None) or "data/backtest_reports") / f"{rid}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(rep, indent=1, sort_keys=True, default=str))
-        print(fmt(rep))
-        print(f"-> {path}\n")
+        out.append((fmt(rep), path))
     store.close()
+    return out

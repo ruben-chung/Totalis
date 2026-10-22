@@ -118,6 +118,9 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+MIN_RESOLVED_SHARE = 0.95      # a game enters the pairs / export once this share of its markets has resolved
+
+
 class HistoryStore:
     def __init__(self, path: str | Path | None = "./data/history.db"):
         self.path = ":memory:" if path is None else str(path)

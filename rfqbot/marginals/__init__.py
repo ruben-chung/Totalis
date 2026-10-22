@@ -9,8 +9,8 @@ from typing import Any, Callable
 from ..ladders import DEFAULT_BOOKS_DB, DEFAULT_RFQ_DB, MarketQuote
 from .config import MarginalConfig, load_config
 from .model import Marginal, VenueEstimate, VenueQuote, combine, kalshi_quote, marginal_for_leg, poly_quote
-from .sources import (KalshiQuote, MatchRow, kalshi_confirmation, kalshi_source, poly_confirmations, poly_source,
-                      sport_of)
+from .sources import (KalshiQuote, MatchRow, kalshi_confirmation, kalshi_source, kalshi_ticker_confirmations,
+                      poly_confirmations, poly_source, sport_of)
 
 __all__ = ["Marginal", "MarginalConfig", "VenueEstimate", "VenueQuote", "KalshiQuote", "MatchRow", "LegMarginal",
            "combine", "kalshi_quote", "kalshi_source", "load_config", "marginal_for_leg", "poly_quote", "poly_source",
@@ -49,6 +49,7 @@ def compute_game(game_prefix: str, at_ms: int | None = None, *, cfg: MarginalCon
     if kalshi is not None:
         kalshi_confirm = kalshi_confirm or getattr(kalshi, "confirm", None)
     quotes = poly(game_prefix, at_ms)
+    live_kalshi = kalshi is None and at_ms is None and kalshi_mode == "auto"      # the recorder's own store, now
     if kalshi is None:
         kalshi = kalshi_source(kalshi_mode, quotes=quotes, now_ms=eval_ms, db=kalshi_db)
         if kalshi_mode == "auto" and kalshi_confirm is None:
@@ -56,11 +57,15 @@ def compute_game(game_prefix: str, at_ms: int | None = None, *, cfg: MarginalCon
     matches = kalshi([q.position_id for q in quotes], at_ms)
     confirmed = poly_confirm(quotes, at_ms) if poly_confirm else {}
     k_confirmed = kalshi_confirm(at_ms) if kalshi_confirm else None
+    # live mode: confirm each ticker by its own last_seen (ticker_seen), not only by the feed-wide heartbeat
+    k_by_ticker = (kalshi_ticker_confirmations([getattr(r, "kalshi_ticker", None) for r, _ in matches.values()], db=kalshi_db)
+                   if live_kalshi else {})
     sport = sport_of(game_prefix)
     out: list[LegMarginal] = []
     for q in quotes:
         row, kq = matches.get(q.position_id, (None, None))
         m = marginal_for_leg(q, row, kq, sport=sport, now_ms=eval_ms, cfg=cfg,
-                             poly_confirmed_ms=confirmed.get(q.position_id), kalshi_confirmed_ms=k_confirmed)
+                             poly_confirmed_ms=confirmed.get(q.position_id),
+                             kalshi_confirmed_ms=k_by_ticker.get(getattr(row, "kalshi_ticker", None), k_confirmed))
         out.append(LegMarginal(q, row, kq, m))
     return out

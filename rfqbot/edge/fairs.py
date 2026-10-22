@@ -12,12 +12,14 @@ move we want to see.
 """
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
 from .config import EdgeConfig
 
+log = logging.getLogger(__name__)
 KALSHI_OK = ("exact", "rules_differ")
 
 
@@ -56,7 +58,9 @@ def _product(xs: Sequence[float | None]) -> float | None:
 
 
 class FairSource:
-    """Caches ``compute_game`` per (game prefix, minute bucket)."""
+    """Caches ``compute_game`` per (game prefix, minute bucket). A failed call (sqlite lock, feed gap) is
+    NOT cached: it returns {} for this call and is retried next time, so one transient error cannot
+    poison every markout, curse and wallet observation of that (game, minute) for the process lifetime."""
 
     def __init__(self, cfg: EdgeConfig | None = None, *, compute: Callable | None = None, bucket_ms: int = 60_000):
         self.cfg = cfg or EdgeConfig()
@@ -64,6 +68,7 @@ class FairSource:
         self._compute = compute or self._default_compute
         self._cache: dict[tuple[str, int], dict[str, LegFair]] = {}
         self.calls = 0
+        self.failures = 0
 
     def _default_compute(self, prefix: str, at_ms: int) -> dict[str, LegFair]:
         from ..marginals import compute_game
@@ -82,8 +87,10 @@ class FairSource:
             self.calls += 1
             try:
                 hit = self._compute(prefix, at_ms)
-            except Exception:
-                hit = {}
+            except Exception as e:
+                self.failures += 1
+                log.warning("compute_game(%s, %d) failed (not cached, will retry): %s: %s", prefix, at_ms, type(e).__name__, e)
+                return {}
             self._cache[key] = hit
         return hit
 

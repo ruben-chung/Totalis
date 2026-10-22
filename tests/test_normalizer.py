@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from rfqbot import messages as m
 from rfqbot import normalizer as n
 from rfqbot.normalizer import Normalizer, PaperQuote
@@ -18,7 +20,7 @@ def _req(rfq_id, t, legs=("p1", "p2"), direction="BUY"):
 
 
 def test_full_lifecycle_from_fixture(store):
-    counts = replay(FIX, store)
+    counts = replay(FIX, store, expiry_grace_ms=5_000)
     assert counts["RFQ_REQUEST"] == 6
     status = {r["rfq_id"]: r["status"] for r in store.conn.execute("SELECT rfq_id, status FROM rfqs")}
     assert status == {
@@ -143,6 +145,7 @@ def test_replay_is_deterministic(tmp_path):
     a, b = Store(tmp_path / "a.db"), Store(tmp_path / "b.db")
     replay(FIX, a)
     replay(FIX, b)
+    assert not a.in_transaction and not b.in_transaction                 # replay commits what it wrote
     for table in ("rfqs", "quotes", "trades", "settlements", "combos", "combo_legs", "unmet_demand_items"):
         ra = [tuple(r) for r in a.conn.execute(f"SELECT * FROM {table} ORDER BY 1")]
         rb = [tuple(r) for r in b.conn.execute(f"SELECT * FROM {table} ORDER BY 1")]
@@ -183,3 +186,93 @@ def test_late_trade_broadcast_overrides_derived_expiry(store):
     norm.apply(trade, at_ms=t + 16_780)
     assert store.get_rfq("r1")["status"] == n.FILLED_BY_OTHER
     assert store.scalar("SELECT is_ours FROM trades WHERE rfq_id='r1'") == 0
+
+
+def test_nested_tx_rolls_back_only_the_failing_message(store):
+    """A handler that fails half-way through a message must not leave partial rows that the batch
+    commit then persists: inner tx() levels are savepoints."""
+    t = 1_700_000_000_000
+    store.begin()                                   # the listener's long-lived batch
+    norm = Normalizer(store)
+    norm.apply(_req("ok1", t), at_ms=t)
+    with pytest.raises(RuntimeError):
+        with store.tx():                            # a message-level unit inside the batch
+            store.insert_rfq({"rfq_id": "half", "requester_id": None, "combo_id": None, "direction": "BUY", "side": "YES",
+                              "size_unit": "notional", "size_value_e6": 1, "submission_deadline_ms": t, "first_seen_ms": t,
+                              "status": n.RECEIVED, "status_at_ms": t, "stub": 0})
+            raise RuntimeError("handler blew up after the first insert")
+    norm.apply(_req("ok2", t + 1), at_ms=t + 1)
+    store.commit()
+    ids = sorted(r[0] for r in store.conn.execute("SELECT rfq_id FROM rfqs"))
+    assert ids == ["ok1", "ok2"] and not store.in_transaction
+    # two levels deep: the inner failure is contained, the outer unit still commits
+    with store.tx():
+        norm.apply(_req("ok3", t + 2), at_ms=t + 2)
+        try:
+            with store.tx():
+                store.add_event("ok3", "X", t + 2)
+                raise ValueError("inner")
+        except ValueError:
+            pass
+    assert store.get_rfq("ok3") is not None and store.events_for("ok3") == []
+
+
+def test_close_rolls_back_an_uncommitted_batch(tmp_path):
+    path = tmp_path / "s.db"
+    st = Store(path)
+    st.begin()
+    Normalizer(st).apply(_req("r1", 1), at_ms=1)
+    st.close()                                      # no commit: nothing persists
+    st2 = Store(path)
+    assert st2.get_rfq("r1") is None
+    st2.begin(); Normalizer(st2).apply(_req("r1", 1), at_ms=1); st2.commit(); st2.close()
+    assert Store(path).get_rfq("r1") is not None
+
+
+def test_store_fill_stub_combo_backfill_count_by_and_schema(store, tmp_path):
+    from rfqbot.store import SCHEMA_VERSION, SchemaMismatch
+    t = 1_700_000_000_000
+    # fill_rfq_stub accepts only request fields
+    store.insert_rfq({"rfq_id": "s", "requester_id": None, "combo_id": None, "direction": None, "side": None, "size_unit": None,
+                      "size_value_e6": None, "submission_deadline_ms": None, "first_seen_ms": t, "status": n.SELECTED,
+                      "status_at_ms": t, "stub": 1})
+    store.fill_rfq_stub("s", direction="BUY", size_value_e6=5)
+    r = store.get_rfq("s")
+    assert r["stub"] == 0 and r["direction"] == "BUY" and r["size_value_e6"] == 5 and r["status"] == n.SELECTED
+    with pytest.raises(ValueError):
+        store.fill_rfq_stub("s", status="SETTLED")
+    # a combo first seen on a trade (no yes/no ids) gets them from the later request, even when cached
+    cid = store.combo_id("0xc9", ["a", "b"], at_ms=t)
+    assert store.conn.execute("SELECT yes_position_id FROM combos WHERE id=?", (cid,)).fetchone()[0] is None
+    assert store.combo_id("0xc9", ["a", "b"], yes="Y", no="N", at_ms=t + 1) == cid
+    row = store.conn.execute("SELECT yes_position_id, no_position_id, n_legs FROM combos WHERE id=?", (cid,)).fetchone()
+    assert tuple(row) == ("Y", "N", 2)
+    assert store.combo_id("0xc9", yes="Z") == cid                            # never overwritten once set
+    assert store.conn.execute("SELECT yes_position_id FROM combos WHERE id=?", (cid,)).fetchone()[0] == "Y"
+    # count_by validates against the schema (table and column are interpolated into SQL)
+    assert store.count_by("rfqs", "status")[0][1] >= 1 and store.count_by("rfqs_v", "n_legs") is not None
+    for table, col in (("rfqs", "nope"), ("sqlite_master", "name"), ("rfqs; DROP TABLE rfqs; --", "status")):
+        with pytest.raises(ValueError):
+            store.count_by(table, col)
+    # schema_version is read back
+    path = tmp_path / "old.db"
+    s0 = Store(path)
+    s0.conn.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION + 1),))
+    s0.close()
+    with pytest.raises(SchemaMismatch):
+        Store(path)
+
+
+def test_rawlog_tolerates_corrupt_gzip_tail(tmp_path):
+    import gzip
+    from rfqbot.rawlog import iter_rawlog_file
+    good = gzip.compress(b'{"t":1,"d":"in","c":null,"s":1,"p":"{}"}\n')
+    path = tmp_path / "x.jsonl.gz"
+    path.write_bytes(good + b"\x1f\x8b\x08\x00garbage-not-a-member")   # a second, corrupt member (killed mid-write)
+    assert [o["t"] for o in iter_rawlog_file(path)] == [1]
+    path.write_bytes(good[:-6])                                           # truncated inside the block
+    assert list(iter_rawlog_file(path)) in ([], [{"t": 1, "d": "in", "c": None, "s": 1, "p": "{}"}])
+    (tmp_path / "bad.jsonl").write_text('[1, 2]\n{"t":2,"d":"in","c":null,"s":1,"p":"{}"}\n')
+    from rfqbot.replay import iter_source
+    rows = list(iter_source(tmp_path / "bad.jsonl"))
+    assert [r.received_at_ms for r in rows] == [2]                      # a non-object line is skipped, not a crash

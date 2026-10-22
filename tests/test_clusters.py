@@ -1,11 +1,12 @@
 import gzip
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
-from rfqbot.clusters import (Cluster, ClusterProb, classify_pair, cluster, combo_probability, frechet_bounds, leg_ref)
+from rfqbot.clusters import (GENERIC_LEAGUES, classify_pair, cluster, combo_probability, frechet_bounds, leg_ref)
 
 FIX = Path(__file__).parent / "fixtures"
 SAMPLE = FIX / "rfq_sample_75s.jsonl.gz"  # 75 s live RFQ capture, 2026-10-20 (ground truth for the shares)
@@ -36,6 +37,31 @@ def test_generic_doubles_and_no_key():
     assert w.basis == "doubles" and w.league == "wta-doubles"
     for slug in ("iran-nuke-before-2027", "will-the-us-invade-iran-before-2027", "", None, "nfl-2026-10-20", "atp-doubles-x-y"):
         assert L("6", "c6", slug).game_key is None and L("6", "c6", slug).basis == "none"
+
+
+def test_registered_sport_slug_that_is_not_a_game_gets_no_key():
+    """A registered-sport slug whose tokens are not two team codes (nfl-afc-championship-2027-01-25-x) is
+    not a game: no game key, so two such markets are no_game_key (refused), not same_game priced by the
+    product fallback."""
+    x = L("x", "cx", "nfl-afc-championship-2027-01-25-x")
+    y = L("y", "cy", "nfl-afc-championship-2027-01-25-y")
+    assert x.game_key is None and x.basis == "none" and x.teams == frozenset()
+    assert classify_pair(x, y) == "no_game_key"
+    cl = cluster([("x", "cx", "nfl-afc-championship-2027-01-25-x"), ("y", "cy", "nfl-afc-championship-2027-01-25-y")])
+    assert not cl.certified_independent and "unpriceable_dependence" in cl.flags and len(cl.clusters) == 2
+    assert combo_probability(cl, {"x": 0.5, "y": 0.5}, None).p is None
+    # one unknown code is enough (nba-allstar-east-...), and a real game still keys
+    assert L("z", "cz", "nba-allstar-east-2027-02-14").game_key is None
+    assert L("w", "cw", "nba-gsw-lal-2026-10-21").game_key == "nba|2026-10-21|GSW@LAL"
+
+
+def test_generic_basis_is_restricted_to_known_leagues():
+    """Any three tokens plus a date match the generic shape; only league tokens in GENERIC_LEAGUES get a key."""
+    a = L("a", "ca", "fed-rate-cut-2026-12-10-25bps")
+    b = L("b", "cb", "fed-rate-cut-2026-12-10-50bps")
+    assert a.game_key is None and a.basis == "none" and classify_pair(a, b) == "no_game_key"
+    assert "fed" not in GENERIC_LEAGUES and "ucl" in GENERIC_LEAGUES and "nfl" in GENERIC_LEAGUES
+    assert L("c", "cc", "ucl-psg-fcb-2026-10-20-total-3pt5").game_key == "ucl|2026-10-20|psg@fcb"
 
 
 def test_exclusive_groups():
@@ -91,7 +117,7 @@ def test_cluster_union_and_certification():
     assert len(three.clusters) == 1 and len(three.clusters[0]) == 3
     # dicts with outcome_index are accepted
     d = cluster([{"position_id": "x", "condition_id": "c", "slug": "nba-gsw-lal-2026-10-21", "outcome_index": 1}])
-    assert d.legs[0].is_yes is False and d.certified_independent
+    assert d.legs[0].is_first_outcome is False and d.certified_independent
 
 
 def test_no_game_key_is_never_certified():
@@ -145,6 +171,18 @@ def test_combo_probability_impossible_and_unpriceable():
     assert r.p == 0.0 and r.clusters[0].source == "impossible"
     twice = cluster([("a", "c1", "ucl-psg-fcb-2026-10-20-total-3pt5", 0), ("a", "c1", "ucl-psg-fcb-2026-10-20-total-3pt5", 0)])
     assert combo_probability(twice, {"a": 0.5}, None).p == 0.5
+    # a duplicated leg beside a third same-game leg is not "impossible": dedupe by position first, then the engine
+    dup3 = cluster([("a", "c1", "ucl-psg-fcb-2026-10-20-total-3pt5", 0), ("a", "c1", "ucl-psg-fcb-2026-10-20-total-3pt5", 0),
+                    ("c", "c3", "ucl-psg-fcb-2026-10-20-team-total-away-1pt5", 0)])
+    seen = []
+    r3 = combo_probability(dup3, {"a": 0.5, "c": 0.6}, lambda c: seen.append(sorted(c.position_ids)) or 0.25)
+    assert r3.p == 0.25 and r3.clusters[0].source == "engine" and seen == [["a", "c"]] and r3.independent_product == pytest.approx(0.3)
+    assert combo_probability(dup3, {"a": 0.5, "c": 0.6}, None).p == pytest.approx(min(0.5, 0.3))
+    # two same-game legs with no catalog condition_id (None) are not "same market": None never counts as equal
+    nocond = cluster([("a", None, "ucl-psg-fcb-2026-10-20-total-3pt5", 0), ("b", None, "ucl-psg-fcb-2026-10-20-team-total-away-1pt5", 0)])
+    assert nocond.pair_classes[("a", "b")] == "same_game"
+    rn = combo_probability(nocond, {"a": 0.5, "b": 0.6}, lambda c: 0.4)
+    assert rn.p == 0.4 and rn.clusters[0].source == "engine"
     grp = cluster([("a", "c1", "ucl-psg-fcb-2026-10-20-exact-score-2-1", 0), ("b", "c2", "ucl-psg-fcb-2026-10-20-exact-score-1-1", 0)])
     assert combo_probability(grp, {"a": 0.1, "b": 0.1}, lambda c: 0.5).p == 0.0
     grp_no = cluster([("a", "c1", "ucl-psg-fcb-2026-10-20-exact-score-2-1", 0), ("b", "c2", "ucl-psg-fcb-2026-10-20-exact-score-1-1", 1)])
@@ -162,6 +200,11 @@ def test_live_sample_class_shares():
     disjoint 97.2%, same_game 2.6%, no_game_key 0.1%, shared_team 0.1% (within a point)."""
     legs = json.load(gzip.open(FIX / "clusters_75s_legs.json.gz", "rt"))
     refs = {pid: leg_ref(pid, v[0] if v else None, v[1] if v else None) for pid, v in legs.items()}
+    # every generic-basis league token in the sample is allowlisted, and every keyed generic leg uses one
+    generic = {r.league for r in refs.values() if r.basis == "generic"}
+    assert generic and generic <= GENERIC_LEAGUES
+    shaped = {r.slug.split("-")[0] for r in refs.values() if r.slug and r.basis == "none" and re.match(r"^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2}", r.slug)}
+    assert not shaped - {"nfl", "nba"}      # the only keyless game-shaped slugs are registered-sport non-games
     per_combo: Counter = Counter()
     seen: set[str] = set()
     n_req = 0

@@ -1,6 +1,5 @@
 """Replay end to end on the synthetic world: determinism, skip reasons, fills into the book, no lookahead, the feed and the pricing views."""
 import dataclasses
-import gzip
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,10 +13,9 @@ from rfqbot.backtest.fills import FillResult, decision_rec, evaluate_fill
 from rfqbot.backtest.store import BacktestStore
 from rfqbot.edge.data import Print
 from rfqbot.pricing.calibrate import Calibration, PairParams
-from rfqbot.pricing.joint import DEFAULT_SHOCKS
 from rfqbot.risk.book import FILLED, PENDING
 
-from test_backtest_world import G1, G2, PID, T0, add_print, build_world, rfq_frame, write_raw
+from backtest_world import G1, G2, PID, T0, add_print, build_world, rfq_frame, write_raw
 
 E6 = 1_000_000
 LEGS = [PID["g1_war"], PID["g2_thu"]]           # Warriors ML x Thunder ML: two games, disjoint
@@ -102,11 +100,11 @@ def test_a_print_fills_the_pending_quote_into_the_book(tmp_path):
     rp, res = run(tmp_path, w=w, raw=raw, name="filled")
     row = {r["rfq_id"]: r for r in decisions(tmp_path / "bt_filled.db")}["r2"]
     assert (row["printed"], row["fill_win"], row["fill_strict"]) == (1, 1, 1)
-    assert row["fill_frac"] == pytest.approx(0.5) and row["fill_size_e6"] == pytest.approx(size * 0.5, abs=1)
+    assert row["fill_frac"] == pytest.approx(0.5) and row["fill_size_e6"] == size       # the requester traded 2x our size: we fill all of ours
     assert row["print_price"] == pytest.approx((ours + 2_000) / E6) and row["executed_at_ms"] == T0 + 25_000
     assert row["delta"] == pytest.approx((ours + 2_000) / E6 - row["p_fair"])
     pos = rp.strategies[0].inv.book.positions["r2"]
-    assert pos.status == FILLED and pos.sign == -1 and pos.size == pytest.approx(size * 0.5 / E6, abs=1e-6)
+    assert pos.status == FILLED and pos.sign == -1 and pos.size == pytest.approx(size / E6, abs=1e-6)
     assert rp.strategies[0].inv.book.positions["r6"].status in (PENDING, "expired")
     assert res[0].filled == 1 and res[0].win == 1 and res[0].strict == 1
 
@@ -195,7 +193,9 @@ def test_evaluate_fill_win_strict_fraction_for_both_directions():
     f = evaluate_fill(d, {"rq": prt("BUY", 0.309)})                                 # print below our ask: lost
     assert (f.printed, f.win, f.fill_size_e6) == (True, False, 0)
     f = evaluate_fill(d, {"rq": prt("BUY", 0.33, size=400 * E6)})
-    assert f.frac == pytest.approx(0.25) and f.fill_size_e6 == 25 * E6
+    assert f.frac == pytest.approx(0.25) and f.fill_size_e6 == 100 * E6      # a bigger print: our whole quote fills
+    f = evaluate_fill(d, {"rq": prt("BUY", 0.33, size=40 * E6)})
+    assert f.fill_size_e6 == 40 * E6                                            # a smaller print caps the fill at the print
     s = fake_decision("SELL", 0.60, 0.590)
     assert evaluate_fill(s, {"rq": prt("SELL", 0.588)}).strict and evaluate_fill(s, {"rq": prt("SELL", 0.590)}).win
     assert not evaluate_fill(s, {"rq": prt("SELL", 0.591)}).win
@@ -216,9 +216,15 @@ class DummyModel:
         return SimpleNamespace(p_cal=0.4)
 
 
-def test_model_view_passes_calibration_and_scaled_shocks():
+def test_model_view_passes_calibration_and_scaled_shocks(monkeypatch):
+    from rfqbot.backtest import engine
+    from rfqbot.pricing.joint import Shock
+    # the engine's shock set is bootstrap replicas only now; scaling must still handle the correlation kinds
+    monkeypatch.setattr(engine, "DEFAULT_SHOCKS", (Shock("halves_corr", 0.15), Shock("halves_corr", -0.15), Shock("prior_rho", -0.2),
+                                                   Shock("prior_rho", 0.2), Shock("bootstrap", 1), Shock("bootstrap", 2)))
     assert [s.value for s in scaled_shocks(0.5)][:4] == [0.075, -0.075, -0.1, 0.1]
     assert [s.value for s in scaled_shocks(2.0)][4:] == [1, 2]                      # bootstrap seeds are not scaled
+    assert all(s.kind == "bootstrap" for s in __import__("rfqbot.pricing.joint", fromlist=["x"]).DEFAULT_SHOCKS)
     cal = Calibration(pairs={"a": PairParams(lam=0.8, lo=None, hi=None, resid=0.01, n=5, n_games=3, n_lo=0, n_hi=0)}, identity=False)
     sc = scaled_calibration(cal, 0.75)
     assert sc.pairs["a"].lam == pytest.approx(0.6) and cal.pairs["a"].lam == 0.8 and sc.pairs["a"].resid == 0.01

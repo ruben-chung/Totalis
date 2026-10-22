@@ -24,6 +24,7 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
+from ..db import ro_connect
 from ..sports import nba_players, nba_teams
 from .store import PropsStore
 
@@ -60,9 +61,7 @@ def prop_from_slug(slug: str, title: str | None, market_line: float | None) -> t
 
 
 def _ro(path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return ro_connect(path, shared=False)
 
 
 def pull_poly_lines(store: PropsStore, *, history_db: str | Path = "./data/history.db", offset_min: int = 15,

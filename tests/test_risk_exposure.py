@@ -22,6 +22,11 @@ def models():
     return {G1: m1, G2: m2}
 
 
+def p_scen(model, sp):
+    """Scenario-mean probability: what Exposure works with (p_leg is exact on the FG grid)."""
+    return float(model.indicator(sp).mean(dtype=np.float64))
+
+
 def spec(game, model, **kw):
     s0 = model.legs[0].spec
     base = dict(venue="polymarket", sport="nfl", away=s0.away, home=s0.home, game_date=s0.game_date, period="FG")
@@ -49,7 +54,7 @@ def test_moneyline_delta_is_one_to_its_own_win(models):
     assert deltas["DAL win"] == pytest.approx(1.0, abs=1e-9)
     phi = spec(G1, m, family="moneyline", side="PHI")
     # not "PHI win" includes ties (neither team's win): E[I | not PHI] = P(DAL) / (1 - P(PHI))
-    assert deltas["PHI win"] == pytest.approx(-m.p_leg(dal) / (1 - m.p_leg(phi)), abs=1e-9)
+    assert deltas["PHI win"] == pytest.approx(-p_scen(m, dal) / (1 - p_scen(m, phi)), abs=1e-9)
     # short the same combo: -1
     ex2 = Exposure(Book([pos("r1", [leg(G1, dal)], -1, 3.0, 0.55)]), models)
     assert {d.label: d.delta for d in ex2.canonical_deltas(G1)}["DAL win"] == pytest.approx(-3.0, abs=1e-9)
@@ -63,7 +68,7 @@ def test_cross_game_combo_factorises(models):
     dal = spec(G1, m1, family="moneyline", side="DAL")
     pit = spec(G2, m2, family="moneyline", side="PIT")
     ex = Exposure(Book([pos("r1", [leg(G1, dal), leg(G2, pit)], 1, 10.0, 0.3)]), models)
-    p_dal, p_pit = m1.p_leg(dal), m2.p_leg(pit)
+    p_dal, p_pit = p_scen(m1, dal), p_scen(m2, pit)
     d1 = {d.label: d.delta for d in ex.canonical_deltas(G1)}
     d2 = {d.label: d.delta for d in ex.canonical_deltas(G2)}
     assert d1["DAL win"] == pytest.approx(10.0 * p_pit, rel=1e-9)
@@ -88,12 +93,14 @@ def test_unmodeled_legs_are_bernoullis_and_mc_matches_analytic(models):
     assert pnl.mean() == pytest.approx(mean, abs=4 * math.sqrt(var / 100_000))
     assert pnl.std() == pytest.approx(math.sqrt(var), rel=0.03)
     port = ex.portfolio()
-    assert port.es1 >= -port.mean or port.es1 > 0
+    # the worst atom (a loses 2.5, b wins and costs 7, c loses 3.5) has mass 0.7 x 0.6 x 0.2 = 8.4%,
+    # so the whole 1% tail sits on it: ES1 is exactly 13
+    assert port.es1 == pytest.approx(13.0, abs=1e-9)
     assert len(port.top_contributors) == 3
 
 
 def test_same_market_complement_nets_out(models):
-    m = models[G1]
+    models[G1]
     # one modeled game: over and under at the same line in two positions, unmodeled via a game with no model
     over = LegSpec(venue="polymarket", sport="nfl", away="DAL", home="PHI", game_date="2026-10-27", family="total",
                    period="FG", side="over", line=44.5)
@@ -140,7 +147,7 @@ def test_per_game_vector_is_conditional_expectation(models):
     dal = spec(G1, m1, family="moneyline", side="DAL")
     pit = spec(G2, m2, family="moneyline", side="PIT")
     ex = Exposure(Book([pos("r1", [leg(G1, dal), leg(G2, pit)], -1, 10.0, 0.4)]), models)
-    expected = -10.0 * (m1.p_leg(dal) * m2.p_leg(pit) - 0.4)
+    expected = -10.0 * (p_scen(m1, dal) * p_scen(m2, pit) - 0.4)
     assert ex.game_vec[G1].mean() == pytest.approx(expected, rel=1e-9)
     assert ex.game_vec[G2].mean() == pytest.approx(expected, rel=1e-9)
     assert ex.pnl_draws().mean() == pytest.approx(expected, abs=0.15)
@@ -160,3 +167,44 @@ def test_canonical_outcomes_cover_the_main_lines(models):
     assert sum(1 for l in labels if l.startswith("total")) == 2
     assert sum(1 for l in labels if "covers" in l or "fails" in l) == 2
     assert sum(1 for l in labels if " total " in l) == 4
+
+
+def test_pending_quotes_in_opposite_directions_never_net(models):
+    """Two pending quotes to one requester on the same combo in opposite directions: at most one
+    fills, and it is the adverse one, so the book counts the worse side, never zero."""
+    m = models[G1]
+    dal = spec(G1, m, family="moneyline", side="DAL")
+    short = Position("q1", [leg(G1, dal)], -1, 100.0, 0.6, "pending", requester="req_a", condition_id="c1")
+    long_ = Position("q2", [leg(G1, dal)], 1, 100.0, 0.6, "pending", requester="req_a", condition_id="c1")
+    ex = Exposure(Book([short, long_]), models)
+    d = {x.label: x.delta for x in ex.canonical_deltas(G1)}
+    assert d["DAL win"] == pytest.approx(100.0, abs=1e-9)           # the long side risks 60, the short 40: long kept
+    assert ex.flags["pending_opposite_sides_kept_worse"] == 1 and len(ex.positions) == 1
+    # a bigger short wins the comparison
+    ex2 = Exposure(Book([Position("q1", [leg(G1, dal)], -1, 200.0, 0.6, "pending", requester="req_a"), long_]), models)
+    assert {x.label: x.delta for x in ex2.canonical_deltas(G1)}["DAL win"] == pytest.approx(-200.0, abs=1e-9)
+    # different requesters do not share the rule (both can fill), and filled positions still net
+    ex3 = Exposure(Book([short, Position("q3", [leg(G1, dal)], 1, 100.0, 0.6, "pending", requester="req_b")]), models)
+    assert {x.label: x.delta for x in ex3.canonical_deltas(G1)}["DAL win"] == pytest.approx(0.0, abs=1e-9)
+    ex4 = Exposure(Book([Position("f1", [leg(G1, dal)], -1, 100.0, 0.6, "filled"), Position("f2", [leg(G1, dal)], 1, 100.0, 0.6, "filled")]), models)
+    assert {x.label: x.delta for x in ex4.canonical_deltas(G1)}["DAL win"] == pytest.approx(0.0, abs=1e-9)
+    # a pending hedge nets against a filled position (it must count, or it could be quoted without limit)
+    ex5 = Exposure(Book([Position("f1", [leg(G1, dal)], -1, 100.0, 0.6, "filled"), long_]), models)
+    assert {x.label: x.delta for x in ex5.canonical_deltas(G1)}["DAL win"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_model_pool_follows_the_cache_rebuild(models):
+    class Entry:
+        def __init__(self, model):
+            self.model = model
+
+    class Cache:
+        def __init__(self):
+            self.entries = {}
+    cache = Cache()
+    cache.entries[G1] = Entry(models[G1])
+    pool = ModelPool(cache=cache, build=False)
+    assert pool.get(G1) is models[G1]
+    cache.entries[G1] = Entry(models[G2])              # the quoting cache rebuilt the game
+    assert pool.get(G1) is models[G2]
+    assert pool.get("nba-x-y-2026-10-21") is None and "nba-x-y-2026-10-21" in pool.errors

@@ -174,9 +174,71 @@ def test_build_rejects_mixed_games_and_times_well(truth):
     with pytest.raises(ValueError):
         build_game(qs, config=CFG)
     t0 = time.perf_counter()
-    m = build_game(quotes_from_truth(truth), config=CFG)
+    build_game(quotes_from_truth(truth), config=CFG)
     assert time.perf_counter() - t0 < 3.0
     legs, errs = parse_quotes(quotes_from_truth(truth))
     assert errs == [] and len(legs) == 264
     pm = build_period(legs, "FG", CFG)
     assert pm.ipf_sweeps > 0 and pm.ipf_change < CFG.ipf_tol
+
+
+def test_bin_floor_keeps_integer_margins_alive(truth):
+    """A flat PAVA block (two lines quoted at the same survival) makes the bin between them zero
+    mass; without a floor IPF can never refill it and an exact margin inside prices at exactly 0."""
+    qs = quotes_from_truth(truth)
+    # flatten the spread ladder between -6.5 and -8.5 by giving the 7.5 line the 6.5 line's prices
+    by = {(q.slug, q.outcome_index): q for q in qs}
+    for idx in (0, 1):
+        src = by[("nfl-dal-phi-2026-10-27-spread-home-6pt5", idx)]
+        dst = by[("nfl-dal-phi-2026-10-27-spread-home-7pt5", idx)]
+        qs[qs.index(dst)] = dst.__class__(**{**dst.__dict__, "best_bid": src.best_bid, "best_ask": src.best_ask})
+    floored = build_game(qs, config=CFG)
+    bare = build_game(qs, config=EngineConfig(tie_prob=None, bin_floor_eps=0.0))
+    assert bare.periods["FG"].marginal("M")[80 + 7] == 0.0
+    p7 = floored.periods["FG"].marginal("M")[80 + 7]
+    assert 0 < p7 < 1e-3
+    exact7 = mk(family="exact_margin", line=None, team="PHI", bucket="7-7", side="yes")
+    assert floored.p_leg(exact7) == pytest.approx(p7) and floored.p_leg(exact7) > 0
+    assert bare.p_leg(exact7) == 0.0
+    # the floor does not disturb the quoted lines
+    assert max(c.diff for c in floored.marginal_check() if c.diff is not None and c.fitted) < 0.01
+
+
+def test_ipf_flags_non_convergence_and_binding_clips(truth):
+    qs = quotes_from_truth(truth)
+    m = build_game(qs, config=EngineConfig(tie_prob=None, ipf_max_sweeps=2))
+    assert any("did not converge in 2 sweeps" in f for f in m.flags)
+    m2 = build_game(qs, config=EngineConfig(tie_prob=None, sd_band=(0.99, 1.01)))
+    assert any("outside the 0.99-1.01x band" in f for f in m2.flags)
+    m3 = build_game(qs, config=EngineConfig(tie_prob=None, cov_cap=0.01))
+    assert any("capped at +0.01" in f for f in m3.flags)
+    m4 = build_game(qs, config=EngineConfig(tie_prob=None, halves_corr_shift=0.9))
+    assert any("coupling corr" in f and "clipped" in f for f in m4.flags)
+    assert not any("did not converge" in f or "clipped" in f or "capped" in f for f in build_game(qs, config=CFG).flags)
+
+
+def test_fg_leg_sets_are_exact_and_half_sets_are_sampled(truth, model):
+    from rfqbot.pricing.joint import N_BOOTSTRAP, interval_of
+    legs = {l.spec.venue_ids["slug"] + "|" + l.spec.side: l.spec for l in model.legs}
+    c35 = legs["nfl-dal-phi-2026-10-27-spread-home-3pt5|PHI"]
+    over = legs["nfl-dal-phi-2026-10-27-total-44pt5|over"]
+    h1 = legs["nfl-dal-phi-2026-10-27-1h-total-22pt5|over"]
+    qs = quotes_from_truth(truth)
+    # a pure-FG pair is a function of the table: identical across scenario seeds, and equal to the grid mass
+    vals = [build_game(qs, config=CFG, seed=s).joint([c35, over], shocks=()).p_joint for s in (0, 1, 2)]
+    assert vals[0] == vals[1] == vals[2]
+    g = model.grid_indicator(c35) * model.grid_indicator(over)
+    assert vals[0] == pytest.approx(float((model.periods["FG"].table * g).sum()), abs=1e-12)
+    assert model.p_leg(over) == pytest.approx(float((model.periods["FG"].table * model.grid_indicator(over)).sum()), abs=1e-12)
+    assert model.grid_indicator(h1) is None                         # half legs have no grid mask
+    mixed = [build_game(qs, config=CFG, seed=s).joint([c35, h1], shocks=()).p_joint for s in (0, 1)]
+    assert mixed[0] != mixed[1] and abs(mixed[0] - mixed[1]) < 0.01     # sampled: seed-dependent but close
+    # interval: quantiles over base + 8 bootstrap replicas, inside the shock range, Fréchet-clipped
+    q = model.joint([c35, over])
+    assert len(q.shocked) == N_BOOTSTRAP and all(k.startswith("bootstrap#") for k in q.shocked)
+    allv = [q.p_joint, *q.shocked.values()]
+    lo, hi = interval_of(allv)
+    assert min(allv) <= lo <= hi <= max(allv) and q.lo <= q.p_cal <= q.hi
+    assert interval_of([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) == pytest.approx((0.18, 0.82))
+    # replicas keep the base coupling mode
+    assert {model.shocked(s).scen.coupling for s in DEFAULT_SHOCKS} == {model.scen.coupling}

@@ -31,16 +31,13 @@ from typing import Any
 
 import numpy as np
 
+from ..db import ro_connect
+from .metrics import clustered_ols
+
 HORIZONS = (1, 5, 15, 60)
 STALE_S = 600.0            # MarginalConfig.stale_warn_pregame_s
 TIGHT_HS = 0.02            # "tight" seconds: both half-spreads at or under this (noise ratio without wide books)
 PRIOR = {"nfl": 2.0, "nba": 2.0}
-
-
-def _ro(path: str) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
-    return c
 
 
 def _parse_ts(s: str | None) -> int | None:
@@ -77,40 +74,31 @@ def lvcf(grid: np.ndarray, at_ms: np.ndarray, mid: np.ndarray) -> np.ndarray:
 
 
 class Reg:
-    """y = a + b x with game-clustered sandwich SEs, accumulated from per-cluster sufficient statistics."""
+    """y = a + b x with game-clustered sandwich SEs (``metrics.clustered_ols``), accumulated from
+    per-cluster sufficient statistics so millions of seconds never have to be held."""
 
     def __init__(self) -> None:
-        self.xx = np.zeros((2, 2))
-        self.xy = np.zeros(2)
         self.clusters: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         self.n = 0
 
     def add(self, cluster: str, x: np.ndarray, y: np.ndarray) -> None:
         X = np.column_stack([np.ones_like(x), x])
         xx, xy = X.T @ X, X.T @ y
-        self.xx += xx
-        self.xy += xy
         self.n += x.shape[0]
         cx, cy = self.clusters.get(cluster, (np.zeros((2, 2)), np.zeros(2)))
         self.clusters[cluster] = (cx + xx, cy + xy)
 
     def fit(self) -> dict[str, float]:
-        if self.n < 10 or len(self.clusters) < 2:
-            return {"b": float("nan"), "se": float("nan"), "n": self.n, "clusters": len(self.clusters)}
-        inv = np.linalg.pinv(self.xx)
-        beta = inv @ self.xy
-        meat = np.zeros((2, 2))
-        for cx, cy in self.clusters.values():
-            s = cy - cx @ beta
-            meat += np.outer(s, s)
         G = len(self.clusters)
-        V = inv @ meat @ inv * G / (G - 1)
+        beta, V = (None, None) if self.n < 10 else clustered_ols(self.clusters)
+        if beta is None:
+            return {"b": float("nan"), "se": float("nan"), "n": self.n, "clusters": G}
         return {"b": float(beta[1]), "se": float(math.sqrt(max(V[1, 1], 0.0))), "n": self.n, "clusters": G}
 
 
 def analyse(books: str, kalshi: str, *, max_legs: int | None = None, stale_s: float = STALE_S, log=print) -> dict[str, Any]:
     t_start = time.perf_counter()
-    kb, bb = _ro(kalshi), _ro(books)
+    kb, bb = ro_connect(kalshi), ro_connect(books)
     k0, k1 = kb.execute("SELECT MIN(at_ms), MAX(at_ms) FROM kalshi_top").fetchone()
     b0, b1 = bb.execute("SELECT MIN(at_ms), MAX(at_ms) FROM book_top").fetchone()
     t0, t1 = max(k0, b0), min(k1, b1)
@@ -130,7 +118,7 @@ def analyse(books: str, kalshi: str, *, max_legs: int | None = None, stale_s: fl
            bb.execute("SELECT position_id, token_id, game_start_time FROM leg_tokens")}
 
     regs: dict[tuple, Reg] = defaultdict(Reg)            # (sport, kind, h) -> Reg
-    var_acc: dict[tuple, list] = defaultdict(list)       # (sport, venue, h) -> per-game [sum d2, n]
+    defaultdict(list)       # (sport, venue, h) -> per-game [sum d2, n]
     spreads: dict[tuple, list] = defaultdict(list)       # (sport, venue) -> half spreads (per leg median)
     per_sport = defaultdict(lambda: {"legs": 0, "legs_used": 0, "seconds": 0, "games": set(), "skipped": defaultdict(int)})
     game_sec: dict[tuple, dict] = defaultdict(dict)      # (sport, venue, h) -> game -> [sum d2, n]

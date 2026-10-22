@@ -1,50 +1,53 @@
 """RFQ -> PaperQuote. Every term is computed separately, logged, and printed in the reason.
 
-Pipeline (claude-sessions/quote-assembly-brief.md):
-  legs (catalog + cache marginals) -> clusters -> per-cluster probability (marginal product, or
-  the joint engine for same-game clusters) -> p_fair = product over clusters -> uncertainty
-  terms u_m (leg errors through the product) and u_d (half cluster interval width through the
-  product) -> margin m = k_m u_m + k_d u_d + e_b + e_i -> price for the maker's side -> size.
+Pipeline (claude-sessions/quote-assembly-brief.md), one method per step in ``Assembler.evaluate``:
+  ``_legs`` (catalog + cache marginals) -> ``_clusters`` (per-cluster probability: marginal
+  product, or the joint engine for same-game clusters) -> ``_fair`` (p_fair = product over
+  clusters; uncertainty terms u_m from leg errors through the product and u_d from half the
+  cluster interval width through the product) -> ``_margin`` (margin m = k_m u_m + k_d u_d + e_b
+  + e_i, or the fitted edge node's base + curse x sigma + premiums, plus the inventory skew; the
+  candidate exposure is derived at the final price) -> ``_size`` (requested, tier cap on collateral
+  at risk, Kelly on the net edge, caps).
 
 Hard invariants: a quote never sells the combo below p_fair nor buys above it (the live flow
-round-trips any such quote within seconds); unknown or unpriceable legs skip the RFQ.
+round-trips any such quote within seconds); unknown or unpriceable legs skip the RFQ. A breach
+raises ``PriceInvariantError``, which ``evaluate`` turns into a ``skipped:invariant_error``
+decision and counts in ``stats()["invariant_errors"]``.
 """
 from __future__ import annotations
 
 import logging
 import math
-import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
+from ..config import SUBMISSION_WINDOW_MS
 from ..edge import MarginTerms, Segment, load_edge_config, load_table, margin_for
-from ..marginals import Marginal
 from ..normalizer import PaperQuote
+from ..risk.caps import S_MAX
+from ..slugs import game_prefix_of  # noqa: F401  (re-exported: callers import the prefix rule from here)
 from ..sports.legspec import canonical_key
 from .cache import GameCache, GameEntry
 from .config import QuoteConfig
 from .decisions import DecisionLog, decision_row
-from .inventory import Assessment, Inventory, kelly_size, position_from_decision_legs
+from .inventory import DEFAULT_HORIZON_MS, Assessment, Inventory, kelly_size, position_from_decision_legs
 from .semantics import SHARE_E6, UnsupportedRfq, maker_view, notional_e6, requested_shares_e6
 
 from ..clusters import cluster
 
 log = logging.getLogger(__name__)
 TIER_ORDER = ("ok", "thin", "wide", "stale", "disagree", "skip")
+DEFAULT_DEADLINE_MS = SUBMISSION_WINDOW_MS      # an RFQ without a deadline is treated as one submission window away
+SIZE_GRANULARITY_E6 = 1_000                     # share sizes are rounded down to 0.001 share
+SPORT_SKIP_DECISION = "skipped:leg:sport_not_quoted"
+SPORT_SKIP_SAMPLE = 100                         # one decisions row per this many sport_not_quoted skips (96% of the flow)
+ROUND_TRIP_WINDOW_MS = 10_000
 
-# Slug -> ladder/game prefix ("nfl-dal-phi-2026-10-27"), sport agnostic. This is the books/ladders
-# prefix, not rfqbot.clusters' game_key (which is the LegSpec key for registered sports).
-GAME_RE = re.compile(r"^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-|$)")
-DOUBLES_RE = re.compile(r"^([a-z]+-doubles-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-|$)")
 
-
-def game_prefix_of(slug: str | None) -> str | None:
-    if not slug:
-        return None
-    m = GAME_RE.match(slug) or DOUBLES_RE.match(slug)
-    return m.group(1) if m else None
+class PriceInvariantError(RuntimeError):
+    """The price would sell below fair or buy above it."""
 
 
 def _pair_class(c: Any) -> str:
@@ -127,6 +130,7 @@ class Decision:
     expires_ms: int | None = None
     requested_shares: float | None = None     # shares the requester asked for at our price
     kelly_size: float | None = None
+    kelly_edge: float | None = None           # the edge Kelly sized on (net of curse and info charges, plus the hedge allowance)
     allowed_size: float | None = None         # shares every cap allows (None = caps off / unconstrained)
     binding_cap: str | None = None            # the cap that cut or killed the size, when one did
     headroom: dict[str, float | None] | None = None
@@ -155,12 +159,30 @@ class Decision:
         return self
 
 
+@dataclass
+class _Ctx:
+    """Per-RFQ working state handed between the pipeline steps."""
+    rfq: Any
+    store: Any
+    now: int
+    mv: Any
+    round_trip: bool = False
+    entries: dict[str, GameEntry | None] = field(default_factory=dict)
+    by_pid: dict[str, LegEval] = field(default_factory=dict)
+    margin0: float = 0.0           # margin before the inventory skew
+    floor: float = 0.0             # the skewed margin never goes below this: curse_mult x sigma, or base_edge without a node
+    curse: float = 0.0             # the adverse-selection part of margin0 (not Kelly edge): curse_mult x sigma, or k_m u_m + k_d u_d
+    info: float = 0.0              # information premium inside margin0 (not Kelly edge)
+    price: float | None = None
+    inv: Inventory | None = None
+
+
 class Assembler:
     """`Listener(on_rfq=Assembler(...).handle)`."""
 
     def __init__(self, cache: GameCache, cfg: QuoteConfig | None = None, *, decisions: DecisionLog | None = None,
-                 now_ms=None, round_trip_window_ms: int = 10_000, inventory: Inventory | None = None,
-                 horizon_ms: int = 31_000):
+                 now_ms=None, round_trip_window_ms: int = ROUND_TRIP_WINDOW_MS, inventory: Inventory | None = None,
+                 horizon_ms: int = DEFAULT_HORIZON_MS):
         self.cache = cache
         self.cfg = cfg or QuoteConfig()
         self.decisions = decisions
@@ -175,6 +197,8 @@ class Assembler:
         self._config_json = self.cfg.to_json()
         self.latencies: deque[float] = deque(maxlen=20_000)
         self.counts: dict[str, int] = {}
+        self.invariant_errors = 0
+        self.sport_skips = 0                # sport_not_quoted skips seen (one in SPORT_SKIP_SAMPLE is logged as a row)
         self._recent: deque[tuple[int, str, str, str, int]] = deque(maxlen=5_000)   # (at_ms, requester, condition, direction, size)
         self.round_trip_window_ms = round_trip_window_ms
         self.samples: deque[str] = deque(maxlen=50)
@@ -190,6 +214,11 @@ class Assembler:
         if changed:
             log.info("margin table %s", f"loaded (fitted_at={self.edge_table_fitted_at}, {len(t.nodes)} nodes)" if t else "absent: base_edge fallback")
         return changed
+
+    def set_edge_table(self, table: Any | None) -> None:
+        """Pin a margin table object (a frozen snapshot, e.g. in the backtest) instead of the file."""
+        self._edge_table = table
+        self.edge_table_fitted_at = table.fitted_at_ms if table is not None else None
 
     def _margin_terms(self, d: "Decision", now: int):
         sports = {l.game_key.split("-")[0] for l in d.legs if l.game_key}
@@ -215,7 +244,7 @@ class Assembler:
                     self.inventory.on_quoted(d.position, d.assessment, requester=d.requester, condition_id=d.condition_id)
                 except Exception as e:  # pragma: no cover
                     log.warning("inventory update failed: %s", e)
-        if self.decisions is not None:
+        if self.decisions is not None and self._log_row(d):
             try:
                 self.decisions.write(decision_row(d, self._config_json))
             except Exception as e:  # pragma: no cover
@@ -223,6 +252,14 @@ class Assembler:
         if not d.quoted or d.price_e6 is None or d.size_e6 is None:
             return None
         return PaperQuote(price_e6=d.price_e6, size_e6=d.size_e6, source="collateral", reason=d.reason)
+
+    def _log_row(self, d: Decision) -> bool:
+        """Every decision gets a row except sport_not_quoted skips (96% of the flow): those are
+        counted and one in SPORT_SKIP_SAMPLE is written as a sample."""
+        if d.decision != SPORT_SKIP_DECISION:
+            return True
+        self.sport_skips += 1
+        return self.sport_skips % SPORT_SKIP_SAMPLE == 1
 
     # -- evaluation (pure given the cache) --------------------------------------------
     def evaluate(self, rfq: Any, store: Any) -> Decision:
@@ -240,23 +277,34 @@ class Assembler:
         d.maker_action = mv.maker_action
         deadline = int(getattr(rfq, "submission_deadline_ms", 0) or 0)
         d.deadline_ms = deadline or None
-        d.expires_ms = (deadline if deadline > 0 else now + 400) + self.horizon_ms
+        d.expires_ms = (deadline if deadline > 0 else now + DEFAULT_DEADLINE_MS) + self.horizon_ms
         if d.n_legs == 0 or d.requested_e6 <= 0:
             return d.skip("empty_request")
-        rt = self._round_trip(d)
-        if rt:
-            d.legs = []  # filled below; keep the flag in the reason
-        # 1. legs
+        ctx = _Ctx(rfq, store, now, mv, round_trip=self._round_trip(d),
+                   inv=self.inventory if (self.inventory is not None and self.cfg.risk) else None)
+        try:
+            for step in (self._legs, self._clusters, self._fair, self._margin, self._size):
+                if step(d, ctx) is not None:
+                    return d
+        except PriceInvariantError as e:
+            self.invariant_errors += 1
+            log.error("price invariant violated for %s: %s", d.rfq_id, e)
+            return d.skip("invariant_error", str(e))
+        return d
+
+    # -- 1. legs ------------------------------------------------------------------------
+    def _legs(self, d: Decision, ctx: _Ctx) -> Decision | None:
         rows = []
-        for pid in rfq.leg_position_ids:
-            m = store.get_market(pid)
+        for pid in ctx.rfq.leg_position_ids:
+            m = ctx.store.get_market(pid)
             if m is None:
                 d.legs.append(LegEval(pid, None, None, None))
                 return d.skip("leg:unknown_market", pid)
             rows.append({"position_id": pid, "condition_id": m["condition_id"], "slug": m["slug"], "outcome": m["outcome"]})
         cl = cluster(rows)
+        ctx.cl = cl                                   # type: ignore[attr-defined]
         d.certified = bool(cl.certified_independent)
-        entries: dict[str, GameEntry | None] = {}
+        entries = ctx.entries
         for r in rows:
             gk = game_prefix_of(r["slug"])
             le = LegEval(r["position_id"], r["slug"], r["outcome"], gk, condition_id=r["condition_id"])
@@ -290,10 +338,15 @@ class Assembler:
                 return d.skip(f"leg:{flag.split(':')[0]}", le.short())
             if le.tier == "skip":
                 return d.skip(f"leg:{le.flags[0].split(':')[0] if le.flags else 'skip'}", le.short())
-        # 2. clusters
+        ctx.by_pid = {l.position_id: l for l in d.legs}
+        return None
+
+    # -- 2. clusters --------------------------------------------------------------------
+    def _clusters(self, d: Decision, ctx: _Ctx) -> Decision | None:
+        cl = ctx.cl                                   # type: ignore[attr-defined]
         if not d.certified and ("no_game_key" in getattr(cl, "flags", ()) or any(c.game_key is None for c in cl.clusters)):
             return d.skip("unpriceable_dependence", "a leg has no game key")
-        by_pid = {l.position_id: l for l in d.legs}
+        by_pid, entries = ctx.by_pid, ctx.entries
         for c in cl.clusters:
             pids = [l.position_id for l in c.legs]
             prefix = by_pid[pids[0]].game_key          # ladder prefix of the cluster's game
@@ -330,24 +383,36 @@ class Assembler:
                             f"mme={jq.max_marginal_error if jq.max_marginal_error is not None else float('nan'):.3f}")
             ce.notes.append(f"shocks={ {k: round(v, 4) for k, v in jq.shocked.items()} }")
             d.model_built_at = entry.model_built_at
-        # 3. fair and uncertainty
+        return None
+
+    # -- 3. fair and uncertainty --------------------------------------------------------
+    def _fair(self, d: Decision, ctx: _Ctx) -> Decision | None:
         p_fair = 1.0
         rel_m2 = 0.0
         rel_d2 = 0.0
         for ce in d.clusters:
-            assert ce.p is not None
+            if ce.p is None:
+                raise PriceInvariantError(f"cluster {ce.position_ids} has no probability")
             p_fair *= ce.p
             if ce.p <= 0:
                 continue
-            legs = [by_pid[p] for p in ce.position_ids]
+            legs = [ctx.by_pid[p] for p in ce.position_ids]
             rel_m2 += sum(((l.err or 0) / max(l.p or 1e-9, 1e-9)) ** 2 for l in legs)
             if ce.source == "joint" and ce.lo is not None and ce.hi is not None:
                 rel_d2 += (((ce.hi - ce.lo) / 2) / ce.p) ** 2
         d.p_fair = p_fair
         d.u_m = p_fair * math.sqrt(rel_m2)
         d.u_d = p_fair * math.sqrt(rel_d2)
+        return None
+
+    # -- 4. margin: base terms, edge node, inventory skew; price -----------------------
+    def _margin(self, d: Decision, ctx: _Ctx) -> Decision | None:
+        p_fair, mv, inv, now = d.p_fair, ctx.mv, ctx.inv, ctx.now
+        assert p_fair is not None and d.u_m is not None and d.u_d is not None
         d.e_b, d.e_i = self.cfg.base_edge, self.cfg.inventory_skew
-        margin0 = self.cfg.k_m * d.u_m + self.cfg.k_d * d.u_d + d.e_b          # stage 2 formula = fallback
+        uncertainty = self.cfg.k_m * d.u_m + self.cfg.k_d * d.u_d
+        margin0 = uncertainty + d.e_b                 # stage 2 formula = fallback
+        floor, curse, info = self.cfg.base_edge, uncertainty, 0.0
         if self.cfg.edge:
             seg, terms = self._margin_terms(d, now)
             d.edge_segment, d.edge_level, d.edge_source, d.edge_n = terms.segment or seg.key, terms.level, terms.source, terms.n
@@ -358,63 +423,97 @@ class Assembler:
                 # fitted node: its base and winner's-curse multiplier replace base_edge and k_m = k_d = 1
                 d.e_b = terms.base
                 margin0 = terms.margin(d.u_m + d.u_d)
+                curse = terms.curse_mult * max(0.0, d.u_m + d.u_d)
+                floor, info = curse, terms.info_premium
             else:
                 # default / no_prints / no_data: no fitted curse term, keep the stage 2 margin; carry the premiums
                 margin0 += terms.info_premium + terms.wallet_premium
-        # 4. inventory: caps and skew against the live book (hot path, closed forms; off -> stage 2)
-        inv = self.inventory if (self.inventory is not None and self.cfg.risk) else None
+                info = terms.info_premium
+        ctx.margin0, ctx.floor, ctx.curse, ctx.info = margin0, floor, curse, info
+        # inventory: caps and skew against the live book (hot path, closed forms; off -> stage 2)
         if inv is not None:
             price0 = self._price(p_fair, margin0, mv.maker_sells)
             if price0 is None:
                 return d.skip("price_below_min", f"fair {p_fair:.3f} - margin {margin0:.3f}")
             if mv.maker_sells and price0 > self.cfg.buy_safety_max:
                 return d.skip("price_above_safety", f"{price0:.3f} > {self.cfg.buy_safety_max}")
-            sign = -1 if mv.maker_sells else 1
-            req0 = requested_shares_e6(mv.size_unit, d.requested_e6, int(round(price0 * SHARE_E6))) / SHARE_E6
-            cand = position_from_decision_legs(d.rfq_id, d.legs, sign, req0, price0, now, d.expires_ms, entries,
-                                               requester=d.requester, condition_id=d.condition_id)
-            try:
-                a = inv.assess(cand, requester=d.requester, condition_id=d.condition_id)
-            except Exception as e:
-                return d.skip("risk_error", f"{type(e).__name__}: {e}")
-            d.assessment, d.position = a, cand
+            a = self._assess(d, ctx, price0)
+            if a is None:
+                return d
             d.e_i = a.e_i
-            d.allowed_size, d.headroom, d.d_es1_per_share = a.allowed_size, a.as_dict()["headroom"], a.d_es1_per_share
-            d.pending_same_combo, d.pending_requesters, d.book = a.pending_same_combo, a.pending_requesters, a.book
-        d.margin = max(0.0, margin0 + d.e_i)          # the skew never takes the price through fair
-        # 5. price for the maker's side
+        # the skew never takes the margin below the winner's-curse term: a hedge tightens, never to fair
+        d.margin = max(floor, margin0 + d.e_i)
+        # price for the maker's side
         price = self._price(p_fair, d.margin, mv.maker_sells)
         if price is None:
             return d.skip("price_below_min", f"fair {p_fair:.3f} - margin {d.margin:.3f}")
         if mv.maker_sells and price > self.cfg.buy_safety_max:
             return d.skip("price_above_safety", f"{price:.3f} > {self.cfg.buy_safety_max}")
         d.price_e6 = int(round(price * SHARE_E6))
-        # 6. size: requested, quality tiers, Kelly, caps
+        ctx.price = price
+        if inv is not None and d.position is not None and abs(price - d.position.price) > 1e-12:
+            # the skew moved the price: derive the candidate exposure (and the caps) at the price that goes out;
+            # e_i stays from the first pass (no fixed-point iteration)
+            e_i = d.e_i
+            if self._assess(d, ctx, price) is None:
+                return d
+            d.e_i = e_i
+        return None
+
+    def _assess(self, d: Decision, ctx: _Ctx, price: float) -> Assessment | None:
+        """Candidate position at ``price`` (requested shares at that price) through the live book's caps."""
+        inv, mv = ctx.inv, ctx.mv
+        assert inv is not None and d.p_fair is not None
+        sign = -1 if mv.maker_sells else 1
+        req = requested_shares_e6(mv.size_unit, d.requested_e6, int(round(price * SHARE_E6))) / SHARE_E6
+        cand = position_from_decision_legs(d.rfq_id, d.legs, sign, req, price, ctx.now, d.expires_ms, ctx.entries,
+                                           requester=d.requester, condition_id=d.condition_id)
+        try:
+            a = inv.assess(cand, requester=d.requester, condition_id=d.condition_id)
+        except Exception as e:
+            d.skip("risk_error", f"{type(e).__name__}: {e}")
+            return None
+        d.assessment, d.position = a, cand
+        d.e_i = a.e_i
+        d.allowed_size, d.headroom, d.d_es1_per_share = a.allowed_size, a.as_dict()["headroom"], a.d_es1_per_share
+        d.pending_same_combo, d.pending_requesters, d.book = a.pending_same_combo, a.pending_requesters, a.book
+        return a
+
+    # -- 5. size: requested, quality tiers, Kelly, caps --------------------------------
+    def _size(self, d: Decision, ctx: _Ctx) -> Decision | None:
+        p_fair, mv, inv, price = d.p_fair, ctx.mv, ctx.inv, ctx.price
+        assert p_fair is not None and price is not None and d.price_e6 is not None and d.margin is not None and d.e_i is not None
         requested = requested_shares_e6(mv.size_unit, d.requested_e6, d.price_e6)
         d.requested_shares = requested / SHARE_E6
         worst = max((l.tier for l in d.legs), key=TIER_ORDER.index)
         cap_usd = self.cfg.max_size_usd * self.cfg.tier_size_mult.get(worst, 0.0) * self.cfg.legs_mult(d.n_legs)
-        cap_shares = int(cap_usd * SHARE_E6 / price) if price > 0 else 0
+        max_loss = (1.0 - price) if mv.maker_sells else price        # collateral at risk per share (Position.notional)
+        cap_shares = int(cap_usd * SHARE_E6 / max_loss) if max_loss > 0 else 0
         size = min(requested, cap_shares)
         cut_by = None
         if inv is not None:
-            assert d.assessment is not None
-            # Kelly edge = margin net of the inventory charge (risk-adjusted): a hedge quoted at fair
-            # still sizes on the tail risk it removes; an adder sizes on its margin before the widening
-            d.kelly_size = kelly_size(d.margin - d.e_i, p_fair, inv.caps.capital_usd, self.cfg.kelly_fraction)
+            a = d.assessment
+            assert a is not None
+            # Kelly sizes on expected profit: the margin net of the winner's-curse and information charges
+            # (compensation for adverse selection, not edge). A hedge gets an allowance for the tail it
+            # removes, bounded by that tail (|dES1/ds| per share) so the skew cannot manufacture edge.
+            net = max(0.0, ctx.margin0 - ctx.curse - ctx.info)
+            hedge_allowance = min(max(0.0, -d.e_i), max(0.0, -a.d_es1_per_share))
+            d.kelly_edge = net + hedge_allowance
+            d.kelly_size = kelly_size(d.kelly_edge, p_fair, inv.caps.capital_usd, self.cfg.kelly_fraction)
             k_e6 = int(d.kelly_size * SHARE_E6)
             if k_e6 < size:
                 size, cut_by = k_e6, "kelly"
-            a_e6 = int(min(d.assessment.allowed_size, 1e12) * SHARE_E6)
+            a_e6 = int(min(a.allowed_size, S_MAX) * SHARE_E6)
             if a_e6 < size:
-                size, cut_by = a_e6, f"cap:{d.assessment.binding_cap}"
-                d.binding_cap = d.assessment.binding_cap
-            if a_e6 <= 0 or (notional_e6(a_e6 - a_e6 % 1000, d.price_e6) < self.cfg.min_size_usd * SHARE_E6):
-                d.binding_cap = d.assessment.binding_cap
-                return d.skip(f"cap:{d.assessment.binding_cap}",
-                              f"allowed {d.assessment.allowed_size:.1f} sh ({d.assessment.detail.get(d.assessment.binding_cap or '', '')}); "
+                size, cut_by = a_e6, f"cap:{a.binding_cap}"
+                d.binding_cap = a.binding_cap
+            if a_e6 <= 0 or (notional_e6(a_e6 - a_e6 % SIZE_GRANULARITY_E6, d.price_e6) < self.cfg.min_size_usd * SHARE_E6):
+                d.binding_cap = a.binding_cap
+                return d.skip(f"cap:{a.binding_cap}",
+                              f"allowed {a.allowed_size:.1f} sh ({a.detail.get(a.binding_cap or '', '')}); "
                               f"headroom { {k: (round(v, 1) if v is not None else None) for k, v in (d.headroom or {}).items()} }")
-        size -= size % 1000   # 0.001-share granularity
+        size -= size % SIZE_GRANULARITY_E6
         if notional_e6(size, d.price_e6) < self.cfg.min_size_usd * SHARE_E6:
             return d.skip("size_below_min", f"size {size / SHARE_E6:.2f} sh at {price:.3f} < ${self.cfg.min_size_usd}")
         d.size_e6 = size
@@ -425,24 +524,27 @@ class Assembler:
         impossible = " [impossible]" if p_fair == 0 else ""
         d.reason = (f"fair={p_fair:.4f}{impossible} ({'indep' if d.certified else 'clusters'} {len(d.clusters)}{', ' + str(joint_n) + ' joint' if joint_n else ''}) "
                     f"u_m={d.u_m:.4f} u_d={d.u_d:.4f} base={d.e_b:.3f} inv={d.e_i:+.4f} -> {'ask' if mv.maker_sells else 'bid'} {price:.3f} x {size / SHARE_E6:.0f}"
-                    f"{' cut:' + cut_by if cut_by else ''}{' [round_trip]' if rt else ''}"
+                    f"{' cut:' + cut_by if cut_by else ''}{' [round_trip]' if ctx.round_trip else ''}"
                     f"{f' pending={d.pending_same_combo}/{d.pending_requesters}req' if d.pending_same_combo else ''}; legs: "
                     + " | ".join(l.short() for l in d.legs))
-        return d
+        return None
 
     def _price(self, p_fair: float, margin: float, maker_sells: bool) -> float | None:
-        """Tick-rounded price away from fair for the maker's side; None when a bid falls below price_min."""
+        """Tick-rounded price away from fair for the maker's side; None when a bid falls below price_min.
+        Raises PriceInvariantError when the result would sell below fair or buy above it."""
         tick = self.cfg.tick
         if maker_sells:
             price = math.ceil((p_fair + margin) / tick) * tick
             price = min(max(price, self.cfg.price_min), 1.0)
-            assert price >= p_fair - 1e-12, "never sell below fair"
+            if price < p_fair - 1e-12:
+                raise PriceInvariantError(f"ask {price:.6f} below fair {p_fair:.6f}")
             return price
         price = math.floor((p_fair - margin) / tick) * tick
         if price < self.cfg.price_min:
             return None
         price = min(price, self.cfg.price_max)
-        assert price <= p_fair + 1e-12, "never buy above fair"
+        if price > p_fair + 1e-12:
+            raise PriceInvariantError(f"bid {price:.6f} above fair {p_fair:.6f}")
         return price
 
     def _round_trip(self, d: Decision) -> bool:
@@ -466,4 +568,5 @@ class Assembler:
         return {"seen": sum(self.counts.values()), "counts": dict(sorted(self.counts.items(), key=lambda kv: -kv[1])),
                 "latency_p50_ms": pct(0.5), "latency_p99_ms": pct(0.99), "latency_max_ms": lat[-1] if lat else None,
                 "cache": dict(self.cache.stats), "games": len(self.cache.entries),
+                "invariant_errors": self.invariant_errors, "sport_not_quoted": self.sport_skips,
                 "inventory": self.inventory.summary() if self.inventory is not None else None}

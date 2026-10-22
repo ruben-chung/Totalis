@@ -26,6 +26,13 @@ def n_legs_bucket(n: int) -> str:
     return "5+"
 
 
+def rfq_sigma(u_m: float | None, u_d: float | None) -> float:
+    """The one sigma definition the segments bucket on: ``u_m + u_d`` (model and dependence uncertainty
+    of the combo fair). Decisions carry both; a print has no quoting-time u_d, so the markout monitor
+    passes ``u_d = 0`` as its proxy and buckets through this same function."""
+    return (u_m or 0.0) + (u_d or 0.0)
+
+
 def sigma_bucket(sigma: float | None, cuts: Sequence[float]) -> str:
     """``s0`` below the first cut, ``s1`` between, ... ``s<len(cuts)>`` at or above the last."""
     if sigma is None:

@@ -13,11 +13,16 @@ Wire format (docs.polymarket.com/api-reference/wss/market):
 All prices / sizes / timestamps on the wire are strings.
 
 Universe: leg position_ids of RFQs seen in the last BOOK_UNIVERSE_HOURS, read incrementally
-from the listener's rfq.db (WAL reader, separate process). An RFQ position_id is NOT a CLOB
-token id (verified 2026-10-20: the market channel answers [] for them); TokenMap resolves
-position_id -> (condition_id, outcome) via the catalog -> clobTokenIds via Gamma, batched 100
-per request. Tokens are spread over connections of at most BOOK_ASSETS_PER_CONN each and
+from the listener's rfq.db (WAL reader, separate process), widened to whole games for the
+configured sports; the universe and token-map classes live in rfqbot.books_universe and are
+re-exported here. Tokens are spread over connections of at most BOOK_ASSETS_PER_CONN each and
 added / removed dynamically.
+
+Liveness: every `subscriptions` row carries the `conn_id` of the socket that holds the asset, and
+is closed (`unsubscribed_ms`) when that socket disconnects, so an asset is live at time t iff it
+has an open row whose connection was open at t. `book_connections.last_frame_ms` is the last
+receive time per socket (persisted every flusher tick), which readers use to tell "connection
+quiet" from "book unchanged".
 """
 from __future__ import annotations
 
@@ -26,28 +31,31 @@ import inspect
 import json
 import logging
 import random
-import re
 import sqlite3
 import time
 import uuid
 from pathlib import Path
-from datetime import datetime, timezone
 from typing import Awaitable, Callable, Iterable
 
-import httpx
 import websockets
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
+from .books_universe import DEFAULT_GAMMA_URL, GameUniverse, RfqLegUniverse, TokenMap, _sport_of  # noqa: F401  (re-exports)
 from .rawlog import RawLog
-from .store import now_ms
+from .slugs import game_prefix_of  # noqa: F401  (re-export: rfqbot.history.pull imports it from here)
+from .timeutil import now_ms, parse_iso_ms
 
 log = logging.getLogger(__name__)
 
 DEFAULT_CLOB_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
-DEFAULT_GAMMA_URL = "https://gamma-api.polymarket.com"
 PRICE_SCALE = 10_000          # prices stored as integers in 1e-4 (finest CLOB tick)
 DEPTH_WINDOW = 500            # near-top depth = size within 0.05 of the best price
+WS_MAX_FRAME_BYTES = 16 * 1024 * 1024   # a full `book` snapshot list for 500 assets can exceed websockets' 1 MiB default
+
+__all__ = ["Book", "BookStore", "BookConn", "BookRecorder", "RfqLegUniverse", "GameUniverse", "TokenMap",
+           "identity_map", "coverage_report", "build_recorder", "game_prefix_of", "DEFAULT_GAMMA_URL",
+           "DEFAULT_CLOB_WS_URL", "WS_MAX_FRAME_BYTES"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -113,20 +121,28 @@ CREATE TABLE IF NOT EXISTS leg_tokens (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS ix_leg_tokens_token ON leg_tokens(token_id);
 
--- when each token entered / left the subscription set (provenance for the backtest)
+-- when each token entered / left the subscription set on one socket (provenance for the backtest and
+-- liveness for the marginal layer): a row is opened when the socket connects with the asset or the
+-- asset is added to a live socket, and closed when the asset is removed or the socket disconnects.
 CREATE TABLE IF NOT EXISTS subscriptions (
     asset_id        TEXT NOT NULL,
     position_id     TEXT,
     subscribed_ms   INTEGER NOT NULL,
-    unsubscribed_ms INTEGER
+    unsubscribed_ms INTEGER,
+    conn_id         TEXT                 -- book_connections.conn_id holding the asset (NULL before 2026-10-21)
 );
 CREATE INDEX IF NOT EXISTS ix_subs_asset ON subscriptions(asset_id);
 
 CREATE TABLE IF NOT EXISTS book_connections (
     conn_id TEXT PRIMARY KEY, connected_at_ms INTEGER NOT NULL, n_assets INTEGER,
-    disconnected_at_ms INTEGER, close_reason TEXT
+    disconnected_at_ms INTEGER, close_reason TEXT,
+    last_frame_ms INTEGER                -- last frame received on this socket (any event or PONG)
 );
 """
+
+# columns added after the first books.db files were written; ALTERed in at startup
+_MIGRATIONS = (("subscriptions", "conn_id", "TEXT"), ("book_connections", "last_frame_ms", "INTEGER"))
+_POST_MIGRATION_SQL = "CREATE INDEX IF NOT EXISTS ix_subs_conn ON subscriptions(conn_id)"
 
 
 def _px(p) -> int:
@@ -176,6 +192,10 @@ class BookStore:
             self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
+        for table, col, typ in _MIGRATIONS:
+            if col not in {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+        self.conn.execute(_POST_MIGRATION_SQL)
         self._in_tx = False
 
     def begin(self) -> None:
@@ -202,9 +222,9 @@ class BookStore:
         self.conn.execute("INSERT INTO tick_sizes VALUES (?,?,?,?)",
                           (asset_id, at_ms, ev.get("old_tick_size"), ev.get("new_tick_size")))
 
-    def subscribed(self, assets: dict[str, str], at_ms: int) -> None:
-        self.conn.executemany("INSERT INTO subscriptions(asset_id, position_id, subscribed_ms) VALUES (?,?,?)",
-                              [(a, p, at_ms) for a, p in assets.items()])
+    def subscribed(self, assets: dict[str, str], at_ms: int, conn_id: str | None = None) -> None:
+        self.conn.executemany("INSERT INTO subscriptions(asset_id, position_id, subscribed_ms, conn_id) VALUES (?,?,?,?)",
+                              [(a, p, at_ms, conn_id) for a, p in assets.items()])
 
     def tokens_cached(self, position_ids: Iterable[str]) -> dict[str, tuple[str | None, int]]:
         out = {}
@@ -245,9 +265,22 @@ class BookStore:
         self.conn.execute("INSERT OR REPLACE INTO book_connections(conn_id, connected_at_ms, n_assets) VALUES (?,?,?)",
                           (conn_id, at_ms, n))
 
-    def conn_closed(self, conn_id: str, at_ms: int, reason: str) -> None:
-        self.conn.execute("UPDATE book_connections SET disconnected_at_ms=?, close_reason=? WHERE conn_id=?",
-                          (at_ms, reason, conn_id))
+    def unsubscribed_conn(self, conn_id: str, at_ms: int) -> int:
+        """Close every open row held by one socket (it disconnected; the reconnect opens fresh rows)."""
+        return self.conn.execute("UPDATE subscriptions SET unsubscribed_ms=? WHERE conn_id=? AND unsubscribed_ms IS NULL",
+                                 (at_ms, conn_id)).rowcount
+
+    def conn_closed(self, conn_id: str, at_ms: int, reason: str, last_frame_ms: int | None = None) -> None:
+        self.conn.execute("UPDATE book_connections SET disconnected_at_ms=?, close_reason=?,"
+                          " last_frame_ms=COALESCE(?, last_frame_ms) WHERE conn_id=?", (at_ms, reason, last_frame_ms, conn_id))
+
+    def set_last_frame_ms(self, updates: dict[str, int]) -> None:
+        self.conn.executemany("UPDATE book_connections SET last_frame_ms=? WHERE conn_id=?",
+                              [(ms, cid) for cid, ms in updates.items()])
+
+    def last_frame_ms(self, conn_id: str) -> int | None:
+        """Persisted last receive time of one socket (what a reader of books.db sees)."""
+        return self.scalar("SELECT last_frame_ms FROM book_connections WHERE conn_id=?", conn_id)
 
     def scalar(self, sql: str, *args):
         r = self.conn.execute(sql, args).fetchone()
@@ -263,267 +296,9 @@ def _ts(ev: dict) -> int | None:
 
 
 # ------------------------------------------------------------------ universe
-class RfqLegUniverse:
-    """Leg position_ids seen in RFQs within `window_ms`, read incrementally from the listener's db."""
-
-    def __init__(self, rfq_db: str | Path, *, window_ms: int):
-        self.window_ms = window_ms
-        self.conn = sqlite3.connect(f"file:{Path(rfq_db)}?mode=ro", uri=True, check_same_thread=False)
-        self.conn.execute("PRAGMA busy_timeout=5000")
-        self.last_seen: dict[str, int] = {}
-        self.rfq_counts: dict[str, int] = {}   # RFQ rows per position since it entered the window (ranking only)
-        self._cursor_ms = 0
-
-    def __call__(self) -> set[str]:
-        now = now_ms()
-        since = max(self._cursor_ms - 2_000, now - self.window_ms)  # 2 s overlap: listener commits in batches
-        rows = self.conn.execute(
-            "SELECT r.first_seen_ms, l.position_id FROM rfqs r JOIN combo_legs l ON l.combo_id = r.combo_id"
-            " WHERE r.first_seen_ms > ?", (since,)).fetchall()
-        for ts, pid in rows:
-            if ts > self.last_seen.get(pid, 0):
-                self.last_seen[pid] = ts
-            if ts > self._cursor_ms:
-                self._cursor_ms = ts
-            if ts > self._cursor_ms - 2_000:   # rows in the overlap are re-read; count only the fresh tail
-                self.rfq_counts[pid] = self.rfq_counts.get(pid, 0) + 1
-        cutoff = now - self.window_ms
-        for pid in [p for p, t in self.last_seen.items() if t < cutoff]:
-            del self.last_seen[pid]
-            self.rfq_counts.pop(pid, None)
-        return set(self.last_seen)
-
-
-# ------------------------------------------------------------- game universe
-_GAME_PREFIX_RE = re.compile(r"^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})")
-
-
-def game_prefix_of(slug: str) -> str | None:
-    """{league}-{away}-{home}-{YYYY-MM-DD} prefix of a Polymarket sports slug, else None."""
-    m = _GAME_PREFIX_RE.match(slug or "")
-    return m.group(1) if m else None
-
-
-def _sport_of(slug: str) -> str | None:
-    try:
-        from .sports.registry import sport_for_slug
-        from . import sports  # noqa: F401  (registers built-in sports)
-        spec = sport_for_slug(slug)
-        if spec is not None:
-            return spec.sport
-    except Exception:  # registry unavailable: fall back to the league token of the slug
-        pass
-    return slug.split("-", 1)[0] if slug else None
-
-
-def _parse_gamma_time(t: str | None) -> int | None:
-    """Gamma times look like '2026-10-25 13:30:00+00' or ISO '2026-10-25T13:30:00Z' -> ms."""
-    if not t:
-        return None
-    try:
-        t2 = t.replace("Z", "+00:00").replace(" ", "T")
-        if re.search(r"[+-]\d{2}$", t2):
-            t2 += ":00"
-        return int(datetime.fromisoformat(t2).astimezone(timezone.utc).timestamp() * 1000)
-    except ValueError:
-        return None
-
-
-class GameUniverse:
-    """Whole-game ladders: every catalog position of a game that any recent RFQ leg belongs to.
-
-    Legs (from RfqLegUniverse) -> game prefixes via markets.slug -> all positions under the prefix,
-    for sports in `sports` only; other sports stay leg-level. Gamma /events?slug={game} fills
-    leg_tokens for the whole game in one call (and gives gameStartTime for the lookahead filter).
-    Games are ranked by RFQ count when `max_tokens` binds. Returns legs | game positions.
-    """
-
-    def __init__(self, store: BookStore, rfq_db: str | Path, legs: RfqLegUniverse, *, sports: Iterable[str] = ("nfl", "nba"),
-                 max_tokens: int = 20_000, lookahead_hours: float = 72.0, gamma_url: str = DEFAULT_GAMMA_URL,
-                 game_refresh_ms: int = 6 * 3_600_000, concurrency: int = 4, client: httpx.AsyncClient | None = None):
-        self.store = store
-        self.legs = legs
-        self.sports = {x.strip().lower() for x in sports if x.strip()}
-        self.max_tokens = max_tokens
-        self.lookahead_ms = int(lookahead_hours * 3_600_000)
-        self.gamma_url = gamma_url.rstrip("/")
-        self.game_refresh_ms = game_refresh_ms
-        self.concurrency = concurrency
-        self._client = client
-        self.cat = sqlite3.connect(f"file:{Path(rfq_db)}?mode=ro", uri=True, check_same_thread=False)
-        self.cat.execute("PRAGMA busy_timeout=5000")
-        self.report: dict[str, dict[str, int]] = {}   # sport -> {games, tokens, skipped_lookahead, skipped_cap}
-
-    async def __call__(self) -> set[str]:
-        leg_pos = self.legs()
-        if not self.sports:
-            return leg_pos
-        now = now_ms()
-        # 1. leg -> slug -> game prefix (+ RFQ count per game for ranking)
-        games: dict[str, str] = {}            # prefix -> sport
-        rfq_count: dict[str, int] = {}
-        legs = sorted(leg_pos)
-        for i in range(0, len(legs), 500):
-            chunk = legs[i:i + 500]
-            q = f"SELECT position_id, slug FROM markets WHERE position_id IN ({','.join('?' * len(chunk))})"
-            for pid, slug in self.cat.execute(q, chunk):
-                sport = _sport_of(slug or "")
-                prefix = game_prefix_of(slug or "")
-                if sport in self.sports and prefix:
-                    games[prefix] = sport
-                    rfq_count[prefix] = rfq_count.get(prefix, 0) + self.legs.rfq_counts.get(pid, 1)
-        # 2. Gamma event per game (new or stale) -> leg_tokens + games.game_start_time
-        await self._fill_games(games, now)
-        # 3. catalog positions per game (one LIKE scan per sport, filtered in Python)
-        positions: dict[str, list[str]] = {g: [] for g in games}
-        for sport in {s for s in games.values()}:
-            like = f"{sport}-%"
-            for pid, slug in self.cat.execute("SELECT position_id, slug FROM markets WHERE slug LIKE ?", (like,)):
-                prefix = game_prefix_of(slug or "")
-                if prefix in positions:
-                    positions[prefix].append(pid)
-        # 4. lookahead filter, then rank by RFQ count and apply the token cap
-        out = set(leg_pos)
-        budget = self.max_tokens
-        report: dict[str, dict[str, int]] = {}
-        for g, sport in sorted(games.items(), key=lambda kv: -rfq_count.get(kv[0], 0)):
-            r = report.setdefault(sport, {"games": 0, "tokens": 0, "skipped_lookahead": 0, "skipped_cap": 0, "no_event": 0})
-            row = self.store.game(g)
-            start_ms = _parse_gamma_time(row["game_start_time"]) if row else None
-            skip = None
-            if start_ms is not None and start_ms > now + self.lookahead_ms:
-                skip = "lookahead"; r["skipped_lookahead"] += 1
-            elif row is not None and row["event_id"] is None:
-                r["no_event"] += 1          # tokens may still resolve via the catalog batch path
-            n = len(positions[g])
-            if skip is None and n > budget:
-                skip = "cap"; r["skipped_cap"] += 1
-            if skip is None:
-                out.update(positions[g]); budget -= n
-                r["games"] += 1; r["tokens"] += n
-            self.store.upsert_game({"game_prefix": g, "sport": sport, "event_id": None, "game_start_time": None,
-                                    "n_positions": n, "rfq_count": rfq_count.get(g, 0), "included": int(skip is None),
-                                    "skip_reason": skip, "fetched_ms": None, "updated_ms": now})
-        self.report = report
-        return out
-
-    async def _fill_games(self, games: dict[str, str], now: int) -> None:
-        todo = [g for g in games if (row := self.store.game(g)) is None or row["fetched_ms"] is None
-                or now - row["fetched_ms"] >= self.game_refresh_ms]
-        if not todo:
-            return
-        own = self._client is None
-        client = self._client or httpx.AsyncClient(timeout=30, headers={"User-Agent": "Mozilla/5.0 rfqbot/0.1"})
-        sem = asyncio.Semaphore(self.concurrency)
-
-        async def one(g: str) -> None:
-            async with sem:
-                try:
-                    resp = await client.get(f"{self.gamma_url}/events", params={"slug": g})
-                    resp.raise_for_status()
-                    body = resp.json()
-                except Exception as e:
-                    log.warning("gamma event %s failed: %s", g, e)
-                    return
-                ev = body[0] if isinstance(body, list) and body else (body if isinstance(body, dict) else None)
-                event_id = str(ev["id"]) if ev and ev.get("id") else None
-                start = None
-                rows = []
-                for mk in (ev or {}).get("markets") or []:
-                    try:
-                        toks = json.loads(mk.get("clobTokenIds") or "[]")
-                        outs = json.loads(mk.get("outcomes") or "[]")
-                    except ValueError:
-                        continue
-                    start = start or mk.get("gameStartTime")
-                    for i, pid in enumerate(mk.get("positionIds") or []):
-                        rows.append((str(pid), mk.get("conditionId"), i, outs[i] if i < len(outs) else None,
-                                     str(toks[i]) if i < len(toks) else None, mk.get("slug"), event_id,
-                                     mk.get("gameStartTime"), mk.get("endDate"), now))
-                if rows:
-                    self.store.upsert_tokens(rows)
-                self.store.upsert_game({"game_prefix": g, "sport": games[g], "event_id": event_id, "game_start_time": start,
-                                        "n_positions": None, "rfq_count": None, "included": 0, "skip_reason": None,
-                                        "fetched_ms": now, "updated_ms": now})
-                log.info("gamma event %s: %d markets, %d tokens, start %s", g, len((ev or {}).get("markets") or []),
-                         sum(1 for r in rows if r[4]), start)
-
-        try:
-            await asyncio.gather(*(one(g) for g in todo))
-        finally:
-            if own:
-                await client.aclose()
-
-
-# ---------------------------------------------------------------- token map
-class TokenMap:
-    """position_id -> CLOB token_id. Catalog (rfq.db markets) gives condition_id + outcome index;
-    Gamma /markets?condition_ids=... gives clobTokenIds. Results are cached in books.db."""
-
-    def __init__(self, store: BookStore, rfq_db: str | Path, *, gamma_url: str = DEFAULT_GAMMA_URL,
-                 retry_unresolved_ms: int = 1_800_000, batch: int = 100):
-        self.store = store
-        self.gamma_url = gamma_url.rstrip("/")
-        self.retry_unresolved_ms = retry_unresolved_ms
-        self.batch = batch
-        self.cat = sqlite3.connect(f"file:{Path(rfq_db)}?mode=ro", uri=True, check_same_thread=False)
-        self.cat.execute("PRAGMA busy_timeout=5000")
-        self.unresolved = 0
-
-    async def __call__(self, position_ids: set[str]) -> dict[str, str]:
-        cached = self.store.tokens_cached(position_ids)
-        now = now_ms()
-        out = {p: t for p, (t, _) in cached.items() if t}
-        todo = [p for p in position_ids if p not in out
-                and (p not in cached or now - cached[p][1] >= self.retry_unresolved_ms)]
-        if todo:
-            out.update(await self._resolve(todo, now))
-        self.unresolved = len(position_ids) - len(out)
-        return out
-
-    async def _resolve(self, position_ids: list[str], now: int) -> dict[str, str]:
-        rows = {}
-        for pid in position_ids:
-            r = self.cat.execute("SELECT condition_id, outcome_index, outcome, slug FROM markets WHERE position_id=?",
-                                 (pid,)).fetchone()
-            rows[pid] = tuple(r) if r else None
-        by_cond: dict[str, list[str]] = {}
-        for pid, r in rows.items():
-            if r and r[0]:
-                by_cond.setdefault(r[0], []).append(pid)
-        gamma: dict[str, dict] = {}
-        conds = list(by_cond)
-        async with httpx.AsyncClient(timeout=20) as client:
-            for i in range(0, len(conds), self.batch):
-                chunk = conds[i:i + self.batch]
-                try:
-                    resp = await client.get(f"{self.gamma_url}/markets",
-                                            params=[("condition_ids", c) for c in chunk] + [("limit", len(chunk))])
-                    resp.raise_for_status()
-                    for mk in resp.json():
-                        gamma[str(mk.get("conditionId", "")).lower()] = mk
-                except Exception as e:  # leave these unresolved; retried after retry_unresolved_ms
-                    log.warning("gamma lookup failed for %d markets: %s", len(chunk), e)
-        out, upserts = {}, []
-        for pid, r in rows.items():
-            cond, idx, outcome, slug = r if r else (None, None, None, None)
-            mk = gamma.get((cond or "").lower())
-            token = None
-            if mk:
-                try:
-                    toks = json.loads(mk.get("clobTokenIds") or "[]")
-                    outs = json.loads(mk.get("outcomes") or "[]")
-                    j = outs.index(outcome) if outcome in outs else idx
-                    token = str(toks[j]) if j is not None and j < len(toks) else None
-                except (ValueError, TypeError, IndexError):
-                    token = None
-            ev = (mk.get("events") or [{}])[0] if mk else {}
-            upserts.append((pid, cond, idx, outcome, token, slug, str(ev.get("id")) if ev.get("id") else None,
-                            (mk or {}).get("gameStartTime"), (mk or {}).get("endDate"), now))
-            if token:
-                out[pid] = token
-        self.store.upsert_tokens(upserts)
-        return out
+# RfqLegUniverse, GameUniverse and TokenMap live in rfqbot.books_universe and are re-exported above.
+# rfqbot.history.* still imports the Gamma time parser under its old name; it is rfqbot.timeutil.parse_iso_ms.
+_parse_gamma_time = parse_iso_ms
 
 
 async def identity_map(position_ids: set[str]) -> dict[str, str]:
@@ -544,9 +319,14 @@ class BookConn:
         self.conn_id = ""
         self.seq = 0
         self.stopped = False
+        self.last_frame_ms: int | None = None   # receive time of the last frame on the current socket
 
     def __len__(self) -> int:
         return len(self.wanted)
+
+    @property
+    def connected(self) -> bool:
+        return self._ws is not None
 
     def add(self, assets: set[str]) -> None:
         self.wanted |= assets
@@ -577,10 +357,11 @@ class BookConn:
                 continue
             self.conn_id = f"b{self.index}-{now_ms():x}-{uuid.uuid4().hex[:6]}"
             self.seq = 0
+            self.last_frame_ms = None
             got_frames = False
             reason = "closed"
             try:
-                async with connect(self.rec.url, ping_interval=None, close_timeout=5, max_size=16 * 1024 * 1024) as ws:
+                async with connect(self.rec.url, ping_interval=None, close_timeout=5, max_size=WS_MAX_FRAME_BYTES) as ws:
                     self._ws = ws
                     self._pending_add.clear(); self._pending_remove.clear()
                     self.rec.on_connected(self, len(self.wanted))
@@ -681,11 +462,14 @@ class BookRecorder:
         self.last_summary: dict[str, tuple] = {}
         self.counts: dict[str, int] = {}
         self.stopping = False
+        self._stop_ev: asyncio.Event | None = None   # created in run(); stop() before run() just sets `stopping`
         self._tasks: list[asyncio.Task] = []
         self._last_commit = time.monotonic()
+        self._persisted_frame_ms: dict[str, int] = {}   # conn_id -> last_frame_ms written to book_connections
 
     # -- lifecycle ----------------------------------------------------------
     async def run(self) -> None:
+        self._stop_ev = asyncio.Event()
         self.store.begin()
         self.store.close_stale_subscriptions(now_ms())
         self._tasks.append(asyncio.create_task(self._flusher(), name="book-flusher"))
@@ -694,7 +478,7 @@ class BookRecorder:
                 await self._refresh_universe()
                 self.store.commit(); self.store.begin()
                 try:
-                    await asyncio.wait_for(self._stop_event().wait(), timeout=self.refresh_sec)
+                    await asyncio.wait_for(self._stop_ev.wait(), timeout=self.refresh_sec)
                 except asyncio.TimeoutError:
                     pass
         finally:
@@ -704,15 +488,43 @@ class BookRecorder:
             for t in self._tasks:
                 t.cancel()
             await asyncio.gather(*self._tasks, return_exceptions=True)
+            self._persist_liveness()
             self.store.commit()
             if self.rawlog is not None:
                 self.rawlog.close()
+            self._close_sources()
+
+    def _close_sources(self) -> None:
+        """Release the universe's and mapper's rfq.db connections (RfqLegUniverse / GameUniverse / TokenMap)."""
+        for src in (self.universe, self.mapper):
+            close = getattr(src, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception as e:  # shutdown must finish; a closed-twice connection is not worth a traceback
+                    log.warning("closing %s failed: %s", type(src).__name__, e)
 
     async def _flusher(self) -> None:
-        """Write deferred (coalesced) top changes once their asset's interval has elapsed."""
+        """Write deferred (coalesced) top changes once their asset's interval has elapsed; persist socket liveness."""
         while True:
             await asyncio.sleep(min(0.25, self.min_interval_ms / 1000 or 0.25))
             self._flush_dirty(now_ms())
+            self._persist_liveness()
+
+    def _persist_liveness(self) -> None:
+        """Write each socket's last_frame_ms to book_connections when it moved (not per frame: ~2.5k frames/s)."""
+        updates = {c.conn_id: c.last_frame_ms for c in self.conns
+                   if c.conn_id and c.last_frame_ms is not None and self._persisted_frame_ms.get(c.conn_id) != c.last_frame_ms}
+        if updates:
+            self.store.set_last_frame_ms(updates)
+            self._persisted_frame_ms.update(updates)
+
+    def last_frame_ms(self, conn_id: str | None = None) -> int | None:
+        """In-memory last receive time: of one socket by conn_id, or the newest over all sockets."""
+        if conn_id is not None:
+            return next((c.last_frame_ms for c in self.conns if c.conn_id == conn_id), None)
+        seen = [c.last_frame_ms for c in self.conns if c.last_frame_ms is not None]
+        return max(seen) if seen else None
 
     def _flush_dirty(self, now: int) -> None:
         for a in [a for a, _ in self._dirty.items() if now - self._last_write_ms.get(a, 0) >= self.min_interval_ms]:
@@ -723,14 +535,10 @@ class BookRecorder:
                 self._last_write_ms[a] = now
                 self._bump("top_rows")
 
-    def _stop_event(self) -> asyncio.Event:
-        if not hasattr(self, "_stop_ev"):
-            self._stop_ev = asyncio.Event()
-        return self._stop_ev
-
     def stop(self) -> None:
         self.stopping = True
-        self._stop_event().set()
+        if self._stop_ev is not None:
+            self._stop_ev.set()
 
     # -- universe -> connections -------------------------------------------
     async def _refresh_universe(self) -> None:
@@ -756,11 +564,14 @@ class BookRecorder:
             c.remove(assets)
         if removed:
             self.store.unsubscribed(removed, now)
+        live_added: dict[BookConn, dict[str, str]] = {}
         for a in sorted(added):
             c = self._conn_with_room()
             c.add({a}); self.owner[a] = c; self.position_of[a] = desired[a]
-        if added:
-            self.store.subscribed({a: desired[a] for a in added}, now)
+            if c.connected:   # a socket not yet open records its whole set in on_connected
+                live_added.setdefault(c, {})[a] = desired[a]
+        for c, assets in live_added.items():
+            self.store.subscribed(assets, now, conn_id=c.conn_id)
         if added or removed:
             log.info("universe: %d positions -> %d tokens (+%d -%d) over %d connections", len(positions), len(self.owner),
                      len(added), len(removed), sum(1 for c in self.conns if len(c)))
@@ -782,14 +593,22 @@ class BookRecorder:
 
     # -- connection callbacks ----------------------------------------------
     def on_connected(self, c: BookConn, n: int) -> None:
-        self.store.conn_opened(c.conn_id, now_ms(), n)
+        now = now_ms()
+        self.store.conn_opened(c.conn_id, now, n)
+        # every asset on this socket gets a fresh row under its conn_id (the previous socket's rows were closed)
+        self.store.subscribed({a: self.position_of.get(a, "") for a in c.wanted}, now, conn_id=c.conn_id)
         log.info("book conn %d connected %s with %d assets", c.index, c.conn_id, n)
 
     def on_disconnected(self, c: BookConn, reason: str) -> None:
-        self.store.conn_closed(c.conn_id, now_ms(), reason)
+        now = now_ms()
+        self.store.unsubscribed_conn(c.conn_id, now)
+        self.store.conn_closed(c.conn_id, now, reason, c.last_frame_ms)
+        if c.last_frame_ms is not None:
+            self._persisted_frame_ms[c.conn_id] = c.last_frame_ms
 
     def on_frame(self, c: BookConn, text: str) -> None:
         at = now_ms()
+        c.last_frame_ms = at
         if text == "PONG":
             self._bump("pong")
             return

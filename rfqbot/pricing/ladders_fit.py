@@ -82,35 +82,37 @@ def pava_decreasing(y: np.ndarray, w: np.ndarray) -> np.ndarray:
 
 
 def fit_survival(obs: list[Obs], *, k_flag: float = 3.0, downweight: float = 0.01) -> SurvivalFit:
+    """Weighted isotonic fit of P(V > x). Observations at the same line (the two outcomes of one
+    market, the mirror market, several books) are first aggregated into one point per distinct
+    line by weighted mean with summed weight, so the fit does not depend on the input order
+    (PAVA pools ties in arrival order otherwise)."""
     if not obs:
         raise ValueError("empty ladder")
     xs_all = np.array([o.x for o in obs])
     ps = np.clip(np.array([o.p for o in obs]), 0.0, 1.0)
     errs = np.array([max(o.err, 1e-4) for o in obs])
-    order = np.argsort(xs_all, kind="stable")
     w = 1.0 / errs ** 2
+    xs, inv = np.unique(xs_all, return_inverse=True)      # ascending distinct lines
 
     def run(weights: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        fit_sorted = pava_decreasing(ps[order], weights[order])
-        fit = np.empty_like(fit_sorted)
-        fit[order] = fit_sorted
-        return np.clip(fit, 0.0, 1.0), (ps - fit) / errs
+        w_line = np.bincount(inv, weights=weights, minlength=len(xs))
+        p_line = np.bincount(inv, weights=weights * ps, minlength=len(xs)) / w_line
+        s_line = np.clip(pava_decreasing(p_line, w_line), 0.0, 1.0)
+        return s_line, (ps - s_line[inv]) / errs
 
     # flag one observation at a time (the worst), down-weight it and refit, so a single gross
     # violation does not drag its pooled neighbours into the flag set
     w2 = w.copy()
     flagged: list[int] = []
     for _ in range(len(obs)):
-        fit, resid = run(w2)
+        s, resid = run(w2)
         cand = [int(i) for i in np.argsort(-np.abs(resid)) if abs(resid[i]) > k_flag and int(i) not in flagged]
         if not cand:
             break
         flagged.append(cand[0])
         w2[cand[0]] *= downweight
     flagged.sort()
-    xs = np.unique(xs_all)
-    s = np.array([np.average(fit[xs_all == x]) for x in xs])
-    s = np.minimum.accumulate(np.clip(s, 0, 1))
+    s = np.minimum.accumulate(s)
     return SurvivalFit(xs=xs, s=s, obs=list(obs), resid=resid, flagged=flagged, n_lines=len(xs))
 
 
@@ -290,7 +292,7 @@ def split_tie_bucket(bins: Bins, fit: SurvivalFit, prior_pmf: np.ndarray, tie_pr
     new_bin[bins.support >= 1] += 1
     mass = np.concatenate([bins.mass[:b], [pm1, p0, p1], bins.mass[b + 1:]])
     mass = np.clip(mass, 0, None); mass /= mass.sum()
-    note = (f"tie bucket: P(M=0)={p0:.4f} ({'tie_prob' if tie_prob is not None else 'prior share'}), "
-            f"P(M=1)={p1:.4f} from {src}, P(M=-1)={pm1:.4f}")
+    how = "tie_prob" if tie_prob is not None else "prior share: an engine assumption, no empirical half-time tie rate"
+    note = f"tie bucket: P(M=0)={p0:.4f} ({how}), P(M=1)={p1:.4f} from {src}, P(M=-1)={pm1:.4f}"
     return Bins(support=bins.support, bin_of=new_bin, mass=mass, edges=bins.edges), note
 

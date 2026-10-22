@@ -80,10 +80,21 @@ def test_game_worst_loss_cap(models):
 
 def test_es1_cap_and_marginal_risk(models):
     caps = Caps(capital_usd=1000.0, max_outcome_delta=1e9, max_game_worst_loss=1e9, max_portfolio_es1=0.15)
-    # a p=0.5 coin bought at 0.5: the 1% tail loses 0.5 per share -> ES1 = 0.5 s <= 150 -> s = 300
+    # a p=0.5 coin bought at 0.5: the 1% tail loses 0.5 per share -> ES1 = 0.5 s <= 150 -> s = 300,
+    # on an empty book for every seed (the book has no tail of its own; the candidate's is used)
     cand = pos("c", [factor_leg("coin", 0.5)], 1, 1000.0, 0.5)
-    r = check(Book(), cand, models, caps=caps, n_draws=20_000)
-    assert r.binding_cap == "es1" and r.allowed_size == pytest.approx(300.0, rel=1e-3)
+    for seed in range(4):
+        r = check(Book(), cand, models, caps=caps, n_draws=20_000, seed=seed)
+        assert r.binding_cap == "es1" and r.allowed_size == pytest.approx(300.0, rel=1e-3), seed
+    # the same on a flat (two-sided, zero P&L) book, and through the hot-path helper
+    flat = Book([pos("l", [factor_leg("coin", 0.5)], 1, 10.0, 0.5), pos("s", [factor_leg("coin", 0.5)], -1, 10.0, 0.5)])
+    for seed in range(4):
+        r = check(flat, cand, models, caps=caps, seed=seed)
+        assert r.allowed_size == pytest.approx(300.0, rel=1e-3), seed
+    from rfqbot.risk.caps import es1_limit
+    ex = Exposure(Book(), models, n_draws=20_000, seed=2)
+    allowed, slope, es0 = es1_limit(ex, ex.derive([pos("c", [factor_leg("coin", 0.5)], 1, 1.0, 0.5)]), 150.0, 1000.0)
+    assert allowed == pytest.approx(300.0, rel=1e-3) and slope == pytest.approx(0.5, abs=1e-9) and es0 == 0.0
     # marginal risk: adding to a long book raises ES1, the hedge lowers it
     book = Book([pos("b", [leg(ml("DAL"))], 1, 100.0, 0.5)])
     ex = Exposure(book, models, n_draws=20_000)
@@ -96,6 +107,17 @@ def test_es1_cap_and_marginal_risk(models):
     assert mr_more.tail_mean_per_share == pytest.approx(0.5, abs=1e-9)        # in the tail DAL lost: -(0 - 0.5)
     assert mr_more.cov_by_game[G1] > 0 > mr_hedge.cov_by_game[G1]
     assert mr_more.corr_by_game[G1] == pytest.approx(1.0) and mr_hedge.corr_by_game[G1] == pytest.approx(-1.0)
+
+
+def test_outcome_usage_counts_only_same_sign_deltas(models):
+    from rfqbot.risk.caps import outcome_limit
+    book = Book([pos("b1", [leg(ml("DAL"))], 1, 100.0, 0.5)])           # +100 to DAL win, -x to PHI win
+    ex = Exposure(book, models)
+    adder = ex.derive([pos("c", [leg(ml("DAL"))], 1, 1.0, 0.5)])
+    hedge = ex.derive([Position("h", [leg(ml("DAL"))], -1, 1.0, 0.5, "filled")])
+    _, _, use_add = outcome_limit(ex, adder, 1000.0)
+    _, _, use_hedge = outcome_limit(ex, hedge, 1000.0)
+    assert use_add == pytest.approx(0.1, abs=1e-9) and use_hedge == 0.0
 
 
 def test_notional_caps_and_usage(models):
@@ -117,4 +139,6 @@ def test_caps_from_env():
     assert c.max_day_notional is None and c.max_game_worst_loss == 0.10 and c.max_portfolio_es1 == 0.15
     assert c.limit("outcome") == 2000 and c.limit("day") is None
     d = Caps.from_env({})
-    assert d.capital_usd == 50_000 and d.limit("es1") == 7_500
+    assert d.capital_usd == 50_000 and d.limit("es1") == 7_500 and d.n_draws == 20_000 and d.seed == 0
+    e = Caps.from_env({"RISK_N_DRAWS": "4000", "RISK_SEED": "7"})
+    assert e.n_draws == 4000 and e.seed == 7 and e.as_dict()["n_draws"] == 4000

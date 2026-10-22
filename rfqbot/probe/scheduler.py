@@ -3,21 +3,26 @@
 Trigger (paper): a print on a combo we quoted (decision joined to the trade on rfq_id, as
 ``rfqbot.edge.fills`` does). Live: our own fill (``trades.is_ours``). Each trigger is probed after
 ``delay_sec`` and again at each of ``horizons_sec``; the trigger's own direction first, the opposite
-one too when the budget allows (a two-sided mark). Budget: ``max_per_hour`` overall, ``max_per_combo``
-per combo per day, ``min_spacing_sec`` between probes on one combo. Priority: segments with the fewest
-probes so far, then the largest quoted size.
+one too when the budget allows (a two-sided mark). Budget: ``max_per_hour`` overall, ``max_per_minute``
+per rolling minute (the venue allows 15 creates per minute per maker_address; ``execute`` also paces
+live sends ``60 / max_per_minute`` s apart), ``max_per_combo`` per combo per day, ``min_spacing_sec``
+between probes on one combo. Priority: segments with the fewest probes so far, then the largest
+quoted size. A disguised BUY whose expected price would exceed ``buy_safety_max`` is skipped (recorded
+with status SKIPPED so it is not re-planned).
 """
 from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from ..edge.config import EdgeConfig
 from ..edge.data import DecisionRec, Print, load_decisions, load_prints
 from ..edge.fairs import FairSource
 from ..edge.segments import Segment
+from ..slugs import game_prefix_of
 from .config import ProbeConfig
 from .disguise import ExtraLeg, LegMeta, back_out, candidate_pool, leg_meta, pick_extra_leg
 from .gateway import E6, Gateway, ProbeRequest
@@ -83,7 +88,7 @@ class PlanStats:
     selected: int = 0
     already_done: int = 0
     too_late: int = 0
-    dropped_hourly: int = 0
+    dropped_hourly: int = 0          # hourly or per-minute budget exhausted
     dropped_combo_cap: int = 0
     dropped_spacing: int = 0
     budget_remaining: int = 0
@@ -114,7 +119,7 @@ def plan(trigs: Sequence[Trigger], store: ProbeStore, cfg: ProbeConfig, now: int
                     continue
                 cands.append(Plan(t, h, d, due, (seg_counts.get(t.segment, 0), i, -t.size_e6, h, due)))
     cands.sort(key=lambda p: p.priority)
-    budget = max(0, cfg.max_per_hour - store.count_since(now - 3_600_000))
+    budget = max(0, min(cfg.max_per_hour - store.count_since(now - 3_600_000), cfg.max_per_minute - store.count_since(now - 60_000)))
     st.budget_remaining = budget
     chosen: list[Plan] = []
     combo_used: dict[str, int] = {}
@@ -144,51 +149,73 @@ def plan(trigs: Sequence[Trigger], store: ProbeStore, cfg: ProbeConfig, now: int
 
 
 def build_request(p: Plan, cfg: ProbeConfig, extra: ExtraLeg | None) -> ProbeRequest:
+    """ValueError when a BUY's expected price (our quote or the print, times p_L when disguised) exceeds
+    ``buy_safety_max``: the venue caps BUY prices at 0.90909 and the probe would only fail there."""
     legs = tuple(p.trigger.position_ids) + ((extra.position_id,) if extra else ())
-    if p.direction == "BUY":
-        return ProbeRequest(legs, "BUY", "notional", int(round(cfg.size_usd * E6)))
     est = p.trigger.our_price or p.trigger.price or 0.5
     if extra:
         est *= extra.p_L
+    if p.direction == "BUY":
+        if est > cfg.buy_safety_max + 1e-9:
+            raise ValueError(f"expected BUY price {est:.4f} exceeds PROBE_BUY_SAFETY_MAX {cfg.buy_safety_max}")
+        return ProbeRequest(legs, "BUY", "notional", int(round(cfg.size_usd * E6)))
     shares = cfg.size_usd / max(est, 0.001)
     return ProbeRequest(legs, "SELL", "shares", int(round(shares * E6)))
 
 
 def execute(plans: Sequence[Plan], gateway: Gateway, store: ProbeStore, cfg: ProbeConfig, *, now: int | None = None,
             fairs: FairSource | None = None, pool: Sequence[ExtraLeg] | None = None, metas: dict[str, LegMeta] | None = None,
-            mode: str | None = None) -> list[dict[str, Any]]:
-    """Send each plan (disguised when configured and a leg exists), record the row. Returns the rows."""
+            mode: str | None = None, pace: Callable[[float], None] | None = None) -> list[dict[str, Any]]:
+    """Send each plan (disguised when configured and a leg exists), record the row. Returns the rows.
+    Live sends (``gateway.name == "http"``) require PROBE_MODE=live and are paced ``60 / max_per_minute`` s
+    apart through ``pace`` (``time.sleep`` by default; dry / fake gateways are not paced)."""
     now = now if now is not None else now_ms()
-    mode = mode or gateway.name
+    mode = mode or ("live" if gateway.name == "http" else gateway.name)   # rows: dry | live | fake (the budget counts these)
+    if gateway.name == "http" and cfg.mode != "live":
+        raise RuntimeError(f"refusing to send through the http gateway with PROBE_MODE={cfg.mode!r}")
+    gap_s = (60.0 / cfg.max_per_minute) if (gateway.name == "http" and cfg.max_per_minute > 0) else 0.0
+    pace = pace or time.sleep
     if pool is None:
         pool = candidate_pool(cfg, now) if cfg.disguise else []
     if metas is None:
         pids = {pid for p in plans for pid in p.trigger.position_ids}
         metas = leg_meta(pids, books_db=cfg.books_db, rfq_db=cfg.rfq_db) if pids else {}
     rows: list[dict[str, Any]] = []
+    sent = 0
     for i, p in enumerate(plans):
         t = p.trigger
+        d = t.decision
         combo = [metas.get(pid) or LegMeta(pid, None, None, None, None, None, None) for pid in t.position_ids]
         extra = pick_extra_leg(combo, now, pool, salt=i) if cfg.disguise and pool else None
-        req = build_request(p, cfg, extra)
-        body = req.body(cfg)
-        resp = gateway.create(req)
-        fair = fairs.combo(t.position_ids, [l.slug and _prefix(l.slug) for l in combo], now) if fairs is not None else None
-        backed, err = (None, None)
-        if resp.price is not None:
-            backed, err = back_out(resp.price, extra.p_L, extra.spread) if extra else (resp.price, 0.0)
-        d = t.decision
         row = {"created_ms": now, "mode": mode, "trigger_rfq_id": t.rfq_id, "trigger_kind": t.kind, "trigger_condition": t.condition_id,
                "trigger_direction": t.direction, "trigger_price": t.price, "trigger_size_e6": t.size_e6, "trigger_at_ms": t.at_ms,
                "trigger_requester": t.requester, "decision_id": d.id if d else None, "our_price": d.price if d else None,
                "our_p_fair": d.p_fair if d else None, "our_margin": (abs(d.price - d.p_fair) if d else None),
                "our_sigma": d.sigma if d else None, "segment": t.segment, "horizon_sec": p.horizon_sec, "direction": p.direction,
                "legs_json": json.dumps(t.position_ids), "extra_leg_json": json.dumps(extra.as_dict()) if extra else None,
-               "p_L": extra.p_L if extra else None, "p_L_spread": extra.spread if extra else None, "body_json": json.dumps(body),
-               "response_json": json.dumps(resp.raw) if resp.raw else None, "status": resp.status, "probe_rfq_id": resp.rfq_id,
-               "requestor_public_id": resp.requestor_public_id, "blended_price": resp.price, "backed_out_price": backed,
-               "backed_out_err": err, "leg_fair_send": fair.model if fair else None, "leg_fair_poly": fair.poly if fair else None,
-               "leg_fair_kalshi": fair.kalshi if fair else None, "latency_ms": resp.latency_ms, "error": resp.error}
+               "p_L": extra.p_L if extra else None, "p_L_spread": extra.spread if extra else None}
+        try:
+            req = build_request(p, cfg, extra)
+        except ValueError as e:
+            log.info("probe %s@%ss on %s skipped: %s", p.direction, p.horizon_sec, t.rfq_id, e)
+            row.update({"body_json": "{}", "status": "SKIPPED", "error": str(e), "latency_ms": 0.0})
+            row["id"] = store.put(row)
+            rows.append(row)
+            continue
+        body = req.body(cfg)
+        if sent and gap_s > 0:
+            pace(gap_s)
+        resp = gateway.create(req)
+        sent += 1
+        fair = fairs.combo(t.position_ids, [l.slug and game_prefix_of(l.slug) for l in combo], now) if fairs is not None else None
+        backed, err = (None, None)
+        if resp.price is not None:
+            backed, err = back_out(resp.price, extra.p_L, extra.spread) if extra else (resp.price, 0.0)
+        row.update({"body_json": json.dumps(body), "response_json": json.dumps(resp.raw) if resp.raw else None, "status": resp.status,
+                    "probe_rfq_id": resp.rfq_id, "requestor_public_id": resp.requestor_public_id, "blended_price": resp.price,
+                    "backed_out_price": backed, "backed_out_err": err, "leg_fair_send": fair.model if fair else None,
+                    "leg_fair_poly": fair.poly if fair else None, "leg_fair_kalshi": fair.kalshi if fair else None,
+                    "latency_ms": resp.latency_ms, "error": resp.error})
         row["id"] = store.put(row)
         rows.append(row)
         if resp.requestor_public_id and not store.meta("requester_id"):
@@ -196,8 +223,3 @@ def execute(plans: Sequence[Plan], gateway: Gateway, store: ProbeStore, cfg: Pro
             log.warning("learned our requestor_public_id %s: set PROBE_REQUESTER_ID=%s so the quoter skips our probes",
                         resp.requestor_public_id, resp.requestor_public_id)
     return rows
-
-
-def _prefix(slug: str) -> str | None:
-    from ..edge.data import game_prefix_of
-    return game_prefix_of(slug)

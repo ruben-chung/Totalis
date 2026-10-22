@@ -19,7 +19,7 @@ outcome label) is a ``PolyParseError`` rather than a choice.
 
 Settlement rules come from the Gamma descriptions read on 2026-10-20 (one per family and
 period, see tests/fixtures). They are per-family constants here because the catalog row does
-not carry the description; ``nfl-coverage --gamma`` re-checks them against live descriptions.
+not carry the description; ``coverage --sport nfl --gamma`` re-checks them against live descriptions.
 """
 from __future__ import annotations
 

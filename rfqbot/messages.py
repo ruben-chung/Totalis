@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Literal
-
-Direction = Literal["BUY", "SELL"]
+from typing import Any
 
 # Inbound (server -> client)
 RFQ_REQUEST = "RFQ_REQUEST"

@@ -39,11 +39,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..slugs import E6
+
 SIDE_YES = "YES"
 BUY, SELL = "BUY", "SELL"
 MAKER_SELLS_YES, MAKER_BUYS_YES = "sell_yes", "buy_yes"
 BUY_SAFETY_MAX = 0.90909      # docs: BUY quotes above this are rejected
-SHARE_E6 = 1_000_000
+SHARE_E6 = E6                 # share base units (1 share = 1,000,000); alias of the protocol's fixed-point scale
 
 
 class UnsupportedRfq(ValueError):

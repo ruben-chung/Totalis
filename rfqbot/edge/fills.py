@@ -8,6 +8,11 @@ Both collapse to ``m <= delta`` with the competitor gap ``delta = print - p_fair
 ``p_fair - print`` (SELL), measured in our win direction. A decision without a print never fills
 (the requester did not trade), so it counts in F(m)'s denominator at every m.
 Size: a win fills ``min(1, our_size / printed_size)`` of the print.
+
+Round trips: quote assembly tags a decision ``[round_trip]`` when the requester polled BUY and SELL of
+one combo within 10 s. That fires on ~43% of quotes and describes polling, not trading; it is kept on
+the Fill for the logs. ``adverse_round_trips`` is the actual event: we (would have) filled the
+requester and the same wallet printed the opposite side of the same combo within ``ROUND_TRIP_MS``.
 """
 from __future__ import annotations
 
@@ -16,6 +21,8 @@ from typing import Iterable, Sequence
 
 from .data import DecisionRec, Print
 from .segments import Segment
+
+ROUND_TRIP_MS = 10_000
 
 
 def competitor_gap(direction: str, p_fair: float, print_price: float) -> float:
@@ -69,6 +76,30 @@ class Fill:
 
     def wins_on_grid(self, grid: Iterable[float]) -> list[bool]:
         return [self.wins_at(m) for m in grid]
+
+
+def adverse_round_trips(fills: Iterable[Fill], prints: Iterable[Print], window_ms: int = ROUND_TRIP_MS) -> set[str]:
+    """rfq_ids of fills that won at our quote where the same requester printed the opposite direction of
+    the same combo (condition_id) within ``window_ms`` of the print we filled."""
+    prints = list(prints)
+    by_rfq = {p.rfq_id: p for p in prints}
+    by_combo: dict[str, list[Print]] = {}
+    for p in prints:
+        if p.condition_id:
+            by_combo.setdefault(p.condition_id, []).append(p)
+    out: set[str] = set()
+    for f in fills:
+        if not f.win_actual:
+            continue
+        p = by_rfq.get(f.rfq_id)
+        if p is None or not p.condition_id:
+            continue
+        for q in by_combo.get(p.condition_id, ()):
+            if (q.rfq_id != p.rfq_id and q.requester == p.requester and q.direction != p.direction
+                    and abs(q.executed_at_ms - p.executed_at_ms) <= window_ms):
+                out.add(f.rfq_id)
+                break
+    return out
 
 
 def actual_markup(d: DecisionRec) -> float:

@@ -9,7 +9,7 @@ from rfqbot.history import HistoryStore, game_markets_hist
 from rfqbot.history.gamma import Http, is_side_event
 from rfqbot.history.pairs import build_pairs
 from rfqbot.history.prices import coverage_by_offset, pick_points, snapshot_prices, tokens_to_check
-from rfqbot.history.pull import ingest_event, pull, reparse, resolution
+from rfqbot.history.pull import pull, reparse, resolution
 from rfqbot.history.resolve import candidate_markets, outcome_name, resolve
 from rfqbot.store import Store
 
@@ -224,3 +224,10 @@ async def test_reparse_rewrites_legs_locally(hist, monkeypatch):
     assert c["newly_parsed"] == n_fail and c["failed"] == 0
     assert hist.scalar("SELECT COUNT(*) FROM hist_legs WHERE parse_error IS NOT NULL") == 0
     assert hist.scalar("SELECT COUNT(*) FROM hist_legs WHERE won IS NULL") == 0     # won recomputed from stored prices
+
+
+async def test_client_error_404_is_not_retried():
+    http = _http()
+    with pytest.raises(httpx.HTTPStatusError):
+        await http.get_json("https://gamma.example/nope")                      # FakeClient answers 404
+    assert http.client.calls == [("nope", None)] and http.errors == 1          # one attempt, no backoff

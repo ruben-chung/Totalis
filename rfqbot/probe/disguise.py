@@ -9,6 +9,7 @@ latest start (so the extra leg cannot resolve first), and ``disjoint`` from ever
 """
 from __future__ import annotations
 
+import math
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from ..clusters import classify_pair, cluster, leg_ref
+from ..db import SQLITE_IN_CHUNK, ro_connect
 from .config import ProbeConfig
 
 
@@ -74,9 +76,7 @@ def parse_ts(s: str | None) -> int | None:
 
 
 def _ro(path: str | Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{Path(path)}?mode=ro", uri=True, timeout=30)
-    c.row_factory = sqlite3.Row
-    return c
+    return ro_connect(path, shared=False)
 
 
 def leg_meta(position_ids: Iterable[str], *, books_db: str | Path, rfq_db: str | Path) -> dict[str, LegMeta]:
@@ -111,8 +111,8 @@ def candidate_pool(cfg: ProbeConfig, at_ms: int, *, limit: int = 5000) -> list[E
             return []
         pids = [r["position_id"] for r in pre]
         toks: dict[str, sqlite3.Row] = {}
-        for i in range(0, len(pids), 500):
-            chunk = pids[i:i + 500]
+        for i in range(0, len(pids), SQLITE_IN_CHUNK):
+            chunk = pids[i:i + SQLITE_IN_CHUNK]
             for t in books.execute(f"SELECT position_id, token_id, game_start_time FROM leg_tokens WHERE token_id IS NOT NULL"
                                    f" AND position_id IN ({','.join('?' * len(chunk))})", chunk):
                 toks[t["position_id"]] = t
@@ -164,12 +164,18 @@ def pick_extra_leg(combo: Sequence[LegMeta], at_ms: int, pool: Sequence[ExtraLeg
     return ties[salt % len(ties)]
 
 
-def back_out(quoted_price: float, p_L: float, spread: float) -> tuple[float, float]:
-    """(p_XYZ, absolute error) from the disguised quote; the error is p_XYZ x (half spread / p_L)."""
+def back_out(quoted_price: float, p_L: float, spread: float, extra_err: float = 0.0) -> tuple[float, float]:
+    """(p_XYZ, absolute error) from the disguised quote: p_XYZ = quoted / p_L.
+
+    Error: p_XYZ x sqrt((spread / 2)^2 + extra_err^2) / p_L. The half spread of the extra leg's book is a
+    FLOOR on the error, not the error: the makers price the extra leg with their own fair, whose
+    deviation from our p_L (their u_m on that leg) is not observable from the book. ``extra_err`` lets a
+    caller add that term when it has one (the marginal layer's ``err`` for the leg); the scheduler
+    passes none today, so ``backed_out_err`` in data/probe.db is a lower bound."""
     if p_L <= 0:
         raise ValueError("p_L must be positive")
     p = quoted_price / p_L
-    return p, p * (spread / 2) / p_L
+    return p, p * math.sqrt((spread / 2) ** 2 + extra_err ** 2) / p_L
 
 
 def disguised_price(p_combo: float, p_L: float) -> float:

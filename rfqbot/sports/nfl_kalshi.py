@@ -255,10 +255,9 @@ def parse_kalshi_nfl(ticker: str, title: str, floor_strike: float | None, strike
 
     rules = kalshi_rules(family, period, rules_secondary)
     ids = {"ticker": ticker, "series": series}
-    kickoff = None
     if expected_expiration_time:
         try:
-            kickoff = datetime.fromisoformat(expected_expiration_time.replace("Z", "+00:00"))
+            datetime.fromisoformat(expected_expiration_time.replace("Z", "+00:00"))
         except ValueError:
             raise KalshiParseError(f"bad expected_expiration_time {expected_expiration_time!r}: {ticker}") from None
     text = rules_primary if not rules_secondary else f"{rules_primary}\n\n{rules_secondary}"

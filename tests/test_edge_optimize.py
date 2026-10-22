@@ -9,9 +9,10 @@ from rfqbot.edge.segments import Segment
 GRID = [round(0.0025 * i, 6) for i in range(41)]   # 0 .. 0.10
 
 
-def curve(f, *, n=100, n_printed=50, sigma=0.006, delta=0.03, seg="nba|2|BUY|disjoint|s1"):
+def curve(f, *, n=100, n_printed=50, sigma=0.006, delta=0.03, seg="nba|2|BUY|disjoint|s1", deltas=()):
     return FillCurve(segment=Segment.parse(seg), grid=GRID, f=f, f_print=f, n=n, n_printed=n_printed, n_win_actual=10,
-                     fill_frac_mean=1.0, sigma_mean=sigma, margin_mean=0.01, delta_mean=delta, delta_sd=0.01, delta_median=delta)
+                     fill_frac_mean=1.0, sigma_mean=sigma, margin_mean=0.01, delta_mean=delta, delta_sd=0.01, delta_median=delta,
+                     deltas=list(deltas))
 
 
 def test_optimum_on_a_synthetic_curve_with_a_known_answer():
@@ -31,6 +32,37 @@ def test_optimum_on_a_synthetic_curve_with_a_known_answer():
     f = [max(0.0, 1 - m / 0.08) for m in GRID]
     r = optimize_node(curve(f, sigma=1e-6, delta=0.08), cfg)
     assert r.m_star == pytest.approx(0.04)
+
+
+def test_m_star_shrinks_toward_the_parent_by_win_count():
+    # a 3pt step curve on 5 printed decisions: the raw argmax is 3pt, 5 wins there
+    f = [1.0 if m <= 0.03 + 1e-12 else 0.0 for m in GRID]
+    cfg = EdgeConfig(curse_source="model", m_shrink_k=10.0)
+    c = curve(f, sigma=1e-6, delta=0.03, n_printed=5)
+    r = optimize_node(c, cfg, parent_m_star=0.01)
+    w = 5 / (5 + 10)
+    assert r.m_raw == pytest.approx(0.03) and r.n_wins_at_m == 5 and r.shrink_w == pytest.approx(w) and r.parent_m_star == 0.01
+    assert r.m_star == pytest.approx(w * 0.03 + (1 - w) * 0.01)
+    assert r.f_star == pytest.approx(c.f_at(r.m_star)) and r.base == pytest.approx(max(0.0, r.m_star - r.curse_mult * r.sigma))
+    assert r.as_dict()["m_raw"] == 0.03 and r.as_dict()["shrink_w"] == round(w, 6)
+    # many wins: the node keeps (almost) its own answer; no parent: unshrunk; k = 0: unshrunk
+    assert optimize_node(curve(f, sigma=1e-6, delta=0.03, n_printed=400), cfg, parent_m_star=0.01).m_star > 0.029
+    assert optimize_node(c, cfg).m_star == pytest.approx(0.03) and optimize_node(c, cfg).shrink_w == 1.0
+    assert optimize_node(c, EdgeConfig(m_shrink_k=0.0), parent_m_star=0.01).m_star == pytest.approx(0.03)
+
+
+def test_last_grid_point_needs_wins_strictly_beyond_it():
+    # every printed decision has delta exactly at the grid edge: F = 1 on the whole grid, so the unregularised
+    # argmax is grid_max (10pt) -- an artefact of the grid, not a measured optimum
+    f = [1.0] * len(GRID)
+    cfg = EdgeConfig(curse_source="model", min_wins_at_m=2)
+    r = optimize_node(curve(f, sigma=1e-6, delta=0.10, n_printed=5, deltas=[0.10] * 5), cfg)
+    assert r.m_star == pytest.approx(GRID[-2])
+    # with two deltas strictly beyond the grid the last point is admissible again
+    r = optimize_node(curve(f, sigma=1e-6, delta=0.12, n_printed=5, deltas=[0.10, 0.10, 0.10, 0.15, 0.2]), cfg)
+    assert r.m_star == pytest.approx(GRID[-1])
+    # a synthetic curve without recorded deltas never picks the edge
+    assert optimize_node(curve(f, sigma=1e-6, delta=0.12, n_printed=5), cfg).m_star == pytest.approx(GRID[-2])
 
 
 def test_curse_lowers_the_optimum_and_profit():

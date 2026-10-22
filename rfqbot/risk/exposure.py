@@ -16,6 +16,12 @@ Per-game vectors are conditional expectations, so they do not sum to the portfol
 distribution is a Monte Carlo that draws one scenario per game and one uniform per factor (common
 random numbers, ``Draws``), evaluates every position exactly, and sums. Positions with the same
 components are merged first, so a book of round-trip quotes costs one pass per distinct combo.
+
+Pending quotes never net against each other: when one requester has pending quotes in both
+directions on the same combo at most one of them can fill, and it will be the one that is adverse
+for us, so per (combo, requester) only the side with the larger collateral at risk is counted
+(``pending_worse_side``). Filled positions net as usual, and a pending quote nets against filled
+positions (a pending hedge must count, or the same hedge could be quoted without limit).
 """
 from __future__ import annotations
 
@@ -30,10 +36,34 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 import numpy as np
 
 from ..sports.legspec import LegSpec, LegSpecError, canonical_key, complement_side, contract_key
-from .book import Book, Position
+from .book import PENDING, Book, Position
 
 log = logging.getLogger(__name__)
 GAME, FACTOR = "game", "factor"
+MISSING_LEG_P = 0.5        # a leg without a marginal enters as a fair coin (flagged)
+
+
+def pending_worse_side(positions: Iterable[Position], flags: Counter | None = None) -> list[Position]:
+    """Drop, per (combo, requester), the pending side with the smaller collateral at risk when the
+    same requester has pending quotes in both directions on one combo (only one can fill)."""
+    out: list[Position] = []
+    groups: dict[tuple, dict[int, list[Position]]] = {}
+    for p in positions:
+        if p.status != PENDING:
+            out.append(p)
+            continue
+        key = (tuple(sorted(l.position_id for l in p.legs)), p.requester)
+        groups.setdefault(key, {1: [], -1: []})[p.sign].append(p)
+    for sides in groups.values():
+        if sides[1] and sides[-1]:
+            risk = {sgn: sum(q.size * q.max_loss_per_share for q in ps) for sgn, ps in sides.items()}
+            worse = max((1, -1), key=lambda sgn: (risk[sgn], sgn))
+            out.extend(sides[worse])
+            if flags is not None:
+                flags["pending_opposite_sides_kept_worse"] += 1
+        else:
+            out.extend(sides[1] + sides[-1])
+    return out
 
 
 # ----------------------------------------------------------------------------- models
@@ -55,15 +85,19 @@ class ModelPool:
     def get(self, prefix: str | None) -> Any | None:
         if not prefix:
             return None
+        if self.cache is not None:
+            # the quoting cache rebuilds a game's model on every informative move: follow the
+            # entry's current object (its outcome matrix is cached on the model, so it goes with it)
+            e = self.cache.entries.get(prefix)
+            if e is not None and e.model is not None:
+                if self.models.get(prefix) is not e.model:
+                    self.models[prefix] = e.model
+                    self.errors.pop(prefix, None)
+                return e.model
         if prefix in self.models:
             return self.models[prefix]
         if prefix in self.errors:
             return None
-        if self.cache is not None:
-            e = self.cache.entries.get(prefix)
-            if e is not None and e.model is not None:
-                self.models[prefix] = e.model
-                return e.model
         if not self.build or not prefix.startswith("nfl-"):
             self.errors[prefix] = "no model (not built)" if prefix.startswith("nfl-") else "sport not modeled"
             return None
@@ -161,7 +195,9 @@ class Exposure:
         """``base``: share that exposure's models, draws and factor definitions (orientation and
         probability), so a candidate's vectors are comparable with the book's."""
         self.pool = base.pool if base is not None else (models if isinstance(models, ModelPool) else ModelPool(models, build=False))
-        self.positions = list(positions) if positions is not None else (book.active() if book is not None else [])
+        self.flags: Counter[str] = Counter()
+        raw = list(positions) if positions is not None else (book.active() if book is not None else [])
+        self.positions = pending_worse_side(raw, self.flags)
         self.draws = draws or (base.draws if base is not None else Draws(n_draws, seed))
         self.factors: dict[str, Factor] = {k: Factor(f.key, f.label, f.p) for k, f in base.factors.items()} if base is not None else {}
         self._factor_ref: dict[str, LegSpec] = dict(base._factor_ref) if base is not None else {}
@@ -170,7 +206,6 @@ class Exposure:
         self.game_positions: Counter[str] = Counter()
         self.factor_delta: dict[str, float] = {}
         self.factor_positions: Counter[str] = Counter()
-        self.flags: Counter[str] = Counter()
         self.timings: dict[str, float] = {}
         t0 = time.perf_counter()
         built0 = sum(self.pool.build_s.values())
@@ -225,8 +260,8 @@ class Exposure:
     def _factor_component(self, leg: Any) -> Component:
         p = leg.p
         if p is None:
-            p = 0.5
-            self.flags["leg_p_missing_assumed_0.5"] += 1
+            p = MISSING_LEG_P
+            self.flags[f"leg_p_missing_assumed_{MISSING_LEG_P}"] += 1
         spec = leg.spec
         if spec is None:
             key = leg.position_id

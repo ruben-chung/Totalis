@@ -13,7 +13,6 @@ import gzip
 import json
 import logging
 import re
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
@@ -24,6 +23,8 @@ from .asof import ro
 log = logging.getLogger(__name__)
 _FILE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})[/\\](\d{2})\.jsonl")
 
+HOUR_MS = 3_600_000
+
 
 def file_window_ms(path: Path) -> tuple[int, int] | None:
     """[start, end) of the UTC hour a raw-log file covers, from its path; None when the name does not say."""
@@ -32,7 +33,7 @@ def file_window_ms(path: Path) -> tuple[int, int] | None:
         return None
     t = datetime.fromisoformat(mt.group(1)).replace(tzinfo=timezone.utc, hour=int(mt.group(2)))
     s = int(t.timestamp() * 1000)
-    return s, s + 3_600_000
+    return s, s + HOUR_MS
 
 
 def raw_files(source: Path, start_ms: int, end_ms: int) -> list[Path]:

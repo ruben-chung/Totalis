@@ -38,7 +38,8 @@ CREATE INDEX IF NOT EXISTS ix_es1_run ON es1_path(run_id, at_ms);
 CREATE TABLE IF NOT EXISTS settlements (
     run_id TEXT NOT NULL, rfq_id TEXT NOT NULL, status TEXT NOT NULL,   -- won | lost | unresolved | void
     payoff REAL, pnl REAL, mark REAL, unrealized REAL, legs_resolved INTEGER, legs_total INTEGER,
-    source TEXT, settled_ms INTEGER, PRIMARY KEY (run_id, rfq_id)
+    source TEXT, settled_ms INTEGER, mark_ref REAL, unrealized_ref REAL,   -- *_ref: unresolved fills marked to the group's base run's last fair
+    PRIMARY KEY (run_id, rfq_id)
 ) WITHOUT ROWID;
 """
 
@@ -75,6 +76,10 @@ class BacktestStore:
         for c in ALL_DECISION_COLS:                       # columns the quoting schema gained since this db was created
             if c not in have:
                 self.conn.execute(f"ALTER TABLE decisions ADD COLUMN {c} TEXT")
+        have_s = {r[1] for r in self.conn.execute("PRAGMA table_info(settlements)")}
+        for c in ("mark_ref", "unrealized_ref"):
+            if c not in have_s:
+                self.conn.execute(f"ALTER TABLE settlements ADD COLUMN {c} REAL")
         self._ins = (f"INSERT INTO decisions({', '.join(ALL_DECISION_COLS)}) VALUES ({', '.join(':' + c for c in ALL_DECISION_COLS)})")
 
     def close(self) -> None:

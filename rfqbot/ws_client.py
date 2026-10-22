@@ -33,8 +33,14 @@ from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
 from . import messages as m
+from .store import now_ms
 
 log = logging.getLogger(__name__)
+MAX_FRAME_BYTES = 8 * 1024 * 1024
+CLOSE_TIMEOUT_S = 5.0
+BACKOFF_FLOOR_S = 0.25          # never reconnect faster than this
+BACKOFF_MAX_EXP = 10            # 2 ** 10 x base before the cap applies
+STABLE_CONN_S = 30.0            # a connection that lived this long resets the backoff
 
 
 class AuthError(RuntimeError):
@@ -82,10 +88,6 @@ class Disconnected:
 Event = Connected | AuthResult | Frame | Disconnected
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
 class RfqSocket:
     def __init__(
         self,
@@ -110,6 +112,7 @@ class RfqSocket:
         self._stop = asyncio.Event()
         self._ws: ClientConnection | None = None
         self._fatal: str | None = None
+        self._close_task: asyncio.Task | None = None     # kept so the close is not garbage-collected mid-flight
         self.attempt = 0
         self.consecutive_auth_failures = 0
 
@@ -120,24 +123,22 @@ class RfqSocket:
         self._stop.set()
         ws = self._ws
         if ws is not None:
-            asyncio.ensure_future(ws.close())
+            self._close_task = asyncio.ensure_future(ws.close())
 
     # ---------------------------------------------------------------- events
     async def events(self) -> AsyncIterator[Event]:
         backoff_n = 0
         while not self._stop.is_set():
             self.attempt += 1
-            conn_id = f"{_now_ms():x}-{uuid.uuid4().hex[:8]}"
-            got_frames = False
+            conn_id = f"{now_ms():x}-{uuid.uuid4().hex[:8]}"
+            opened = time.monotonic()
             try:
                 async with connect(self.url, ping_interval=self.ping_interval_s, ping_timeout=self.ping_interval_s,
-                                   close_timeout=5, max_size=8 * 1024 * 1024) as ws:
+                                   close_timeout=CLOSE_TIMEOUT_S, max_size=MAX_FRAME_BYTES) as ws:
                     self._ws = ws
-                    yield Connected(conn_id, self.attempt, _now_ms(), self.auth_message is not None)
+                    opened = time.monotonic()
+                    yield Connected(conn_id, self.attempt, now_ms(), self.auth_message is not None)
                     async for ev in self._session(ws, conn_id):
-                        if isinstance(ev, Frame):
-                            got_frames = True
-                            backoff_n = 0
                         if isinstance(ev, AuthResult):
                             if ev.ok:
                                 self.consecutive_auth_failures = 0
@@ -156,19 +157,23 @@ class RfqSocket:
                 rc = e.rcvd or e.sent
                 code = rc.code if rc else None
                 reason = (rc.reason if rc else "") or "connection closed"
-                yield Disconnected(conn_id, code, reason, _now_ms())
+                yield Disconnected(conn_id, code, reason, now_ms())
             except (OSError, websockets.InvalidURI, websockets.InvalidHandshake, asyncio.TimeoutError) as e:
-                yield Disconnected(conn_id, None, f"{type(e).__name__}: {e}", _now_ms())
+                yield Disconnected(conn_id, None, f"{type(e).__name__}: {e}", now_ms())
             except _IdleTimeout:
-                yield Disconnected(conn_id, None, f"idle for {self.idle_timeout_s}s", _now_ms())
+                yield Disconnected(conn_id, None, f"idle for {self.idle_timeout_s}s", now_ms())
             finally:
                 self._ws = None
 
             if self._stop.is_set() or self._fatal:
                 break
-            if not got_frames:
-                backoff_n = min(backoff_n + 1, 10)
-            delay = max(0.25, random.uniform(0, min(self.backoff_cap_s, self.backoff_base_s * (2 ** backoff_n))))
+            # a connection that lived STABLE_CONN_S resets the backoff; a flapping one (frames or
+            # not) keeps doubling, so a gateway that accepts and drops us does not get hammered
+            if time.monotonic() - opened >= STABLE_CONN_S:
+                backoff_n = 0
+            else:
+                backoff_n = min(backoff_n + 1, BACKOFF_MAX_EXP)
+            delay = max(BACKOFF_FLOOR_S, random.uniform(0, min(self.backoff_cap_s, self.backoff_base_s * (2 ** backoff_n))))
             log.warning("reconnecting in %.1fs (attempt %d)", delay, self.attempt + 1)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=delay)
@@ -190,7 +195,7 @@ class RfqSocket:
             if isinstance(text, bytes):
                 text = text.decode("utf-8", "replace")
             seq += 1
-            now = _now_ms()
+            now = now_ms()
             yield Frame(conn_id, seq, now, text)
             # Cheap check before parsing: auth frames are rare and tiny.
             if '"auth"' in text[:40]:

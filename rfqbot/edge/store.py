@@ -146,11 +146,19 @@ class EdgeStore:
                 n += 1
         return n
 
-    def markout_done(self) -> dict[str, set[tuple[str, int]]]:
+    def markout_done(self, *, retry_ms: int | None = None, now: int | None = None) -> dict[str, set[tuple[str, int]]]:
         """rfq_id -> {(ref, horizon)} already stored. A missing fair is point-in-time (the books never
-        backfill), so a stored row is final; only horizons that had not matured are absent."""
+        backfill), so a stored row is final, except that with ``retry_ms`` a row with no markout whose
+        horizon matured less than ``retry_ms`` before ``now`` is left out (so a transient fair-source
+        failure right after maturity is recomputed by the next fits, bounded in time)."""
         out: dict[str, set[tuple[str, int]]] = {}
-        for r in self.conn.execute("SELECT rfq_id, ref, horizon_min FROM markouts"):
+        if retry_ms is None:
+            rows = self.conn.execute("SELECT rfq_id, ref, horizon_min FROM markouts")
+        else:
+            cutoff = (now if now is not None else now_ms()) - retry_ms
+            rows = self.conn.execute("SELECT rfq_id, ref, horizon_min FROM markouts"
+                                     " WHERE NOT (markout IS NULL AND t0_ms + horizon_min * 60000 >= ?)", (cutoff,))
+        for r in rows:
             out.setdefault(r[0], set()).add((r[1], int(r[2])))
         return out
 

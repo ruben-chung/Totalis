@@ -121,6 +121,27 @@ def kalshi_confirmation(at_ms: int | None = None, *, db: str | Path | None = Non
         c.close()
 
 
+def kalshi_ticker_confirmations(tickers: list[str], *, db: str | Path | None = None) -> dict[str, int]:
+    """ticker -> ms the Kalshi recorder last saw that ticker (ticker_seen.last_seen_ms). Live mode only: the table holds the
+    current state, so a point-in-time replay cannot use it. Absent tickers fall back to the feed heartbeat."""
+    path = _kalshi_db_path(db)
+    tickers = sorted({t for t in tickers if t})
+    if not tickers or not path.exists():
+        return {}
+    c = _ro(path)
+    try:
+        out: dict[str, int] = {}
+        for i in range(0, len(tickers), 500):
+            chunk = tickers[i:i + 500]
+            out.update({r[0]: int(r[1]) for r in c.execute(
+                f"SELECT ticker, last_seen_ms FROM ticker_seen WHERE ticker IN ({','.join('?' * len(chunk))})", chunk)})
+        return out
+    except sqlite3.OperationalError:
+        return {}
+    finally:
+        c.close()
+
+
 def no_kalshi(position_ids: list[str], at_ms: int | None = None) -> dict[str, tuple[MatchRow, None]]:
     return {pid: (NO_MATCH, None) for pid in position_ids}
 

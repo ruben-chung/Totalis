@@ -3,6 +3,7 @@ import random
 
 from rfqbot.edge.config import EdgeConfig
 from rfqbot.edge.wallets import WalletObs, load_manual, save_manual, score_wallets, z_for
+from rfqbot.edge import wallets as wmod
 
 CFG = EdgeConfig(block_min_fills=8, block_days=7, wallet_k=1.0, shrink_n=8.0, block_conf=0.90)
 DAY = 86_400_000
@@ -85,7 +86,9 @@ def test_block_expires_unless_retriggered_and_carries_until_then():
     assert s3["x"].reason == "rule" and s3["x"].blocked_until_ms == 10 * DAY
 
 
-def test_round_trip_blocks_immediately_and_manual_list_wins(tmp_path):
+def test_adverse_round_trip_blocks_immediately_and_manual_list_wins(tmp_path):
+    # WalletObs.round_trip is an actual adverse round trip (rfqbot.edge.fills.adverse_round_trips), never the
+    # quoting descriptor tag; the pipeline test covers that the tag alone does not block
     pop = [o for w in range(10) for o in wallet(f"p{w}", [0.01, -0.005, 0.004] * 5)]
     s = score_wallets(wallet("rt", [0.02], rt=True) + pop, CFG, now_ms=0)
     assert s["rt"].blocked and s["rt"].reason == "round_trip"
@@ -97,3 +100,16 @@ def test_round_trip_blocks_immediately_and_manual_list_wins(tmp_path):
     save_manual(p, manual)
     assert json.loads(p.read_text()) == {"allow": ["rt"], "deny": ["p0"]}
     assert load_manual(p) == manual and load_manual(tmp_path / "missing.json") == {}
+
+
+def test_malformed_manual_list_keeps_the_last_good_one_and_warns(tmp_path, caplog):
+    p = tmp_path / "w.json"
+    save_manual(p, {"bad": "deny"})
+    assert load_manual(p) == {"bad": "deny"}
+    p.write_text("{half-written")
+    with caplog.at_level("WARNING", logger="rfqbot.edge.wallets"):
+        assert load_manual(p) == {"bad": "deny"}                 # the deny is not dropped by a broken edit
+    assert any(str(p) in r.message and "malformed" in r.message for r in caplog.records)
+    assert load_manual(tmp_path / "never.json") == {}
+    save_manual(p, {"bad": "deny", "ok": "allow"})
+    assert load_manual(p) == {"bad": "deny", "ok": "allow"} and wmod._last_good_manual[str(p)] == {"bad": "deny", "ok": "allow"}

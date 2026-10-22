@@ -12,8 +12,8 @@ from .curse import adverse_move, estimate as curse_estimate
 from .data import DecisionRec, Print, load_decisions, load_prints
 from .fairs import FairSource
 from .fillcurve import CurveTable, fit_curves
-from .fills import Fill, counterfactual
-from .markout import info_premium_for, node_means, refresh_markouts, summarize
+from .fills import Fill, adverse_round_trips, counterfactual
+from .markout import info_premium_for, node_mean_for, node_means, refresh_markouts
 from .optimize import NodeResult, optimize_node
 from .segments import GLOBAL, Segment
 from .store import EdgeStore, now_ms
@@ -55,7 +55,7 @@ def fit(cfg: EdgeConfig, store: EdgeStore, *, since_ms: int | None = None, until
     dec_ids = {d.rfq_id for d in decisions}
     by_rfq = {p.rfq_id: p for p in prints}
     missing = dec_ids - set(by_rfq)
-    if missing and (decisions is not None):
+    if missing:
         for p in load_prints(cfg, since_ms, until_ms, rfq_ids=missing):
             by_rfq.setdefault(p.rfq_id, p)
     fills = counterfactual(decisions, by_rfq.values())
@@ -96,11 +96,12 @@ def fit(cfg: EdgeConfig, store: EdgeStore, *, since_ms: int | None = None, until
 
     means = node_means(rows, ref="model", horizon_min=30)
     nodes: dict[str, NodeResult] = {}
-    for key, curve in curves.nodes.items():
-        if curve.n < cfg.n_min and curve.segment != GLOBAL:
-            continue
+    # parents first (global, then level 4, ...) so each node can shrink its m* toward its parent's
+    keys = [k for k, c in curves.nodes.items() if c.n >= cfg.n_min or c.segment == GLOBAL]
+    for key in sorted(keys, key=lambda k: (-Segment.parse(k).level, k)):
+        curve = curves.nodes[key]
         prem, _, _ = info_premium_for(key, means, cfg.n_min)
-        nodes[key] = optimize_node(curve, cfg, info_premium=prem, measured=measured30.get(key))
+        nodes[key] = optimize_node(curve, cfg, info_premium=prem, measured=measured30.get(key), parent_m_star=_parent_m_star(key, nodes))
     # every observed full cell is priced on the node it resolves to, but with its own sigma
     for cell, (node_key, level) in curves.cells.items():
         if cell in nodes or not node_key:
@@ -109,9 +110,10 @@ def fit(cfg: EdgeConfig, store: EdgeStore, *, since_ms: int | None = None, until
         node_curve = curves.nodes[node_key]
         prem, _, _ = info_premium_for(cell, means, cfg.n_min)
         nodes[cell] = optimize_node(node_curve, cfg, info_premium=prem, measured=measured30.get(node_key),
-                                    sigma=own.sigma_mean if own else None, segment=cell, level=level)
+                                    sigma=own.sigma_mean if own else None, segment=cell, level=level,
+                                    parent_m_star=_parent_m_star(cell, nodes))
 
-    obs = wallet_observations(fills, prints, rows, nodes, cfg)
+    obs = wallet_observations(fills, prints, rows, nodes, cfg, means=means)
     scores = score_wallets(obs, cfg, now, prior=store.wallet_scores(), manual=load_manual(cfg.wallet_list))
     store.put_wallets(scores.values(), now)
     store.set_meta("last_fit", {"at_ms": now, "since_ms": since_ms, "decisions": len(decisions), "prints": len(prints),
@@ -126,10 +128,16 @@ def fit(cfg: EdgeConfig, store: EdgeStore, *, since_ms: int | None = None, until
 
 
 def wallet_observations(fills: list[Fill], prints: list[Print], markout_rows: list[Any], nodes: dict[str, NodeResult],
-                        cfg: EdgeConfig) -> list[WalletObs]:
+                        cfg: EdgeConfig, *, means: dict[str, tuple[float, int]] | None = None) -> list[WalletObs]:
     """One observation per print in the quoted sports with a 30-min model markout: profit = the markup
-    we charged (our logged quote on that RFQ) or would charge (the node's m*) plus the maker markout.
-    Paper mode has no real fills, so a wallet is scored on its prints as if we had filled them."""
+    we charged (our logged quote on that RFQ) or would charge (the node's m*) plus the RESIDUAL maker
+    markout, the print's 30-min markout minus the mean 30-min markout of its node (the node mean is
+    already charged on every quote as the info_premium; charging it again per wallet would count it
+    twice). Paper mode has no real fills, so a wallet is scored on its prints as if we had filled
+    them. ``round_trip`` marks an actual adverse round trip (``adverse_round_trips``), not the
+    quoting descriptor tag."""
+    if means is None:
+        means = node_means(markout_rows, ref="model", horizon_min=30)
     m30: dict[str, float] = {}
     seg_of: dict[str, str] = {}
     for r in markout_rows:
@@ -137,18 +145,30 @@ def wallet_observations(fills: list[Fill], prints: list[Print], markout_rows: li
             m30[r["rfq_id"]] = float(r["markout"])
             seg_of[r["rfq_id"]] = r["segment"] or ""
     by_rfq = {f.rfq_id: f for f in fills}
+    adverse = adverse_round_trips(fills, prints)
     out: list[WalletObs] = []
     for p in prints:
         mk = m30.get(p.rfq_id)
         if mk is None or not p.requester:
             continue
+        seg = seg_of.get(p.rfq_id, "")
+        node_mk = node_mean_for(seg, means, cfg.n_min)[0] if seg else 0.0
         f = by_rfq.get(p.rfq_id)
         if f is not None:
-            markup, win, rt = f.margin, f.win_actual, f.round_trip
+            markup, win = f.margin, f.win_actual
         else:
-            markup, win, rt = _m_star(seg_of.get(p.rfq_id, ""), nodes, cfg), False, False
-        out.append(WalletObs(p.requester, markup + mk, p.executed_at_ms, win=win, round_trip=rt))
+            markup, win = _m_star(seg, nodes, cfg), False
+        out.append(WalletObs(p.requester, markup + (mk - node_mk), p.executed_at_ms, win=win, round_trip=p.rfq_id in adverse))
     return out
+
+
+def _parent_m_star(seg_key: str, nodes: dict[str, NodeResult]) -> float | None:
+    """m* of the nearest fitted ancestor already optimised (the shrinkage target); None at the global node."""
+    for s in list(Segment.parse(seg_key).ladder())[1:]:
+        n = nodes.get(s.key)
+        if n is not None and n.source in ("model", "measured"):
+            return n.m_star
+    return None
 
 
 def _m_star(seg_key: str, nodes: dict[str, NodeResult], cfg: EdgeConfig) -> float:

@@ -59,8 +59,9 @@ class Http:
                     return r.json()
                 except (httpx.HTTPError, ValueError) as e:
                     self.errors += 1
-                    if attempt >= self.retries:
-                        raise
+                    code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+                    if attempt >= self.retries or (code is not None and 400 <= code < 500 and code != 429):
+                        raise                                   # a client error will not change on retry (429 is the exception)
                     log.warning("%s %s: %s; retry in %.0fs", url.rsplit("/", 1)[-1], params if isinstance(params, dict) else "", e, delay)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)

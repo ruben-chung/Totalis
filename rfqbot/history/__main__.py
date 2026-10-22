@@ -15,7 +15,7 @@ def _log(level: str) -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def cmd_pull(a):
+def cmd_pull(a: argparse.Namespace) -> int:
     from .pull import pull
     st = HistoryStore(a.db)
     for sport in a.sport.split(","):
@@ -26,7 +26,7 @@ def cmd_pull(a):
     return 0
 
 
-def cmd_prices(a):
+def cmd_prices(a: argparse.Namespace) -> int:
     from .prices import coverage_by_offset, snapshot_prices
     st = HistoryStore(a.db)
     offsets = [int(x) for x in a.minutes_before.split(",")]
@@ -39,7 +39,7 @@ def cmd_prices(a):
     return 0
 
 
-def cmd_resolve(a):
+def cmd_resolve(a: argparse.Namespace) -> int:
     from .resolve import resolve
     st = HistoryStore(a.db)
     c = asyncio.run(resolve(st, a.rfq_db, limit=a.limit))
@@ -48,7 +48,7 @@ def cmd_resolve(a):
     return 0
 
 
-def cmd_pairs(a):
+def cmd_pairs(a: argparse.Namespace) -> int:
     from .pairs import build_pairs, pair_summary
     st = HistoryStore(a.db)
     c = build_pairs(st, sport=a.sport, max_pairs_per_game=a.max_pairs_per_game,
@@ -60,7 +60,7 @@ def cmd_pairs(a):
     return 0
 
 
-def cmd_reparse(a):
+def cmd_reparse(a: argparse.Namespace) -> int:
     from .pull import reparse
     st = HistoryStore(a.db)
     print(f"reparse: {reparse(st, a.sport, only_failed=a.only_failed)}")
@@ -68,7 +68,7 @@ def cmd_reparse(a):
     return 0
 
 
-def cmd_stats(a):
+def cmd_stats(a: argparse.Namespace) -> int:
     from .prices import coverage_by_offset
     st = HistoryStore(a.db)
     print("games / markets / resolved / parsed legs by sport:")

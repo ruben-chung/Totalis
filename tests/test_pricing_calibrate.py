@@ -4,7 +4,8 @@ import sqlite3
 import numpy as np
 import pytest
 
-from rfqbot.pricing.calibrate import Calibration, PairParams, TailMap, family_pair_key, fit, format_metrics, group_of, pair_kind, set_default_calibration
+from rfqbot.pricing.calibrate import (CALIBRATION_SCHEMA, Calibration, CalibrationError, PairParams, TailMap, engine_config_hash,
+                                      family_pair_key, fit, format_metrics, group_of, pair_kind, set_default_calibration)
 from rfqbot.pricing.joint import build_game
 from rfqbot.pricing.joint_nfl import EngineConfig
 from rfqbot.pricing.synthetic import make_truth, quotes_from_truth
@@ -19,30 +20,69 @@ def test_keys_and_identity():
 
 
 def test_apply_levels_and_tails():
-    grp = PairParams(lam=0.8, lo=None, hi=None, resid=0.02, group="cross")
-    pair = PairParams(lam=0.5, lo=TailMap(0.05, 0.01, 1.0), hi=TailMap(0.8, -0.1, 1.1), resid=0.03, group="cross")
+    grp = PairParams(lam=0.8, lo=None, hi=TailMap(0.8, -0.5), resid=0.02, group="cross")
+    pair = PairParams(lam=0.5, lo=TailMap(0.05, -0.4), hi=TailMap(0.8, -0.25), resid=0.03, group="cross")
     c = Calibration(pairs={"spread/FG x total/2H": pair}, groups={"cross": grp}, identity=False)
     p, lvl = c.apply("spread/FG x total/2H", "cross", 0.3, 0.2)
     assert lvl == "pair" and p == pytest.approx(0.25) and c.model_error("spread/FG x total/2H", "cross") == 0.03
     p, lvl = c.apply("moneyline/1H x total/FG", "cross", 0.3, 0.2)        # unknown pair -> group
     assert lvl == "group" and p == pytest.approx(0.28) and c.model_error("moneyline/1H x total/FG", "cross") == 0.02
-    assert c.apply("spread/FG x total/2H", "cross", 0.02, 0.03)[0] == pytest.approx(0.035)   # lo tail: 0.025 -> 0.035
-    assert c.apply("spread/FG x total/2H", "cross", 0.95, 0.9)[0] == pytest.approx(-0.1 + 1.1 * 0.925)
+    assert c.apply("spread/FG x total/2H", "cross", 0.02, 0.03)[0] == pytest.approx(0.025 - 0.4 * (0.025 - 0.05))   # lo hinge
+    assert c.apply("spread/FG x total/2H", "cross", 0.95, 0.9)[0] == pytest.approx(0.925 - 0.25 * 0.125)
     assert c.apply(None, "within_FG", 0.4, 0.3) == (0.4, "none")           # three legs, no group params
+    # three or more legs: the group lambda only, never the group's tail map
+    p3, lvl3 = c.apply(None, "cross", 0.95, 0.9)
+    assert lvl3 == "group-extrapolated" and p3 == pytest.approx(0.9 + 0.8 * 0.05)
+    assert c.apply("moneyline/1H x total/FG", "cross", 0.95, 0.9)[0] < p3   # the pair-level path does apply the group tail
+
+
+def test_hinge_tails_are_continuous_at_the_cuts():
+    pp = PairParams(lam=1.0, lo=TailMap(0.05, -0.6), hi=TailMap(0.8, -0.8), resid=0.0, group="within_FG")
+    c = Calibration(pairs={"spread/FG x total/FG": pp}, identity=False)
+    for cut in (0.05, 0.8):
+        below = c.apply("spread/FG x total/FG", "within_FG", cut - 1e-4, cut - 1e-4)[0]
+        above = c.apply("spread/FG x total/FG", "within_FG", cut + 1e-4, cut + 1e-4)[0]
+        assert abs(above - below) < 1e-3, (cut, below, above)
+        assert c.apply("spread/FG x total/FG", "within_FG", cut, cut)[0] == pytest.approx(cut)
+    # b = -1 collapses the tail onto the cut and never crosses it; the map is monotone for b > -1
+    flat = Calibration(pairs={"x/FG x y/FG": PairParams(1.0, TailMap(0.05, -1.0), None, 0.0)}, identity=False)
+    assert flat.apply("x/FG x y/FG", "within_FG", 0.0, 0.0)[0] == pytest.approx(0.05)
+    ps = [c.apply("spread/FG x total/FG", "within_FG", x, x)[0] for x in np.linspace(0, 1, 201)]
+    assert all(b >= a - 1e-12 for a, b in zip(ps, ps[1:]))
 
 
 def test_load_save_roundtrip(tmp_path):
-    c = Calibration(pairs={"a/FG x b/FG": PairParams(0.7, TailMap(0.05, 0.0, 1.0), None, 0.02, 500, 40, 30, 0, 0.6, 0.1, 0.9, "within_FG", "market_pinned", "informative")},
-                    groups={"within_FG": PairParams(0.9, None, TailMap(0.8, -0.1, 1.1), 0.01, 10000, 90, 0, 300, None, None, 0.9, "within_FG", "group", "group")},
+    c = Calibration(pairs={"a/FG x b/FG": PairParams(0.7, TailMap(0.05, -0.3), None, 0.02, 500, 40, 30, 0, 0.6, 0.1, 0.9, "within_FG", "market_pinned", "informative", "pair", None)},
+                    groups={"within_FG": PairParams(0.9, None, TailMap(0.8, -0.1), 0.01, 10000, 90, 0, 300, None, None, 0.9, "within_FG", "group", "group")},
                     meta={"x": 1}, identity=False)
     c.save(tmp_path / "c.json")
     d = Calibration.load(tmp_path / "c.json")
     pp = d.pairs["a/FG x b/FG"]
-    assert not d.identity and pp.lam == 0.7 and pp.lo.b == 1.0 and pp.kind == "market_pinned" and pp.lam_status == "informative"
-    assert pp.n_games == 40 and pp.lam_ci == pytest.approx((0.6 - 1.96 * 0.1, 0.6 + 1.96 * 0.1))
-    assert d.groups["within_FG"].hi.a == -0.1 and pp.lam_pair == 0.6
+    assert not d.identity and pp.lam == 0.7 and pp.lo.b == -0.3 and pp.kind == "market_pinned" and pp.lam_status == "informative"
+    assert pp.n_games == 40 and pp.lam_ci == pytest.approx((0.6 - 1.96 * 0.1, 0.6 + 1.96 * 0.1)) and pp.lo_source == "pair"
+    assert d.groups["within_FG"].hi.b == -0.1 and pp.lam_pair == 0.6
+    assert d.meta["schema"] == CALIBRATION_SCHEMA and d.meta["engine_config_hash"] == engine_config_hash() and d.meta["x"] == 1
     assert Calibration.load(tmp_path / "missing.json").identity
     json.loads(d.to_json())
+
+
+def test_load_refuses_schema_or_engine_config_mismatch(tmp_path):
+    c = Calibration(groups={"cross": PairParams(0.8, None, None, 0.0, group="cross")}, identity=False)
+    d = json.loads(c.to_json())
+    d["meta"]["schema"] = CALIBRATION_SCHEMA - 1
+    (tmp_path / "old.json").write_text(json.dumps(d))
+    with pytest.raises(CalibrationError, match="schema"):
+        Calibration.load(tmp_path / "old.json")
+    d = json.loads(c.to_json())
+    d["meta"]["engine_config_hash"] = "deadbeef"
+    (tmp_path / "cfg.json").write_text(json.dumps(d))
+    with pytest.raises(CalibrationError, match="EngineConfig"):
+        Calibration.load(tmp_path / "cfg.json")
+    # a file without meta at all (the pre-schema format) is refused too, not silently applied
+    (tmp_path / "bare.json").write_text(json.dumps({"pairs": {}, "groups": {}}))
+    with pytest.raises(CalibrationError):
+        Calibration.load(tmp_path / "bare.json")
+    assert engine_config_hash(EngineConfig(tie_prob=None)) != engine_config_hash()
 
 
 def _scores_db(path, rng, n_games=40, per_game=600):
@@ -93,6 +133,43 @@ def test_fit_is_hierarchical_and_rule_based(tmp_path):
     assert o["logloss_pair_oos"] < o["logloss_engine"]
     assert "lam_used" in format_metrics(m) and m["pairs"]["spread/FG x total/2H"]["lambda_ci"] is not None
     json.loads(cal.to_json())
+    # the prior is leave-one-pair-out: the two big prior pairs see different group values
+    assert a.lam_group != pytest.approx(b.lam_group, abs=1e-6)
+    # every fitted tail map is a hinge anchored at its cut: no jump anywhere
+    for fp, pp in cal.pairs.items():
+        for x in (0.0499, 0.0501, 0.7999, 0.8001):
+            lo_v = cal.apply(fp, pp.group, x - 1e-4, x - 1e-4)[0]
+            hi_v = cal.apply(fp, pp.group, x + 1e-4, x + 1e-4)[0]
+            assert abs(hi_v - lo_v) < 1e-3, (fp, x)
+    assert cal.meta["schema"] == CALIBRATION_SCHEMA and cal.meta["engine_config_hash"] == engine_config_hash()
+
+
+def test_degenerate_tail_falls_back_to_the_group(tmp_path):
+    """A pair whose tail rows all realised 0 (few games) must not win the precision blend with a
+    near-zero variance; it takes the group's hinge instead. The shipped file mapped 5% -> 0.03%."""
+    rng = np.random.default_rng(3)
+    db = tmp_path / "scores.db"
+    c = sqlite3.connect(db); c.executescript(SCHEMA)
+    rows = []
+    for g in range(40):
+        for i in range(150):                                   # a healthy cross pair: realised at p
+            pi = rng.uniform(0.01, 0.6); pj = float(np.clip(pi + rng.normal(0, 0.1), 0.005, 0.9))
+            won = float(rng.random() < pj)
+            rows.append((f"nfl-g{g}", 15, f"a{i}", f"b{i}", "spread/1H x spread/FG", pj, pi, np.sqrt(pi), np.sqrt(pi), 0.5, 0.5, pj, pj, won, 1.0, won))
+    for g in range(12):                                        # the degenerate pair: 8 tail rows per game, all lost
+        for i in range(30):
+            pi = rng.uniform(0.01, 0.4); pj = float(np.clip(pi + rng.normal(0, 0.1), 0.005, 0.5))
+            won = 0.0 if pj < 0.05 else float(rng.random() < pj)
+            rows.append((f"nfl-g{g}", 15, f"c{i}", f"d{i}", "moneyline/1H x spread/FG", pj, pi, np.sqrt(pi), np.sqrt(pi), 0.5, 0.5, pj, pj, won, 1.0, won))
+    c.executemany("INSERT INTO hist_pair_scores VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows); c.commit(); c.close()
+    cal, _ = fit(db, 15, folds=3)
+    bad, good = cal.pairs["moneyline/1H x spread/FG"], cal.pairs["spread/1H x spread/FG"]
+    assert bad.n_lo > 20 and bad.lo_source == "group" and good.lo_source == "pair"
+    assert bad.lo is not None and bad.lam_status == "shrunk"
+    p = cal.apply("moneyline/1H x spread/FG", "cross", 0.03, 0.03)[0]
+    assert p > 0.015, p                                        # not collapsed onto zero
+    # a healthy tail keeps a Bernoulli-bounded variance: its blended slope stays inside B_CLIP and is finite
+    assert good.lo is not None and -1.0 <= good.lo.b <= 1.0
 
 
 def test_market_pinned_moves_only_when_ci_excludes_one(tmp_path):

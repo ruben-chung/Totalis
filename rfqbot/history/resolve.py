@@ -8,9 +8,11 @@ passed, and the last check is older than `recheck_ms`.
 from __future__ import annotations
 
 import logging
+import json
 import sqlite3
 from pathlib import Path
 
+from ..db import ro_connect
 from ..books import _parse_gamma_time
 from .gamma import Http
 from .pull import _jl, resolution
@@ -23,8 +25,7 @@ def candidate_markets(store: HistoryStore, rfq_db: str | Path, *, now: int | Non
                       recheck_ms: int = 3_600_000) -> tuple[list[str], dict[str, int]]:
     """condition_ids worth asking Gamma about, and why the rest were skipped."""
     now = now or now_ms()
-    rfq = sqlite3.connect(f"file:{Path(rfq_db)}?mode=ro", uri=True)
-    rfq.execute("PRAGMA busy_timeout=30000")
+    rfq = ro_connect(rfq_db, rows=False, shared=False)
     try:
         legs = {r[0].lower() for r in rfq.execute(
             "SELECT DISTINCT market_condition_id FROM rfq_legs WHERE market_condition_id IS NOT NULL")}
@@ -84,7 +85,7 @@ def write_resolutions(rfq_db: str | Path, rows: list[tuple[str, str, int]]) -> i
 
 def local_resolutions(store: HistoryStore, rfq_db: str | Path, now: int) -> list[tuple[str, str, int]]:
     """Rows for hist_markets already resolved by the pull that rfq.db does not have yet."""
-    rfq = sqlite3.connect(f"file:{Path(rfq_db)}?mode=ro", uri=True)
+    rfq = ro_connect(rfq_db, rows=False, shared=False)
     try:
         done = {r[0].lower() for r in rfq.execute("SELECT condition_id FROM market_resolutions WHERE resolved_outcome IS NOT NULL")}
     finally:
@@ -139,7 +140,7 @@ async def resolve(store: HistoryStore, rfq_db: str | Path, *, http: Http | None 
             if store.scalar("SELECT 1 FROM hist_markets WHERE condition_id=?", cid):
                 res, _ = resolution(mk)
                 store.conn.execute("UPDATE hist_markets SET outcome_prices=?, resolution_status=?, closed=?, resolved=? WHERE condition_id=?",
-                                   (str(mk.get("outcomePrices")), mk.get("umaResolutionStatus"), int(bool(mk.get("closed"))), res, cid))
+                                   (json.dumps([str(p) for p in _jl(mk.get("outcomePrices"))]), mk.get("umaResolutionStatus"), int(bool(mk.get("closed"))), res, cid))
     written = write_resolutions(rfq_db, rows)
     counts = {"candidates": len(todo), "written": written + written_local, "written_local": written_local,
               "unresolved": unresolved, "not_in_gamma": missing, **skipped}

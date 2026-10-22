@@ -58,6 +58,9 @@ COLS = ("created_ms", "mode", "trigger_rfq_id", "trigger_kind", "trigger_conditi
         "leg_fair_poly", "leg_fair_kalshi", "latency_ms", "error")
 
 
+NOT_COUNTED = ("ERROR", "FAILED", "SKIPPED")     # statuses that do not consume the per-combo budget
+
+
 def now_ms() -> int:
     return int(time.time() * 1000)
 
@@ -95,8 +98,11 @@ class ProbeStore:
                                      (since_ms, *m)).fetchone()[0])
 
     def combo_count_since(self, condition_id: str, since_ms: int) -> int:
-        return int(self.conn.execute("SELECT COUNT(*) FROM probes WHERE trigger_condition = ? AND created_ms >= ?",
-                                     (condition_id, since_ms)).fetchone()[0])
+        """Probes that reached the venue and were priced or sent (the per-combo daily cap). Rows that errored,
+        failed (NO_QUOTES) or were skipped before sending do not use up the combo's budget."""
+        return int(self.conn.execute("SELECT COUNT(*) FROM probes WHERE trigger_condition = ? AND created_ms >= ?"
+                                     f" AND status NOT IN ({','.join('?' * len(NOT_COUNTED))})",
+                                     (condition_id, since_ms, *NOT_COUNTED)).fetchone()[0])
 
     def last_combo_ms(self, condition_id: str) -> int | None:
         r = self.conn.execute("SELECT MAX(created_ms) FROM probes WHERE trigger_condition = ?", (condition_id,)).fetchone()

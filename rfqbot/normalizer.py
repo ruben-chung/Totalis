@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass, field
 
 from . import messages as m
-from .config import ACCEPTANCE_WINDOW_MS, LAST_LOOK_WINDOW_MS, SUBMISSION_WINDOW_MS
+from .config import DEFAULT_EXPIRY_GRACE_MS, SUBMISSION_WINDOW_MS, expiry_horizon_ms
 from .store import Store
 
 log = logging.getLogger(__name__)
@@ -81,10 +81,10 @@ class ApplyResult:
 
 
 class Normalizer:
-    def __init__(self, store: Store, *, expiry_grace_ms: int = 5_000):
+    def __init__(self, store: Store, *, expiry_grace_ms: int = DEFAULT_EXPIRY_GRACE_MS):
         self.store = store
         self.expiry_grace_ms = expiry_grace_ms
-        self.horizon_ms = ACCEPTANCE_WINDOW_MS + LAST_LOOK_WINDOW_MS + expiry_grace_ms
+        self.horizon_ms = expiry_horizon_ms(expiry_grace_ms)
 
     # ------------------------------------------------------------------ apply
     def apply(self, msg: m.Inbound, *, at_ms: int, raw_id: int | None = None) -> ApplyResult:
@@ -142,8 +142,7 @@ class Normalizer:
         """
         s = self.store
         with s.tx():
-            ids = s.expire_open_rfqs(cutoff_ms=now_ms, horizon_ms=self.horizon_ms, now_ms=now_ms,
-                                     default_window_ms=SUBMISSION_WINDOW_MS)
+            ids = s.expire_open_rfqs(horizon_ms=self.horizon_ms, now_ms=now_ms, default_window_ms=SUBMISSION_WINDOW_MS)
             if ids:
                 s.expire_live_quotes(ids, now_ms, Q_EXPIRED)
         return ids
@@ -171,13 +170,10 @@ class Normalizer:
             existing = s.get_rfq(msg.rfq_id)
             if existing["stub"]:
                 # A later-lifecycle message created a placeholder; fill in the request details now.
-                s.conn.execute(
-                    "UPDATE rfqs SET requester_id=?, combo_id=?, direction=?, side=?, size_unit=?, size_value_e6=?,"
-                    " submission_deadline_ms=?, stub=0 WHERE rfq_id=?",
-                    (s.requester_id(msg.requestor_public_id), combo_id, msg.direction, msg.side,
-                     msg.requested_size.unit, msg.requested_size.value_e6, msg.submission_deadline_ms or None,
-                     msg.rfq_id),
-                )
+                s.fill_rfq_stub(msg.rfq_id, requester_id=s.requester_id(msg.requestor_public_id), combo_id=combo_id,
+                                direction=msg.direction, side=msg.side, size_unit=msg.requested_size.unit,
+                                size_value_e6=msg.requested_size.value_e6,
+                                submission_deadline_ms=msg.submission_deadline_ms or None)
                 return ApplyResult(msg=msg, rfq_id=msg.rfq_id, status=existing["status"])
             s.add_event(msg.rfq_id, EV_RECEIVED_DUP, at_ms, raw_id)
             return ApplyResult(msg=msg, rfq_id=msg.rfq_id, duplicate=True, status=existing["status"])

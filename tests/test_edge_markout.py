@@ -6,8 +6,9 @@ import pytest
 from rfqbot.edge.config import EdgeConfig
 from rfqbot.edge.data import DecisionRec, LegInfo, Print
 from rfqbot.edge.fairs import FairSource, LegFair
-from rfqbot.edge.markout import info_premium_for, node_means, refresh_markouts, summarize
-from rfqbot.edge.pipeline import fit
+from rfqbot.edge.fills import counterfactual
+from rfqbot.edge.markout import RETRY_MS, info_premium_for, node_mean_for, node_means, refresh_markouts, summarize
+from rfqbot.edge.pipeline import fit, wallet_observations
 from rfqbot.edge.store import EdgeStore
 from rfqbot.edge.table import load_table
 
@@ -35,9 +36,9 @@ class FakeFairs:
         return out
 
 
-def prt(rfq, direction, price, at, requester="w1", pids=("p1", "p2"), prefixes=(G1, G2)):
+def prt(rfq, direction, price, at, requester="w1", pids=("p1", "p2"), prefixes=(G1, G2), cond="0xc"):
     return Print(rfq_id=rfq, direction=direction, price=price, size_e6=100 * E6, executed_at_ms=at, requester=requester,
-                 n_legs=len(pids), position_ids=list(pids), prefixes=list(prefixes))
+                 n_legs=len(pids), position_ids=list(pids), prefixes=list(prefixes), condition_id=cond)
 
 
 def test_refresh_markouts_signs_horizons_and_references():
@@ -83,8 +84,56 @@ def test_refresh_markouts_records_missing_later_fair_when_a_leg_goes_in_play():
     assert counts["computed"] == 3 and counts["missing_fair_h"] == 3
     rows = {(r["ref"], r["horizon_min"]): r for r in store.markout_rows()}
     assert rows[("model", 30)]["fair_h"] is None and rows[("model", 30)]["markout"] is None and rows[("model", 5)]["markout"] == pytest.approx(0.0)
-    # a missing later fair is final (books never backfill): the row is not retried
+    # a missing later fair is final (books never backfill): the row is not retried ...
     assert ("model", 30) in store.markout_done().get("b", set())
+    # ... except inside the retry window after its horizon matured (a transient fair-source failure is recomputed)
+    assert ("model", 30) not in store.markout_done(retry_ms=RETRY_MS, now=T0 + 40 * 60_000).get("b", set())
+    assert ("model", 30) in store.markout_done(retry_ms=RETRY_MS, now=T0 + 30 * 60_000 + RETRY_MS + 1).get("b", set())
+    assert ("model", 5) in store.markout_done(retry_ms=RETRY_MS, now=T0 + 40 * 60_000).get("b", set())    # computed: never retried
+
+
+def test_fair_source_does_not_cache_a_failure():
+    calls = {"n": 0}
+
+    def flaky(prefix, at_ms):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("database is locked")
+        return FakeFairs({})(prefix, at_ms)
+    fairs = FairSource(EdgeConfig(), compute=flaky)
+    assert fairs.legs(G1, T0) == {} and fairs.failures == 1
+    assert fairs.legs(G1, T0) != {} and calls["n"] == 2            # retried, then cached
+    assert fairs.legs(G1, T0) != {} and calls["n"] == 2
+    # a markout computed after the transient failure recovers on the next refresh (retry window)
+    store = EdgeStore(None)
+    cfg = EdgeConfig(horizons_min=(5,))
+    calls["n"] = 0
+    bad = FairSource(cfg, compute=flaky)
+    c1 = refresh_markouts(cfg, store, bad, now=T0 + 6 * 60_000, prints=[prt("b", "BUY", 0.21, T0)])
+    assert c1["missing_fair0"] == 3                                 # the first compute_game call failed: no fair0 this time
+    c2 = refresh_markouts(cfg, store, bad, now=T0 + 7 * 60_000, prints=[prt("b", "BUY", 0.21, T0)])
+    assert c2["computed"] == 3 and store.markout_rows()[0]["markout"] is not None
+
+
+def test_wallet_observations_use_the_residual_markout_and_the_actual_round_trip():
+    cfg = EdgeConfig(n_min=1, sigma_cuts=(0.005, 0.009))
+    store = EdgeStore(None)
+    fairs = FairSource(cfg, compute=FakeFairs({"p1": 0.001}))      # BUY prints lose 1.2pt at 30 min on every print
+    d1 = dec(1, "BUY", 0.20, 0.21, T0, "r1", requester="w1")
+    d1.round_trip = True                                            # the quoting descriptor tag: polled both sides
+    d2 = dec(2, "BUY", 0.20, 0.21, T0 + 60_000, "r2", requester="w2")
+    prints = [prt("r1", "BUY", 0.23, T0, requester="w1"), prt("r2", "BUY", 0.23, T0 + 60_000, requester="w2"),
+              prt("r3", "SELL", 0.19, T0 + 65_000, requester="w2")]          # w2 unwinds the same combo 5 s later
+    refresh_markouts(cfg, store, fairs, now=T0 + 120 * 60_000, prints=prints)
+    rows = store.markout_rows()
+    fills = counterfactual([d1, d2], prints)
+    obs = {o.public_id: o for o in wallet_observations(fills, prints, rows, {}, cfg) if o.public_id != "w2" or o.at_ms == T0 + 60_000}
+    means = node_means(rows, ref="model", horizon_min=30)
+    node_mk = node_mean_for("nba|2|BUY|disjoint|s0", means, 1)[0]
+    mk1 = next(float(r["markout"]) for r in rows if r["rfq_id"] == "r1" and r["ref"] == "model" and r["horizon_min"] == 30)
+    assert node_mk < 0 and obs["w1"].profit == pytest.approx(0.01 + (mk1 - node_mk))        # residual, not the raw markout
+    assert obs["w1"].round_trip is False                             # the tag alone is not a round trip
+    assert obs["w2"].round_trip is True and obs["w2"].win             # fill + opposite print within 10 s is
 
 
 def dec(i, direction, p_fair, price, at, rfq, requester="w1", u_m=0.0032):

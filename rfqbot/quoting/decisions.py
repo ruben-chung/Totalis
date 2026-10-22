@@ -1,10 +1,21 @@
-"""Decision log: one row per RFQ seen by the quote handler (the backtest's input)."""
+"""Decision log: one row per RFQ seen by the quote handler (the backtest's input).
+
+Writes are buffered: ``write`` appends to a list and the rows are inserted in one ``executemany``
+by ``flush``, which runs from the cache's refresh thread (``GameCache.on_refresh``), whenever the
+buffer reaches ``FLUSH_ROWS`` or ``FLUSH_SEC`` has passed, and before every read. The RFQ path
+therefore never waits on sqlite.
+"""
 from __future__ import annotations
 
 import json
 import sqlite3
+import threading
+import time
 from pathlib import Path
 from typing import Any
+
+FLUSH_ROWS = 500
+FLUSH_SEC = 1.0
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS decisions (
@@ -87,21 +98,44 @@ class DecisionLog:
             if col not in have:
                 self.conn.execute(f"ALTER TABLE decisions ADD COLUMN {col} {typ}")
         self._sql = f"INSERT INTO decisions({', '.join(COLS)}) VALUES ({', '.join(':' + c for c in COLS)})"
-        self.written = 0
+        self.written = 0            # rows handed to write()
+        self.flushed = 0            # rows in the database
+        self._buf: list[dict[str, Any]] = []
+        self._lock = threading.Lock()
+        self._last_flush = time.monotonic()
 
     def write(self, row: dict[str, Any]) -> None:
-        self.conn.execute(self._sql, {c: row.get(c) for c in COLS})
-        self.written += 1
+        """Queue one row (hot path: no sqlite call unless the buffer is full or stale)."""
+        with self._lock:
+            self._buf.append({c: row.get(c) for c in COLS})
+            self.written += 1
+            due = len(self._buf) >= FLUSH_ROWS or time.monotonic() - self._last_flush >= FLUSH_SEC
+        if due:
+            self.flush()
+
+    def flush(self) -> int:
+        """Insert the buffered rows in one statement. Safe from any thread; returns rows written."""
+        with self._lock:
+            rows, self._buf = self._buf, []
+            self._last_flush = time.monotonic()
+            if not rows:
+                return 0
+            self.conn.executemany(self._sql, rows)
+            self.flushed += len(rows)
+            return len(rows)
 
     def read(self, rfq_id: str) -> list[sqlite3.Row]:
+        self.flush()
         return self.conn.execute("SELECT * FROM decisions WHERE rfq_id=? ORDER BY id", (rfq_id,)).fetchall()
 
     def counts(self, since_ms: int | None = None) -> list[tuple[str, int]]:
+        self.flush()
         where = "WHERE at_ms >= ?" if since_ms is not None else ""
         args = (since_ms,) if since_ms is not None else ()
         return [(r[0], r[1]) for r in self.conn.execute(f"SELECT decision, COUNT(*) FROM decisions {where} GROUP BY 1 ORDER BY 2 DESC", args)]
 
     def close(self) -> None:
+        self.flush()
         self.conn.close()
 
 

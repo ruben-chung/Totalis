@@ -78,14 +78,14 @@ def raw_completeness(source: Path, rfq_db: str | Path, start_ms: int, end_ms: in
             "rfq_db_rfqs": db, "difference": n - db, "files": [p.name for p in raw_files(Path(source), start_ms, end_ms)]}
 
 
-def validate_cli(args: Any) -> None:
+def validate_run(args: Any) -> dict[str, Any]:
     from .store import BacktestStore
     st = BacktestStore(args.out)
     run = st.run(args.run)
     w = json.loads(run["window_json"])
     rep = {"live_vs_replay": compare_to_live(st.conn, args.run, args.decisions, since_ms=w["start_ms"], until_ms=w["end_ms"]),
            "raw_log": raw_completeness(Path(args.source), args.rfq_db, w["start_ms"], w["end_ms"])}
-    print(json.dumps(rep, indent=1, default=str))
     Path(args.json).parent.mkdir(parents=True, exist_ok=True)
     Path(args.json).write_text(json.dumps(rep, indent=1, default=str))
     st.close()
+    return rep

@@ -115,3 +115,15 @@ matched pre-game books (`claude-sessions/venue-weight-notes.md`): tight-quote pr
 (interval 0.72 to 1.13, so no evidence Kalshi deserves extra weight) and 2.2 for NFL (1.5 to 3.7). The env override is unchanged.
 Backtest runs started before this change used 2.0 for NBA; the run configs store the marginal config only through this file,
 so compare runs made on either side of the change are not comparable.
+
+## Review fixes (2026-10-22)
+
+- **Locked / crossed book** (ask <= bid) is unusable: flag `crossed:<venue>`, no estimate. Reproduced before the fix: Poly 0.40/0.40 beside Kalshi 0.45/0.46 gave p = 0.40 with w_poly = 1 (sigma floored at 1e-4, precision 1e8). Half spreads are now floored at half a tick (`hs_floor`: Poly 0.0005, Kalshi 0.005).
+- `kalshi_prior` values and `kalshi_prior_default` must be > 0 (`MarginalConfig` raises; nba=0 used to be a ZeroDivisionError with Kalshi alone).
+- **Disagreement** is tested as gap > `disagree_k` (2.0) x sqrt(sigma_p^2 + sigma_k^2) instead of the sum of half spreads. On disagreement p stays the precision-weighted value (it used to fall back to Polymarket alone), err = max(err, gap), tier `disagree`; beyond `gap_skip` tier `skip`. k = 2 is looser than the old rule (a thin book has sigma up to 2x its half spread); k is a placeholder for the backtest.
+- **rules_differ** is a bias, not noise: `sigma_k^2 += rules_differ_bias^2` (0.02, placeholder) instead of a flat x0.25 precision. A prop (slug with points / rebounds / assists / threes / steals / blocks) with differing rules is not combined (`kalshi_unused:props_rules`).
+- **Not done (4, the payoff conversion):** converting a Kalshi period winner to Polymarket's tie convention (p_team + 0.5 p_tie from the TIE strike) needs the Kalshi tie market's book, which this layer is not handed. The bias term stands in for it; its size is a guess (a half-weighted 1H tie is about 0.01-0.02 in NFL), to be set from the backtest.
+- **Microprice** shift is shrunk by depth / (depth + `micro_d0`, 500).
+- **err independence:** `1/sqrt(sum precision)` assumes independent venue errors. It is floored at `err_rho` (0.5) x the smallest sigma of the venues used.
+- **Kalshi confirmation** in live mode is per ticker (`ticker_seen.last_seen_ms`, `kalshi_ticker_confirmations`), falling back to the feed heartbeat; a replay cannot use it (the table is current state). Polymarket confirmation per connection is the recorder's (not changed here).
+- Regression tests for all of these in `tests/test_marginals_model.py` and `tests/test_marginals_cli.py`.

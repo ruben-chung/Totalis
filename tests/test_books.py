@@ -5,7 +5,7 @@ import json
 import pytest
 from websockets.asyncio.server import serve
 
-from rfqbot.books import Book, BookRecorder, BookStore
+from rfqbot.books import Book, BookConn, BookRecorder, BookStore
 from rfqbot.rawlog import RawLog, iter_rawlog_dir
 
 
@@ -93,11 +93,114 @@ async def test_recorder_end_to_end(clob, tmp_path):
     assert store.scalar("SELECT price FROM leg_trades WHERE asset_id='B'") == 4100
     assert store.scalar("SELECT COUNT(*) FROM book_top WHERE asset_id='C'") == 1
     assert [o["operation"] for o in clob.ops] == ["subscribe", "unsubscribe"]
-    assert store.scalar("SELECT COUNT(*) FROM subscriptions WHERE unsubscribed_ms IS NOT NULL") == 1
+    # subscriptions: one row per asset on the single socket, all tagged with its conn_id; B closed by the
+    # unsubscribe (before the socket closed), A and C closed by the disconnect at shutdown
+    conn_id = store.scalar("SELECT conn_id FROM book_connections")
+    assert conn_id and store.scalar("SELECT COUNT(*) FROM book_connections") == 1
+    subs = {r[0]: (r[1], r[2], r[3]) for r in store.conn.execute(
+        "SELECT asset_id, position_id, unsubscribed_ms, conn_id FROM subscriptions")}
+    assert set(subs) == {"A", "B", "C"} and all(cid == conn_id for _, _, cid in subs.values())
+    assert subs["C"][0] == "C" and all(un is not None for un, _, _ in subs.values())
+    disconnected = store.scalar("SELECT disconnected_at_ms FROM book_connections")
+    assert subs["B"][1] < disconnected and subs["A"][1] == subs["C"][1] == disconnected
+    # socket liveness persisted for the marginal layer
+    assert store.scalar("SELECT last_frame_ms FROM book_connections") == rec.last_frame_ms(conn_id) > 0
     # raw log has every non-PONG frame verbatim
     logged = list(iter_rawlog_dir(tmp_path / "books"))
     assert len(logged) >= 5 and all(l["p"] != "PONG" for l in logged)
-    assert store.scalar("SELECT position_id FROM subscriptions WHERE asset_id='C'") == "C"
+
+
+async def test_subscription_rows_follow_their_connection():
+    """Rows open under the socket's conn_id on connect, close on disconnect, reopen under the new id on reconnect;
+    an asset added to a live socket gets a row at once, one added to a socket that is still connecting does not."""
+    store = BookStore(None)
+    rec = BookRecorder(store, lambda: set(), commit_interval_s=0, min_interval_ms=0)
+    store.begin()
+    c = BookConn(rec, 0)
+    c.wanted = {"A", "B"}; rec.position_of.update({"A": "pA", "B": "pB"}); rec.owner.update({"A": c, "B": c}); rec.conns.append(c)
+    c.conn_id = "b0-first"
+    rec.on_connected(c, 2)
+    rows = lambda: {tuple(r) for r in store.conn.execute("SELECT asset_id, position_id, conn_id, unsubscribed_ms FROM subscriptions")}
+    assert rows() == {("A", "pA", "b0-first", None), ("B", "pB", "b0-first", None)}
+    rec.on_frame(c, "PONG")
+    assert rec.last_frame_ms("b0-first") == c.last_frame_ms > 0 and rec.last_frame_ms() == c.last_frame_ms
+    rec._persist_liveness()
+    assert store.last_frame_ms("b0-first") == c.last_frame_ms
+    rec.on_disconnected(c, "closed 1006")
+    assert all(un is not None for *_, un in rows()) and store.scalar("SELECT close_reason FROM book_connections") == "closed 1006"
+    c.conn_id = "b0-second"; c.last_frame_ms = None
+    rec.on_connected(c, 2)
+    assert {r for r in rows() if r[3] is None} == {("A", "pA", "b0-second", None), ("B", "pB", "b0-second", None)}
+    assert store.last_frame_ms("b0-second") is None and rec.last_frame_ms("b0-second") is None
+    # universe refresh while the socket is not open: no row yet (on_connected will write it)
+    c._ws = None
+    await _refresh_with(rec, {"pA": "A", "pB": "B", "pX": "X"})
+    assert not any(a == "X" for a, *_ in rows())
+    c._ws = object()      # pretend the socket is open: the next addition is recorded under the live conn_id
+    await _refresh_with(rec, {"pA": "A", "pB": "B", "pX": "X", "pY": "Y"})
+    assert ("Y", "pY", "b0-second", None) in rows()
+    for t in rec._tasks:
+        t.cancel()
+
+
+async def _refresh_with(rec, tokens: dict[str, str]):
+    """Run one universe refresh against fixed position_id -> token_id pairs."""
+    async def mapper(pos):
+        return {p: tokens[p] for p in pos if p in tokens}
+    rec.universe, rec.mapper = (lambda: set(tokens)), mapper
+    await rec._refresh_universe()
+
+
+async def test_shutdown_closes_universe_and_mapper():
+    closed = []
+
+    class Universe:
+        def __call__(self): return set()
+        def close(self): closed.append("universe")
+
+    class Mapper:
+        async def __call__(self, pos): return {}
+        def close(self): closed.append("mapper")
+
+    store = BookStore(None)
+    rec = BookRecorder(store, Universe(), mapper=Mapper(), refresh_sec=0.05)
+    rec.stop()                       # stop() before run(): no event yet, run() must still exit cleanly
+    await asyncio.wait_for(rec.run(), 2)
+    assert closed == ["universe", "mapper"]
+
+
+def test_store_migrates_pre_conn_id_schema(tmp_path):
+    """books.db files written before 2026-10-21 lack subscriptions.conn_id / book_connections.last_frame_ms."""
+    import sqlite3
+    p = tmp_path / "old.db"
+    c = sqlite3.connect(p)
+    c.executescript("CREATE TABLE subscriptions (asset_id TEXT NOT NULL, position_id TEXT, subscribed_ms INTEGER NOT NULL, unsubscribed_ms INTEGER);"
+                    "CREATE TABLE book_connections (conn_id TEXT PRIMARY KEY, connected_at_ms INTEGER NOT NULL, n_assets INTEGER,"
+                    " disconnected_at_ms INTEGER, close_reason TEXT); INSERT INTO subscriptions VALUES ('a', 'p', 1, NULL);")
+    c.commit(); c.close()
+    store = BookStore(p)
+    assert "conn_id" in {r[1] for r in store.conn.execute("PRAGMA table_info(subscriptions)")}
+    store.subscribed({"b": "q"}, 2, conn_id="c1"); store.conn_opened("c1", 2, 1); store.set_last_frame_ms({"c1": 5})
+    assert store.last_frame_ms("c1") == 5 and store.unsubscribed_conn("c1", 9) == 1
+    assert [tuple(r) for r in store.conn.execute("SELECT * FROM subscriptions ORDER BY asset_id")] == [("a", "p", 1, None, None), ("b", "q", 2, 9, "c1")]
+    store.close()
+    BookStore(p).close()      # idempotent on the migrated file
+
+
+def test_universe_sources_close_their_connections(tmp_path):
+    import sqlite3
+    from rfqbot.books import GameUniverse, RfqLegUniverse, TokenMap
+    from rfqbot.store import Store
+    Store(tmp_path / "rfq.db").close()
+    store = BookStore(None)
+    legs = RfqLegUniverse(tmp_path / "rfq.db", window_ms=1000)
+    gu = GameUniverse(store, tmp_path / "rfq.db", legs)
+    tm = TokenMap(store, tmp_path / "rfq.db")
+    assert legs() == set()
+    gu.close(); tm.close()
+    for conn in (legs.conn, gu.cat, tm.cat):   # GameUniverse.close() also closes the legs it wraps
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
 
 
 async def test_delta_without_snapshot_is_ignored():
@@ -225,7 +328,7 @@ async def test_game_universe_expands_legs_to_whole_games(tmp_path, monkeypatch):
     store = BookStore(None)
     legs = _Legs({"nfl-pit-no-2026-10-25-spread-home-1pt5#0": 5, "nba-dal-hou-2026-10-21-total-230pt5#0": 2,
                   "uel-oly-spp-2026-10-22-exact-score-5-3#0": 9})
-    monkeypatch.setattr("rfqbot.books.now_ms", lambda: 1_776_000_000_000)   # 2026-04-12: games are within 72h? no -> use big lookahead
+    monkeypatch.setattr("rfqbot.books_universe.now_ms", lambda: 1_776_000_000_000)   # 2026-04-12: games are within 72h? no -> use big lookahead
     gu = GameUniverse(store, rfq_db, legs, sports=("nfl", "nba"), max_tokens=20_000, lookahead_hours=24 * 365)
     out = await gu()
     # whole PIT-NO game (2 ml + 3 lines x 2) and whole DAL-HOU game (2 positions), soccer stays leg-level, MIA-NYJ untouched
@@ -250,7 +353,7 @@ async def test_game_universe_lookahead_and_cap(tmp_path, monkeypatch):
     from rfqbot.books import GameUniverse
     rfq_db = _game_catalog(tmp_path)
     now = 1_776_000_000_000
-    monkeypatch.setattr("rfqbot.books.now_ms", lambda: now)
+    monkeypatch.setattr("rfqbot.books_universe.now_ms", lambda: now)
     far = "2026-10-25 17:00:00+00"                 # > 72 h after `now` (2026-04-12)
     monkeypatch.setattr(httpx.AsyncClient, "get", _fake_gamma({
         "nfl-pit-no-2026-10-25": far, "nfl-mia-nyj-2026-10-25": "2026-04-13T00:00:00Z"}, []))
@@ -293,13 +396,31 @@ async def test_recorder_accepts_async_universe_and_unions(tmp_path):
 
 
 def test_game_prefix_and_time_parsing():
-    from rfqbot.books import _parse_gamma_time, game_prefix_of
+    from rfqbot.books import _parse_gamma_time, game_prefix_of   # re-exports used by rfqbot.history
     assert game_prefix_of("nfl-pit-no-2026-10-25-spread-home-3pt5") == "nfl-pit-no-2026-10-25"
     assert game_prefix_of("nba-dal-hou-2026-10-21-rebounds-cooper-flagg-6pt5") == "nba-dal-hou-2026-10-21"
     assert game_prefix_of("will-the-us-invade-iran-before-2027") is None
     assert _parse_gamma_time("2026-10-25 13:30:00+00") == 1_792_935_000_000
     assert _parse_gamma_time("2026-10-25T13:30:00Z") == 1_792_935_000_000
     assert _parse_gamma_time(None) is None and _parse_gamma_time("garbage") is None
+
+
+def test_parse_iso_ms_spellings(monkeypatch):
+    from datetime import datetime, timezone
+    from rfqbot.timeutil import now_ms, parse_iso_ms
+    t = 1_792_935_000_000                                             # 2026-10-25 13:30:00 UTC
+    assert parse_iso_ms("2026-10-25T13:30:00Z") == t
+    assert parse_iso_ms("2026-10-25T13:30:00+00:00") == t
+    assert parse_iso_ms("2026-10-25 13:30:00+00") == t                 # Gamma's short offset
+    assert parse_iso_ms("2026-10-25T09:30:00-04:00") == t              # ET offset converts, does not shift
+    assert parse_iso_ms("2026-10-25T13:30:00.250Z") == t + 250
+    assert parse_iso_ms("2026-10-25T13:30:00") == t                    # naive -> UTC regardless of the host zone
+    assert parse_iso_ms("2026-10-25") == t - 13 * 3_600_000 - 30 * 60_000
+    assert parse_iso_ms("  2026-10-25T13:30:00Z ") == t
+    local = datetime(2026, 10, 25, 13, 30).astimezone()                # host zone, whatever it is
+    assert parse_iso_ms("2026-10-25T13:30:00", assume_utc=False) == int(local.timestamp() * 1000)
+    assert parse_iso_ms(None) is None and parse_iso_ms("") is None and parse_iso_ms("garbage") is None
+    assert abs(now_ms() - int(datetime.now(timezone.utc).timestamp() * 1000)) < 1_000
 
 
 def test_coverage_report_lines():

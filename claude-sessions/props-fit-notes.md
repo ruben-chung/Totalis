@@ -346,3 +346,9 @@ Same player (z of one stat vs z of another, same game) and teammate pairs (stat 
 | pts-reb | 28448 / 0.351 | 284873 / 0.027 |
 | reb-ast | 28443 / 0.272 | 284834 / 0.016 |
 | reb-fg3m | 28435 / 0.146 | 284700 / 0.004 |
+
+## Review fixes (2026-10-22)
+
+- Season-share rows were bucketed on `s * realized team points`, while lined rows used the pre-game line; they are now bucketed on `s * team_pts_line` (else the team's leave-one-out season average) and `by_line_bucket_by_source` reports the `line` and `season` bucket tables separately. The sds in `props-fit-findings.md` come from the first run and need a refit (`python -m rfqbot.props fit`, which also rewrites `props_fit.json` and this file's tables).
+- Prices whose last trade is more than 120 min before the 15-min pre-tip offset are dropped from the implied line and counted in `join.stale_priced_lines`.
+- `props_fit.json` moved to `claude-sessions/` (nothing imports it); the FINDINGS prose moved to `claude-sessions/props-fit-findings.md`; `load_rows` returns `(rows, diagnostics)`.

@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import BacktestConfig, WindowConfig
+from .feed import HOUR_MS
 from .store import DEFAULT_DB, BacktestStore
+
+log = logging.getLogger(__name__)
 
 
 def parse_time(s: str) -> int:
@@ -27,24 +30,27 @@ def latest_raw_ms(source: Path) -> int:
     import gzip
     files = sorted(p for p in Path(source).rglob("*.jsonl*") if p.is_file())
     last = 0
+    bad = 0
     for p in reversed(files[-2:]):
         try:
             with gzip.open(p, "rt", encoding="utf-8") as f:
                 for line in f:
                     try:
                         last = max(last, int(json.loads(line).get("t", 0)))
-                    except Exception:
-                        continue
+                    except (ValueError, TypeError, AttributeError):    # a half-written trailing line
+                        bad += 1
         except EOFError:
             pass
         if last:
             break
+    if bad:
+        log.warning("latest_raw_ms: skipped %d unparseable lines in the newest raw files", bad)
     return last
 
 
 def window_from(args: argparse.Namespace) -> WindowConfig:
     end = parse_time(args.end) if args.end else latest_raw_ms(Path(args.source)) - 5 * 60_000
-    start = parse_time(args.start) if args.start else end - int(args.hours * 3_600_000)
+    start = parse_time(args.start) if args.start else end - int(args.hours * HOUR_MS)
     return WindowConfig(start_ms=start, end_ms=end, refresh_idle_ms=int(args.idle_s * 1000))
 
 
@@ -81,26 +87,28 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
-    from .compare import run_compare
-    run_compare(args, window_from(args))
+    from .compare import fmt_compare, run_compare
+    print(fmt_compare(run_compare(args, window_from(args), say=print)))
     return 0
 
 
 def cmd_settle(args: argparse.Namespace) -> int:
-    from .settle import settle_runs
-    settle_runs(args)
+    from .settle import format_settlements, settle_runs
+    print(format_settlements(settle_runs(args)))
     return 0
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    from .report import report_cli
-    report_cli(args)
+    from .report import report_runs
+    for text, path in report_runs(args):
+        print(text)
+        print(f"-> {path}\n")
     return 0
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    from .validate import validate_cli
-    validate_cli(args)
+    from .validate import validate_run
+    print(json.dumps(validate_run(args), indent=1, default=str))
     return 0
 
 

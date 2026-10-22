@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date
 
 from .store import DEFAULT_DB, DEFAULT_PARAMS, PropsStore
 
@@ -99,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--offset-min", type=int, default=15, help="hist_prices offset used as the closing line")
     s.set_defaults(fn=cmd_pull_lines)
     s = sub.add_parser("fit", help="share model, residuals, correlations -> claude-sessions/props-fit-notes.md + JSON")
-    s.add_argument("--out", default=str(DEFAULT_PARAMS), help="parameters JSON (committed with the package)")
+    s.add_argument("--out", default=str(DEFAULT_PARAMS), help="fit report JSON (kept with the session notes)")
     s.add_argument("--notes", default="./claude-sessions/props-fit-notes.md")
     s.add_argument("--types", default="2,3,5", help="season types to fit on")
     s.add_argument("--min-minutes", type=float, default=0.0)

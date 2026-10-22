@@ -76,3 +76,18 @@ def test_tie_bucket_split_uses_moneyline():
     assert abs(nb.mass[i0 - 1] - nb.mass[i0 + 1]) < 0.005         # symmetric by the moneyline
     nb2, note2 = split_tie_bucket(bins, fit, prior, None)
     assert "prior share" in note2 and nb2.mass[nb2.bin_of[nb2.support == 0][0]] > 0.02
+
+
+def test_duplicate_lines_are_aggregated_before_pava_order_free():
+    """Two observations at the same line (the two outcomes of a market, a mirror market) are one
+    weighted point; the fit must not depend on their order in the input."""
+    base = normal_ladder(3.0, 13.0, [1.5, 2.5, 3.5, 6.5, 7.5], err=0.01)
+    dup_hi = Obs(3.5, base[2].p + 0.03, 0.005, "d1")           # a more precise, higher quote at 3.5
+    dup_lo = Obs(3.5, base[2].p - 0.03, 0.02, "d2")            # a less precise, lower one
+    a = fit_survival(base + [dup_hi, dup_lo])
+    b = fit_survival([dup_lo] + base[:2] + [dup_hi] + base[2:])
+    assert np.allclose(a.s, b.s) and a.flagged == b.flagged == []
+    # the aggregate is the weighted mean, pulled toward the precise quote
+    w = np.array([1 / 0.01 ** 2, 1 / 0.005 ** 2, 1 / 0.02 ** 2])
+    expected = np.dot(w, [base[2].p, dup_hi.p, dup_lo.p]) / w.sum()
+    assert a.at(3.5) == pytest.approx(expected, abs=2e-3)

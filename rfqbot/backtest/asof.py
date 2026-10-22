@@ -15,22 +15,23 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from array import array
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
 import numpy as np
 
+from ..db import ro_connect
 from ..kalshi_books import KalshiQuote, MatchRow
 from ..ladders import MarketQuote
 
-PRICE_SCALE = 10_000
+PRICE_SCALE = 10_000                # book_top prices are integers x 10_000
+_NAN = float("nan")
 
 
 def ro(path: str | Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{Path(path)}?mode=ro", uri=True, check_same_thread=False, timeout=60)
-    c.row_factory = sqlite3.Row
-    return c
+    return ro_connect(path, timeout=60)
 
 
 class Clock:
@@ -188,16 +189,21 @@ class PolyAsOf:
                           [f"{sp}-%" for sp in sports])
             books.execute("CREATE INDEX temp.ix_want ON want(token_id)")
             end = self.end_ms if self.end_ms is not None else 1 << 62
-            per: dict[str, list[tuple]] = {}
+            # flat float64 buffers per token (8 bytes a value, no per-row tuples); each is turned into its numpy view and
+            # dropped from the buffer dict as it is converted, so peak memory is the raw buffers, not buffers plus tuples plus arrays
+            per: dict[str, array] = {}
             n = 0
             cur = books.execute("SELECT asset_id, at_ms, best_bid, best_ask, bid_size, ask_size, bid_depth, ask_depth FROM book_top NOT INDEXED"
                                 " WHERE at_ms <= ? AND asset_id IN (SELECT token_id FROM want)", (end,))
             for r in cur:
-                per.setdefault(r[0], []).append(r[1:])
+                buf = per.get(r[0])
+                if buf is None:
+                    buf = per[r[0]] = array("d")
+                buf.extend([_NAN if v is None else v for v in r[1:]])
                 n += 1
             out = {}
-            for tid, rows in per.items():
-                a = np.array(rows, dtype=np.float64)
+            for tid in list(per):
+                a = np.frombuffer(per.pop(tid), dtype=np.float64).reshape(-1, 7)
                 if len(a) > 1 and (np.diff(a[:, 0]) < 0).any():
                     a = a[np.argsort(a[:, 0], kind="stable")]
                 out[tid] = a
@@ -341,7 +347,8 @@ class KalshiAsOf:
                                " WHERE at_ms <= ? AND ticker IN (SELECT ticker FROM want)", (end,)):
                 per.setdefault(r[0], []).append(r[1:])
                 n += 1
-            for tk, rows in per.items():
+            for tk in list(per):
+                rows = per.pop(tk)
                 rows.sort(key=lambda x: x[0])
                 a = np.array([x[:-1] for x in rows], dtype=np.float64)
                 self._series[tk] = _Series(a[:, 0].astype(np.int64), {nm: a[:, i + 1] for i, nm in enumerate(KALSHI_COLS)}, [x[-1] or "" for x in rows])
@@ -351,7 +358,7 @@ class KalshiAsOf:
             c.close()
         self._pre_done = True
         if progress:
-            progress(f"  preloaded {n} kalshi rows for {len(per)} tickers in {time.time() - t0:.0f}s")
+            progress(f"  preloaded {n} kalshi rows for {len(self._series)} tickers in {time.time() - t0:.0f}s")
         return n
 
     def _t(self, at_ms: int | None) -> int:

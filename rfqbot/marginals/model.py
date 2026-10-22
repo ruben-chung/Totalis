@@ -5,8 +5,9 @@ rfqbot.ladders) and, when the matcher found one, the matched Kalshi market's top
 (`MatchRow`, `KalshiQuote` from rfqbot.kalshi_books; duck-typed here, see sources.py).
 
 Per-venue estimate
-    p_v   = depth-weighted microprice at the touch = (bid * ask_size + ask * bid_size) / (bid_size + ask_size)
-            (plain mid when either size is missing or both are zero)
+    p_v   = mid + (microprice - mid) * depth / (depth + MICRO_D0), microprice = (bid * ask_size + ask * bid_size) / (bid_size + ask_size)
+            (the size-at-best shift toward the heavy side is shrunk when the book is thin; plain mid when either
+            size is missing or both are zero)
     Kalshi side mapping: kalshi_side == "no" -> the leg is the NO contract, so bid = 1 - yes_ask,
             ask = 1 - yes_bid and the sizes / depths swap sides. p_no = 1 - p_yes.
 Per-venue precision
@@ -19,15 +20,18 @@ Per-venue precision
                   The raw age of the row is kept as a feature (VenueEstimate.age_s).
                   c_stale = C_STALE_PREGAME, or C_STALE_INPLAY once game_start_time <= now
     precision_v = 1 / sigma_v^2
-    Kalshi precision is multiplied by KALSHI_PRIOR[sport] and, for a `rules_differ` match, by
-    RULES_DIFFER_SCALE. `shifted_line` / `none` matches do not combine (Polymarket only).
+    Kalshi precision is multiplied by KALSHI_PRIOR[sport]. A `rules_differ` match is a bias, not noise: its variance
+    becomes sigma^2 + RULES_DIFFER_BIAS^2 (props with differing rules are not combined at all). `shifted_line` /
+    `none` matches do not combine (Polymarket only). A locked or crossed book (ask <= bid) is unusable (flag crossed:<venue>);
+    half spreads are floored at half a tick (HS_FLOOR) so a 1-tick book cannot reach zero sigma.
 Combination
     p   = sum(precision_v * p_v) / sum(precision_v)      (w_v = normalized precision)
-    err = 1 / sqrt(sum(precision_v)), floored at ERR_FLOOR (DEGENERATE_ERR_FLOOR when degenerate), capped at ERR_CAP
+    err = 1 / sqrt(sum(precision_v)) assumes the venues' errors are independent. They are not (both follow the same game
+          information), so it is floored at ERR_RHO * min(sigma_v) of the venues used, then at ERR_FLOOR
+          (DEGENERATE_ERR_FLOOR when degenerate), capped at ERR_CAP
 Flags are gates or notes, never extra error (features already flow through sigma), except the
-disagreement rule which replaces the average: when |p_poly - p_kalshi| exceeds the two half
-spreads the venues are not averaged, p = p_poly and err >= gap (tier `disagree`; beyond GAP_SKIP
-tier `skip`).
+disagreement rule: when |p_poly - p_kalshi| exceeds DISAGREE_K * sqrt(sigma_p^2 + sigma_k^2) the tier is `disagree`
+(beyond GAP_SKIP `skip`); p stays the precision-weighted combination and err >= gap.
 Fees: both venues' quotes are fee-exclusive and no fee adjustment is made here; quote assembly
 owns fees.
 Units: probabilities and err are fractions 0..1 (0.01 = one probability point).
@@ -35,6 +39,7 @@ Units: probabilities and err are fractions 0..1 (0.01 = one probability point).
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -46,6 +51,7 @@ KALSHI = "kalshi"
 TIERS = ("ok", "wide", "thin", "stale", "disagree", "skip")
 CONFIDENCES = ("none", "exact", "rules_differ", "shifted_line")
 _SIGMA_EPS = 1e-4
+PROP_SLUG = re.compile(r"-(?:points|rebounds|assists|threes|steals|blocks|pra|pts-reb-ast)-")
 _GAP_EPS = 1e-9        # float noise guard: a gap equal to the combined half-spreads is not a disagreement
 
 
@@ -140,8 +146,9 @@ def parse_game_start_ms(game_start_time: str | None) -> int | None:
 
 
 # ----------------------------------------------------------------- per-venue estimate
-def estimate_venue(q: VenueQuote, *, now_ms: int, inplay: bool, cfg: MarginalConfig, scale: float = 1.0) -> VenueEstimate:
-    """Features and precision for one venue. `scale` multiplies precision (venue prior x confidence)."""
+def estimate_venue(q: VenueQuote, *, now_ms: int, inplay: bool, cfg: MarginalConfig, scale: float = 1.0, bias: float = 0.0) -> VenueEstimate:
+    """Features and precision for one venue. `scale` multiplies precision (the venue prior); `bias` is a payoff bias whose
+    square is added to the variance (sigma stays the noise term, so disagreement tests use the unbiased sigma)."""
     v = q.venue
     flags: list[str] = []
     if q.at_ms <= 0 or (q.bid is None and q.ask is None):
@@ -170,14 +177,18 @@ def estimate_venue(q: VenueQuote, *, now_ms: int, inplay: bool, cfg: MarginalCon
         return VenueEstimate(v, p, None, float(depth), staleness, sigma, 0.0, 0.0, not dropped, True,
                              tuple(flags), q.at_ms, "stale_drop" if dropped else "one_sided", age)
 
-    p = microprice(q.bid, q.ask, q.bid_size, q.ask_size)
-    hs = max(0.0, (q.ask - q.bid) / 2)
+    if q.ask <= q.bid:                       # locked or crossed: no spread to measure, the book is mid-update
+        flags.append(f"crossed:{v}")
+        return VenueEstimate(v, None, None, 0.0, staleness, None, 0.0, 0.0, False, False, tuple(flags), q.at_ms, "crossed", age)
     bd = q.bid_depth if q.bid_depth is not None else q.bid_size
     ad = q.ask_depth if q.ask_depth is not None else q.ask_size
     depth = min(bd if bd is not None else 0.0, ad if ad is not None else 0.0)
+    mid = (q.bid + q.ask) / 2
+    p = mid + (microprice(q.bid, q.ask, q.bid_size, q.ask_size) - mid) * depth / (depth + cfg.micro_d0)
+    hs = max((q.ask - q.bid) / 2, cfg.hs_floor.get(v, cfg.hs_floor[POLY]))
     sigma = hs * (1 + cfg.c_thin / (1 + depth / cfg.d0)) + c_stale * staleness
     sigma = max(sigma, _SIGMA_EPS)
-    precision = 0.0 if dropped else scale / (sigma * sigma)
+    precision = 0.0 if dropped else scale / (sigma * sigma + bias * bias)
     if 2 * hs > cfg.k_wide * p * (1 - p) + cfg.wide_floor:
         flags.append(f"wide:{v}")
     if depth < cfg.d_min:
@@ -205,7 +216,8 @@ def _venue_text(e: VenueEstimate, scale: float) -> str:
 
 
 def combine(position_id: str, poly: VenueQuote | None, kalshi: VenueQuote | None, *, confidence: str,
-            sport: str | None, now_ms: int, game_start_ms: int | None, cfg: MarginalConfig) -> Marginal:
+            sport: str | None, now_ms: int, game_start_ms: int | None, cfg: MarginalConfig,
+            kalshi_block: str | None = None) -> Marginal:
     """Apply the rules in the module docstring to one leg's two (optional) venue quotes."""
     if confidence not in CONFIDENCES:
         raise ValueError(f"unknown kalshi confidence {confidence!r}")
@@ -217,15 +229,18 @@ def combine(position_id: str, poly: VenueQuote | None, kalshi: VenueQuote | None
     flags.extend(ep.flags)
 
     k_scale = cfg.prior_for(sport)
+    k_bias = 0.0
     if confidence == "rules_differ":
-        k_scale *= cfg.rules_differ_scale
+        k_bias = cfg.rules_differ_bias
         flags.append("rules_differ")
     ek: VenueEstimate | None = None
-    if confidence in ("exact", "rules_differ"):
+    if kalshi_block:
+        flags.append(f"kalshi_unused:{kalshi_block}")
+    elif confidence in ("exact", "rules_differ"):
         if kalshi is None:
             flags.append("kalshi_unused:no_quote")
         else:
-            ek = estimate_venue(kalshi, now_ms=now_ms, inplay=inplay, cfg=cfg, scale=k_scale)
+            ek = estimate_venue(kalshi, now_ms=now_ms, inplay=inplay, cfg=cfg, scale=k_scale, bias=k_bias)
             flags.extend(ek.flags)
             if ek.p is None:
                 ek = None
@@ -250,7 +265,7 @@ def combine(position_id: str, poly: VenueQuote | None, kalshi: VenueQuote | None
         used = two_sided
         if len(used) == 2:
             gap = abs(ep.p - ek.p)
-            thr = ep.half_spread + ek.half_spread
+            thr = cfg.disagree_k * math.hypot(ep.sigma, ek.sigma)
             if gap > thr + _GAP_EPS:
                 disagree_gap = gap
                 flags.append("disagree")
@@ -259,10 +274,9 @@ def combine(position_id: str, poly: VenueQuote | None, kalshi: VenueQuote | None
                     tier = "skip"
                 else:
                     tier = "disagree"
-                used = [ep]
         total = sum(e.precision for e in used)
         p = sum(e.precision * e.p for e in used) / total
-        err = 1 / math.sqrt(total)
+        err = max(1 / math.sqrt(total), cfg.err_rho * min(e.sigma for e in used))     # correlated venue errors: no better than rho * best sigma
         if disagree_gap is not None:
             err = max(err, disagree_gap)
     elif lone_one_sided is not None:
@@ -317,7 +331,7 @@ def combine(position_id: str, poly: VenueQuote | None, kalshi: VenueQuote | None
     else:
         tail = f"-> {p:.3f} ± {err:.3f} w={w[POLY]:.2f}/{w[KALSHI]:.2f}"
         if disagree_gap is not None:
-            tail += f" gap {disagree_gap:.3f}>{(ep.half_spread or 0) + (ek.half_spread or 0):.3f}: poly only"
+            tail += f" gap {disagree_gap:.3f}>{cfg.disagree_k:g}x sigma: venues disagree"
     explain = f"{joiner.join(parts)} {tail} [{confidence}{', inplay' if inplay else ''}] {tier}"
 
     return Marginal(
@@ -339,5 +353,7 @@ def marginal_for_leg(mq: Any, match: Any | None, kq: Any | None, *, sport: str |
     confidence = "none" if match is None else (getattr(match, "confidence", None) or "none")
     side = "yes" if match is None else (getattr(match, "kalshi_side", None) or "yes")
     kalshi = None if kq is None else kalshi_quote(kq, side, kalshi_confirmed_ms)
+    # a prop whose rules differ (DNP / void conventions) is a payoff mismatch we cannot size: Polymarket only
+    block = "props_rules" if confidence == "rules_differ" and PROP_SLUG.search(getattr(mq, "slug", None) or "") else None
     return combine(mq.position_id, poly_quote(mq, poly_confirmed_ms), kalshi, confidence=confidence, sport=sport, now_ms=now_ms,
-                   game_start_ms=parse_game_start_ms(getattr(mq, "game_start_time", None)), cfg=cfg)
+                   game_start_ms=parse_game_start_ms(getattr(mq, "game_start_time", None)), cfg=cfg, kalshi_block=block)

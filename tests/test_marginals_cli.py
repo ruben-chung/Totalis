@@ -6,8 +6,8 @@ from rfqbot.kalshi_books import KalshiBookStore
 from rfqbot.marginals import LegMarginal, compute_game
 from rfqbot.marginals.__main__ import LOG_COLUMNS, main
 from rfqbot.marginals.config import MarginalConfig, load_config
-from rfqbot.marginals.sources import (KalshiQuote, MatchRow, kalshi_confirmation, kalshi_source, no_kalshi,
-                                      poly_confirmations, poly_source, sport_of, synthetic_kalshi)
+from rfqbot.marginals.sources import (KalshiQuote, kalshi_confirmation, kalshi_source, no_kalshi,
+                                      poly_confirmations, poly_source, sport_of)
 from rfqbot.store import Store
 
 GAME = "nfl-pit-no-2026-10-25"
@@ -199,3 +199,15 @@ def test_config_from_env():
     cfg = load_config(env={"MARGINAL_C_THIN": "0.5", "MARGINAL_GAP_SKIP": "0.2", "MARGINAL_KALSHI_PRIOR": "nfl=3, mlb=1.5"})
     assert cfg.c_thin == 0.5 and cfg.gap_skip == 0.2 and cfg.prior_for("nfl") == 3.0 and cfg.prior_for("nba") == 1.0
     assert cfg.prior_for("mlb") == 1.5 and '"gap_skip": 0.2' in cfg.to_json()
+
+
+def test_kalshi_ticker_confirmations_read_ticker_seen(tmp_path):
+    import sqlite3
+    from rfqbot.marginals.sources import kalshi_ticker_confirmations
+    p = tmp_path / "k.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE ticker_seen (ticker TEXT PRIMARY KEY, last_seen_ms INTEGER NOT NULL, source TEXT NOT NULL)")
+    c.executemany("INSERT INTO ticker_seen VALUES (?,?,?)", [("A", 100, "ws"), ("B", 200, "ws")])
+    c.commit(); c.close()
+    assert kalshi_ticker_confirmations(["A", "C", None], db=p) == {"A": 100}
+    assert kalshi_ticker_confirmations(["A"], db=tmp_path / "missing.db") == {}

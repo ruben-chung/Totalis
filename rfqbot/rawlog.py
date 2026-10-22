@@ -12,6 +12,7 @@ import gzip
 import json
 import logging
 import time
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Iterator
@@ -73,7 +74,8 @@ class RawLog:
 
 
 def iter_rawlog_file(path: Path) -> Iterator[dict]:
-    """Yield frames from one .jsonl(.gz) file; tolerate a truncated final block."""
+    """Yield frames from one .jsonl(.gz) file; tolerate a truncated or corrupt final block (a
+    recorder killed mid-write): what was flushed before it is read, the rest is logged and skipped."""
     opener = gzip.open if path.suffix == ".gz" else open
     try:
         with opener(path, "rt", encoding="utf-8") as f:
@@ -85,8 +87,8 @@ def iter_rawlog_file(path: Path) -> Iterator[dict]:
                     yield json.loads(line)
                 except json.JSONDecodeError:
                     log.warning("skipping corrupt line in %s", path)
-    except EOFError:
-        log.warning("%s ends in a truncated gzip block; read what was flushed", path)
+    except (EOFError, zlib.error, gzip.BadGzipFile) as e:
+        log.warning("%s: %s: %s; read what was flushed before it", path, type(e).__name__, e)
 
 
 def iter_rawlog_dir(directory: Path) -> Iterator[dict]:

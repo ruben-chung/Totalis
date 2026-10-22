@@ -43,6 +43,7 @@ class ProbeConfig:
     horizons_sec: tuple[int, ...] = (60, 300)
     max_late_sec: float = 600.0                  # a due probe older than this is dropped, not sent late
     max_per_hour: int = 20
+    max_per_minute: int = 10                     # below the venue's 15 creates per rolling minute per maker_address
     max_per_combo: int = 3                       # per combo per day
     min_spacing_sec: float = 30.0                # between probes on one combo
     both_directions: bool = True
@@ -69,7 +70,7 @@ class ProbeConfig:
         return BUILDER_PATH if self.gateway == "builder" else REQUESTER_PATH
 
     def missing_credentials(self) -> list[str]:
-        """Env names Ruben must supply before PROBE_MODE=live."""
+        """Env names the operator must supply before PROBE_MODE=live."""
         need = {"PROBE_POLY_ADDRESS (or POLYMARKET_SIGNER_ADDRESS)": self.poly_address, "POLYMARKET_API_KEY": self.api_key,
                 "POLYMARKET_API_SECRET": self.api_secret, "POLYMARKET_API_PASSPHRASE": self.api_passphrase,
                 "POLYMARKET_SIGNER_ADDRESS": self.signer_address, "POLYMARKET_MAKER_ADDRESS": self.maker_address}
@@ -121,7 +122,8 @@ def load_probe_config(env_file: str | os.PathLike | None = ".env", env: dict[str
         builder_api_key=env.get("PROBE_BUILDER_API_KEY") or "", builder_passphrase=env.get("PROBE_BUILDER_PASSPHRASE") or "",
         builder_secret=env.get("PROBE_BUILDER_SECRET") or "", requester_id=env.get("PROBE_REQUESTER_ID") or "",
         delay_sec=_f(env, "DELAY_SEC", b.delay_sec), horizons_sec=horizons, max_late_sec=_f(env, "MAX_LATE_SEC", b.max_late_sec),
-        max_per_hour=int(_f(env, "MAX_PER_HOUR", b.max_per_hour)), max_per_combo=int(_f(env, "MAX_PER_COMBO", b.max_per_combo)),
+        max_per_hour=int(_f(env, "MAX_PER_HOUR", b.max_per_hour)), max_per_minute=int(_f(env, "MAX_PER_MINUTE", b.max_per_minute)),
+        max_per_combo=int(_f(env, "MAX_PER_COMBO", b.max_per_combo)),
         min_spacing_sec=_f(env, "MIN_SPACING_SEC", b.min_spacing_sec), both_directions=_b(env, "BOTH_DIRECTIONS", b.both_directions),
         disguise=_b(env, "DISGUISE", b.disguise), disguise_min_p=_f(env, "DISGUISE_MIN_P", b.disguise_min_p),
         disguise_max_spread=_f(env, "DISGUISE_MAX_SPREAD", b.disguise_max_spread),

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
 from ..books import _parse_gamma_time, game_prefix_of
 from .gamma import SERIES, Http, is_side_event

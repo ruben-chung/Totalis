@@ -6,7 +6,8 @@ import pytest
 
 from rfqbot.edge import MarginTerms, Segment, margin_for
 from rfqbot.edge.config import EdgeConfig, load_edge_config
-from rfqbot.edge.table import MarginTable, load_table, write_table
+from rfqbot.edge.curse import lam, model_curse
+from rfqbot.edge.table import DEFAULT_TABLE, MarginTable, load_table, write_table
 
 
 def node(seg, m_star=0.02, base=0.015, curse_mult=0.8, info=0.0, source="model", n=100):
@@ -36,8 +37,10 @@ def test_write_load_and_ladder_resolution(tmp_path):
     assert isinstance(t, MarginTable) and t.fitted_at_ms == 123
     # exact cell
     m = margin_for("nba|2|BUY|disjoint|s1", table=t)
-    assert m == MarginTerms(0.015, 0.8, 0.0, 0.0, False, "nba|2|BUY|disjoint|s1", 0, 100, "model")
-    assert m.margin(0.006) == pytest.approx(0.015 + 0.8 * 0.006)
+    assert m == MarginTerms(0.015, 0.8, 0.0, 0.0, False, "nba|2|BUY|disjoint|s1", 0, 100, "model", delta=0.03, m_star=0.02)
+    # the quote-time curse is the model curse at the RFQ's sigma (delta and m* travel with the node), not the linear slope
+    assert m.margin(0.006) == pytest.approx(0.015 + model_curse(0.006, 0.03, 0.02))
+    assert m.margin(0.03) == pytest.approx(0.015 + model_curse(0.03, 0.03, 0.02)) and m.margin(0.03) > m.margin(0.006)
     # pooled: sigma dropped
     m = margin_for(Segment.parse("nba|2|BUY|disjoint|s2"), table=t)
     assert m.segment == "nba|2|BUY|disjoint|*" and m.level == 1 and m.info_premium == 0.003
@@ -55,7 +58,27 @@ def test_write_load_and_ladder_resolution(tmp_path):
     assert margin_for("nba|2|BUY|disjoint|s1", requester="unknown", table=t).wallet_premium == 0.0
 
 
-def test_margin_for_without_table_and_cache_refresh(tmp_path):
+def test_quote_time_curse_reproduces_m_star_at_the_node_sigma_and_falls_back_to_the_slope():
+    sigma_node, delta, m_star = 0.006, 0.03, 0.02
+    z = (delta - m_star) / sigma_node
+    base = m_star - lam(z) * sigma_node                         # as optimize_node stores it
+    t = MarginTerms(base, lam(z), 0.0, 0.0, False, "n", 0, 10, "model", delta=delta, m_star=m_star)
+    assert t.margin(sigma_node) == pytest.approx(m_star)        # exactly m* at the node's own sigma
+    assert t.curse(0.0) == 0.0 and t.curse(2 * sigma_node) > t.curse(sigma_node)
+    # a table without delta / m_star (older fit) keeps the linear rule and the same value at the node sigma
+    old = MarginTerms(base, lam(z), 0.0, 0.0, False, "n", 0, 10, "model")
+    assert old.margin(sigma_node) == pytest.approx(m_star) and old.margin(0.012) == pytest.approx(base + lam(z) * 0.012)
+    # the default edge terms (no table) are unchanged
+    assert MarginTerms(0.005, 0.0, 0.0, 0.0, False).margin(0.01) == 0.005
+
+
+def test_default_table_path_is_a_runtime_artifact_outside_the_source_tree():
+    assert DEFAULT_TABLE == EdgeConfig().table_path == pytest.importorskip("pathlib").Path("./data/margin_table.json")
+    assert "rfqbot" not in DEFAULT_TABLE.parts
+    assert load_edge_config(env_file=None, env={"EDGE_TABLE_PATH": "/x/t.json"}).table_path.as_posix() == "/x/t.json"
+
+
+def test_margin_for_without_table_and_cache_refresh(tmp_path, caplog):
     missing = tmp_path / "none.json"
     assert margin_for("nba|2|BUY|disjoint|s1", path=missing, default_edge=0.0075) == MarginTerms(0.0075, 0.0, 0.0, 0.0, False)
     path = tmp_path / "t.json"
@@ -67,10 +90,12 @@ def test_margin_for_without_table_and_cache_refresh(tmp_path):
     os.utime(path, (time.time() + 5, time.time() + 5))     # make sure the mtime differs
     assert load_table(path, max_age_s=0).fitted_at_ms == 2
     assert margin_for("nba|2|BUY|disjoint|s1", path=path).base == 0.02
-    # a corrupt file degrades to the default
+    # a corrupt file degrades to the default, with a warning naming the path
     path.write_text("{not json")
     os.utime(path, (time.time() + 10, time.time() + 10))
-    assert load_table(path, max_age_s=0) is None               # margin_for keeps a 1 s cache, so force the re-read
+    with caplog.at_level("WARNING", logger="rfqbot.edge.table"):
+        assert load_table(path, max_age_s=0) is None               # margin_for keeps a 1 s cache, so force the re-read
+    assert any(str(path) in r.message and "malformed" in r.message for r in caplog.records)
     assert margin_for("nba|2|BUY|disjoint|s1", path=path).source == "default"
 
 

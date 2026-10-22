@@ -1,4 +1,4 @@
-"""CLI: python -m rfqbot {listen|catalog|replay|stats|books|bookstats|kalshi-sync|coverage|nfl-coverage|joint|joint-validate|joint-calibrate|risk}"""
+"""CLI: python -m rfqbot {listen|catalog|replay|stats|books|bookstats|kalshi-sync|coverage|joint|joint-validate|joint-calibrate|risk}"""
 from __future__ import annotations
 
 import argparse
@@ -8,8 +8,11 @@ import signal
 import sys
 from pathlib import Path
 
-from .config import ACCEPTANCE_WINDOW_MS, LAST_LOOK_WINDOW_MS, ConfigError, load_settings
+from .config import ConfigError, Settings, load_settings
 from .store import Store
+
+log = logging.getLogger("rfqbot")
+SUMMARY_PERIOD_S = 60
 
 
 def _setup_logging(level: str) -> None:
@@ -22,12 +25,51 @@ def _setup_logging(level: str) -> None:
     logging.getLogger("websockets").setLevel(logging.WARNING)
 
 
+def _build_quoting(settings: Settings, store: Store, args: argparse.Namespace):
+    """The paper quote handler and its game cache for ``listen --quote``: (assembler, cache)."""
+    from .quoting import Assembler, load_quote_config
+    from .quoting.cache import GameCache
+    from .quoting.decisions import DecisionLog
+    qcfg = load_quote_config(args.env)
+    cache = GameCache(qcfg)
+    inventory = None
+    decisions_path = args.decisions_db or qcfg.decisions_db
+    if qcfg.risk:
+        from .quoting.inventory import Inventory
+        from .risk.caps import Caps
+        inventory = Inventory(cache, qcfg, Caps.from_env(), store_path=store.path, horizon_ms=settings.horizon_ms)
+        cache.on_refresh.append(inventory.refresh)
+        if Path(decisions_path).exists():
+            n = inventory.load(decisions_path)
+            log.info("inventory: %d pending quotes rebuilt from %s", n, decisions_path)
+    decisions = DecisionLog(decisions_path)
+    assembler = Assembler(cache, qcfg, decisions=decisions, inventory=inventory, horizon_ms=settings.horizon_ms)
+    cache.on_refresh.append(decisions.flush)                  # decision rows are buffered off the RFQ path
+    if qcfg.edge:
+        cache.on_refresh.append(assembler.reload_edge_table)   # a refit by `python -m rfqbot.edge monitor` lands without a restart
+    log.info("quoting ON (paper) decisions=%s base_edge=%s max_size_usd=%s risk=%s caps=%s edge_table=%s",
+             decisions.path, qcfg.base_edge, qcfg.max_size_usd, qcfg.risk,
+             inventory.caps.as_dict() if inventory else None, assembler.edge_table_fitted_at if qcfg.edge else "off")
+    return assembler, cache
+
+
+async def _summary_loop(listener, store: Store, rawlog, period_s: float = SUMMARY_PERIOD_S) -> None:
+    """Log the per-minute frame counts until cancelled."""
+    prev: dict[str, int] = {}
+    while True:
+        await asyncio.sleep(period_s)
+        cur = dict(listener.counts)
+        delta = {k: cur[k] - prev.get(k, 0) for k in sorted(cur) if cur[k] - prev.get(k, 0)}
+        prev = cur
+        extra = f" raw_log={rawlog.lines_written} lines" if rawlog else ""
+        log.info("last %ds: %s | total rfqs=%s%s", period_s, delta, store.scalar("SELECT COUNT(*) FROM rfqs"), extra)
+
+
 def cmd_listen(args: argparse.Namespace) -> int:
     from .catalog import CatalogSync
     from .listener import Listener
-    from .ws_client import AuthError, FatalGatewayError, RfqSocket
-
     from .rawlog import RawLog
+    from .ws_client import AuthError, FatalGatewayError, RfqSocket
 
     try:
         settings = load_settings(args.env, require_auth=args.require_auth)
@@ -39,69 +81,34 @@ def cmd_listen(args: argparse.Namespace) -> int:
     catalog = None if args.no_catalog else CatalogSync(store, settings.rfq_api_url, refresh_sec=settings.catalog_refresh_sec)
     rawlog = RawLog(settings.raw_log_dir) if settings.raw_log_dir else None
     sock = RfqSocket(settings.ws_url, settings.auth_message, require_auth=args.require_auth)
-    assembler = cache = None
-    if args.quote:
-        from .quoting import Assembler, load_quote_config
-        from .quoting.cache import GameCache
-        from .quoting.decisions import DecisionLog
-        qcfg = load_quote_config(args.env)
-        cache = GameCache(qcfg)
-        inventory = None
-        horizon = ACCEPTANCE_WINDOW_MS + LAST_LOOK_WINDOW_MS + settings.expiry_grace_ms
-        decisions_path = args.decisions_db or qcfg.decisions_db
-        if qcfg.risk:
-            from .quoting.inventory import Inventory
-            from .risk.caps import Caps
-            inventory = Inventory(cache, qcfg, Caps.from_env(), store_path=store.path, horizon_ms=horizon)
-            cache.on_refresh.append(inventory.refresh)
-            if Path(decisions_path).exists():
-                n = inventory.load(decisions_path)
-                logging.getLogger("rfqbot").info("inventory: %d pending quotes rebuilt from %s", n, decisions_path)
-        assembler = Assembler(cache, qcfg, decisions=DecisionLog(decisions_path), inventory=inventory, horizon_ms=horizon)
-        if qcfg.edge:
-            cache.on_refresh.append(assembler.reload_edge_table)   # a refit by `python -m rfqbot.edge monitor` lands without a restart
-        logging.getLogger("rfqbot").info("quoting ON (paper=%s) decisions=%s base_edge=%s max_size_usd=%s risk=%s caps=%s edge_table=%s",
-                                         settings.paper_trading, assembler.decisions.path, qcfg.base_edge, qcfg.max_size_usd,
-                                         qcfg.risk, inventory.caps.as_dict() if inventory else None,
-                                         assembler.edge_table_fitted_at if qcfg.edge else "off")
+    assembler, cache = _build_quoting(settings, store, args) if args.quote else (None, None)
     listener = Listener(settings, store, catalog=catalog, rawlog=rawlog, socket=sock,
                         **({"on_rfq": assembler.handle} if assembler else {}))
-    logging.getLogger("rfqbot").info("db=%s raw_log=%s raw_db_types=%s paper=%s", store.path,
-                                     settings.raw_log_dir or "off", settings.raw_db_types, settings.paper_trading)
+    log.info("db=%s raw_log=%s raw_db_types=%s paper=True", store.path, settings.raw_log_dir or "off", settings.raw_db_types)
 
     async def main() -> int:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, listener.stop)
-
-        async def summary():
-            prev: dict[str, int] = {}
-            while True:
-                await asyncio.sleep(60)
-                cur = dict(listener.counts)
-                delta = {k: cur[k] - prev.get(k, 0) for k in sorted(cur) if cur[k] - prev.get(k, 0)}
-                prev = cur
-                extra = f" raw_log={rawlog.lines_written} lines" if rawlog else ""
-                logging.getLogger("rfqbot").info("last 60s: %s | total rfqs=%s%s", delta,
-                                                 store.scalar("SELECT COUNT(*) FROM rfqs"), extra)
-
-        s = asyncio.create_task(summary())
-        c = asyncio.create_task(cache.run()) if cache else None
+        tasks = [asyncio.create_task(_summary_loop(listener, store, rawlog))]
+        if cache:
+            tasks.append(asyncio.create_task(cache.run()))
         if args.duration:
             loop.call_later(args.duration, listener.stop)
         try:
             await listener.run()
             return 0
         except AuthError as e:
-            logging.getLogger("rfqbot").error("%s", e)
+            log.error("%s", e)
             return 3
         except FatalGatewayError as e:
-            logging.getLogger("rfqbot").error("%s", e)
+            log.error("%s", e)
             return 4
         finally:
-            s.cancel()
-            if c:
-                cache.stop(); c.cancel()
+            if cache:
+                cache.stop()
+            for t in tasks:
+                t.cancel()
             if assembler:
                 _print_quote_stats(assembler)
                 assembler.decisions.close()
@@ -212,7 +219,7 @@ def cmd_kalshi_sync(args: argparse.Namespace) -> int:
     settings = load_settings(args.env)
     _setup_logging(args.log_level or settings.log_level)
     store = Store(args.db or settings.db_path)
-    client = KalshiClient(args.kalshi_url, min_gap_sec=args.min_gap)
+    client = KalshiClient(args.kalshi_url or settings.kalshi_api_url, min_gap_sec=args.min_gap)
     res = asyncio.run(KalshiSync(store, client, status=None if args.all_statuses else "open").sync(args.sport))
     total = sum(n for n, _ in res.values()); errs = sum(e for _, e in res.values())
     for series, (n, e) in sorted(res.items()):
@@ -223,7 +230,7 @@ def cmd_kalshi_sync(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_nfl_coverage(args: argparse.Namespace) -> int:
+def cmd_coverage(args: argparse.Namespace) -> int:
     from .sports.coverage import report
 
     settings = load_settings(args.env)
@@ -233,7 +240,7 @@ def cmd_nfl_coverage(args: argparse.Namespace) -> int:
         print(f"no database at {path}", file=sys.stderr)
         return 2
     store = Store(path)
-    res = report(store, getattr(args, "sport", "nfl"), gamma_sample=args.sample if args.gamma else 0, seed=args.seed)
+    res = report(store, args.sport, gamma_sample=args.sample if args.gamma else 0, seed=args.seed)
     store.close()
     return 1 if res["failed"] or res.get("gamma_disagreements") else 0
 
@@ -369,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("kalshi-sync", help="fetch Kalshi game-level markets into kalshi_markets", parents=[common])
     s.add_argument("--sport", default="nfl", choices=sports_registry.sports())
-    s.add_argument("--kalshi-url", default="https://api.elections.kalshi.com/trade-api/v2")
+    s.add_argument("--kalshi-url", default=None, help="override KALSHI_API_URL")
     s.add_argument("--min-gap", type=float, default=0.2, help="minimum seconds between requests")
     s.add_argument("--all-statuses", action="store_true", help="fetch every status, not only open")
     s.set_defaults(fn=cmd_kalshi_sync)
@@ -419,15 +426,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--json", default=None, help="write the full report here")
     s.set_defaults(fn=cmd_risk)
 
-    for name, help_ in (("nfl-coverage", "parse / match coverage over NFL rows in markets"),
-                        ("coverage", "parse / match coverage for --sport")):
-        s = sub.add_parser(name, help=help_, parents=[common])
-        if name == "coverage":
-            s.add_argument("--sport", default="nfl", choices=sports_registry.sports())
-        s.add_argument("--gamma", action="store_true", help="validate a sample of markets against the Gamma API")
-        s.add_argument("--sample", type=int, default=60, help="sample size for --gamma")
-        s.add_argument("--seed", type=int, default=1)
-        s.set_defaults(fn=cmd_nfl_coverage)
+    s = sub.add_parser("coverage", help="parse / match coverage for --sport", parents=[common])
+    s.add_argument("--sport", default="nfl", choices=sports_registry.sports())
+    s.add_argument("--gamma", action="store_true", help="validate a sample of markets against the Gamma API")
+    s.add_argument("--sample", type=int, default=60, help="sample size for --gamma")
+    s.add_argument("--seed", type=int, default=1)
+    s.set_defaults(fn=cmd_coverage)
 
     args = p.parse_args(argv)
     return args.fn(args)

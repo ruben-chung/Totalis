@@ -37,7 +37,7 @@ def run_risk(args: Any, settings: Any = None, out=print) -> int:
     if args.outcome:
         outcomes.append((args.outcome, parse_canonical_key(args.outcome)))
     rep = ex.report(top=args.top, outcomes=outcomes)
-    t_exp = time.perf_counter() - t1
+    time.perf_counter() - t1
     caps = Caps.from_env()
     use = usage(ex, book, caps)
     t_all = time.perf_counter() - t0

@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import httpx
-import pytest
 
 from rfqbot.kalshi import KalshiClient, KalshiSync, market_row, spec_from_row
 from rfqbot.sports.coverage import check_gamma, load_kalshi_index, report

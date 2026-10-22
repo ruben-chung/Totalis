@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from itertools import combinations
 
-from .store import HistoryStore
+from .store import MIN_RESOLVED_SHARE, HistoryStore
 
 log = logging.getLogger(__name__)
 
@@ -24,9 +24,10 @@ def _rank(leg) -> tuple:
 
 def build_pairs(store: HistoryStore, *, sport: str | None = None, max_pairs_per_game: int = 60_000,
                 periods: tuple[str, ...] | None = None, rebuild: bool = False) -> dict[str, int]:
-    games = store.rows("SELECT game_prefix, sport FROM hist_games WHERE n_markets > 0 AND n_resolved >= 0.95 * n_markets"
-                       + (" AND sport = ?" if sport else "") + " ORDER BY game_start_time", *([sport] if sport else []))
+    games = store.rows("SELECT game_prefix, sport FROM hist_games WHERE n_markets > 0 AND n_resolved >= ? * n_markets"
+                       + (" AND sport = ?" if sport else "") + " ORDER BY game_start_time", MIN_RESOLVED_SHARE, *([sport] if sport else []))
     counts = {"games": 0, "legs": 0, "pairs": 0, "capped_games": 0}
+    capped: list[str] = []
     if rebuild:
         with store:
             store.conn.execute("DELETE FROM hist_pairs" + (" WHERE sport = ?" if sport else ""), *([(sport,)] if sport else []))
@@ -49,11 +50,15 @@ def build_pairs(store: HistoryStore, *, sport: str | None = None, max_pairs_per_
                              b["family"], b["period"], b["side"], b["team"], b["line"], a["won"], b["won"]))
                 if max_pairs_per_game and len(rows) >= max_pairs_per_game:
                     counts["capped_games"] += 1
+                    capped.append(g)
                     break
             n = store.insert_pairs(rows)
             counts["games"] += 1
             counts["legs"] += len(legs)
             counts["pairs"] += n
+    if capped:
+        log.warning("pairs: %d games hit the %d-pair cap (later-ranked pairs dropped): %s%s", len(capped), max_pairs_per_game,
+                    ", ".join(capped[:10]), " ..." if len(capped) > 10 else "")
     log.info("pairs: %s", counts)
     return counts
 

@@ -1,9 +1,13 @@
+import base64
+import hashlib
+import hmac
 import json
 
 import pytest
 
+from rfqbot.probe.auth import hmac_signature
 from rfqbot.probe.config import ProbeConfig, REQUESTER_HOST, load_probe_config
-from rfqbot.probe.gateway import DryRunGateway, FakeGateway, HttpGateway, ProbeRequest, parse_response
+from rfqbot.probe.gateway import DryRunGateway, FakeGateway, HttpGateway, ProbeRequest, parse_response, serialize_body
 
 CFG = ProbeConfig(mode="dry", signer_address="0xdeposit", maker_address="0xdeposit", signature_type=3)
 DOC_FIELDS = {"signer_address", "maker_address", "signature_type", "leg_position_ids", "direction", "side", "requested_size"}
@@ -21,13 +25,38 @@ def test_dry_run_body_matches_the_docs_field_set():
     assert b["body"]["requested_size"] == {"unit": "notional", "value_e6": "20000000"}     # value_e6 is a string per the docs
     assert b["body"]["leg_position_ids"] == ["p1", "p2", "p3"]
     assert "POLY_SIGNATURE" in b["headers"] and not any(h.startswith("POLY_BUILDER") for h in b["headers"])
-    # the wire serialization is compact and stable
-    assert req.body_json(CFG) == json.dumps(req.body(CFG), separators=(",", ":"))
+    # the wire serialization is py-clob-client's (json.dumps default separators == str(dict).replace("'", '"'))
+    assert req.body_json(CFG) == str(req.body(CFG)).replace("'", '"') == json.dumps(req.body(CFG))
     # builder gateway adds the builder headers and path
     bcfg = ProbeConfig(**{**CFG.__dict__, "gateway": "builder", "gateway_url": "https://gw.example"})
     gw = DryRunGateway(bcfg)
     gw.create(ProbeRequest(("p1", "p2"), "SELL", "shares", 10_000_000))
     assert gw.bodies[0]["url"] == "https://gw.example/v1/builder/rfq/requests" and "POLY_BUILDER_SIGNATURE" in gw.bodies[0]["headers"]
+
+
+def test_signed_body_serialisation_known_answer():
+    """py-clob-client signs ``str(body).replace("'", '"')`` and posts ``json=body`` (requests: json.dumps with
+    ", " / ": " separators). Pinned bytes and HMAC for one body so a serializer change cannot pass unnoticed."""
+    secret = base64.urlsafe_b64encode(b"0123456789abcdef0123456789abcdef").decode()       # throwaway test key
+    req = ProbeRequest(("p1", "p2", "p3"), "BUY", "notional", 20_000_000)
+    body = req.body(CFG)
+    wire = req.body_json(CFG)
+    assert wire == ('{"signer_address": "0xdeposit", "maker_address": "0xdeposit", "signature_type": 3, '
+                    '"leg_position_ids": ["p1", "p2", "p3"], "direction": "BUY", "side": "YES", '
+                    '"requested_size": {"unit": "notional", "value_e6": "20000000"}}')
+    assert wire == str(body).replace("'", '"') == serialize_body(body)
+    assert wire != json.dumps(body, separators=(",", ":"))                                  # the compact form would not verify
+    ts, path = 1773890758, "/v1/requester/rfq/requests"
+    expect = base64.urlsafe_b64encode(hmac.new(base64.urlsafe_b64decode(secret), f"{ts}POST{path}{wire}".encode(), hashlib.sha256).digest()).decode()
+    assert hmac_signature(secret, ts, "POST", path, wire) == expect == "2aZKjHhzvMag592SMeB7CAVviPJIaHo7vXr6c1SGX74="
+
+
+def test_http_gateway_requires_live_mode():
+    full = dict(poly_address="0xeoa", api_key="k", api_secret="c2VjcmV0", api_passphrase="p", signer_address="0xd", maker_address="0xd")
+    for mode in ("off", "dry"):
+        with pytest.raises(RuntimeError, match="PROBE_MODE=live"):
+            HttpGateway(ProbeConfig(mode=mode, **full), client=object())
+    assert HttpGateway(ProbeConfig(mode="live", **full), client=object()).name == "http"
 
 
 def test_request_validation():

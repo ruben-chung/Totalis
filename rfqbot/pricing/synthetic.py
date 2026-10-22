@@ -53,7 +53,7 @@ def make_truth(mu_h: float = 24.0, mu_a: float = 21.0, sd_h: float = 10.0, sd_a:
     convolution, so FG = 1H + 2H holds exactly on the grid (means, sds and correlation)."""
     cov = rho * sd_h * sd_a
     k = 1 / math.sqrt(2)
-    h1 = bivariate_normal_table(mu_h / 2, mu_a / 2, (sd_h * k) ** 2, (sd_a * k) ** 2, cov * k * k)
+    h1, _ = bivariate_normal_table(mu_h / 2, mu_a / 2, (sd_h * k) ** 2, (sd_a * k) ** 2, cov * k * k)
     n = 2 * GRID - 1
     f = np.fft.rfft2(h1, s=(n, n))
     fg = np.fft.irfft2(f * f, s=(n, n))[:GRID, :GRID]
