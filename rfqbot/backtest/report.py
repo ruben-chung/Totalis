@@ -255,7 +255,8 @@ def fmt(rep: dict[str, Any]) -> str:
     f = rep["funnel"]
     L.append(f"requests seen {f['requests_seen']}  other sport {f['prefiltered_other_sport']}  unknown market {f['prefiltered_unknown_market']}  "
              f"evaluated {f['evaluated']}  priced {f['priced']}  quoted {f['quoted']}  printed {f['printed']}  "
-             f"win {f['win']}  strict {f['strict']}  filled {f['filled']}")
+             f"win {f['win']}  strict {f['strict']}  filled {f['filled']}  "
+             f"expired unfilled {f['quoted'] - f['printed']}  rejected {f['evaluated'] - f['quoted']}")
     for k in ("by_direction", "by_sport", "by_n_legs", "by_pair_class"):
         L.append(f"  {k[3:]:<11} " + "  ".join(f"{a}: q{v.get('quoted', 0)} p{v.get('printed', 0)} w{v.get('win', 0)}/s{v.get('strict', 0)}" for a, v in f[k].items()))
     L.append("  skips: " + ", ".join(f"{k.replace('skipped:', '')}={v}" for k, v in list(f["skips"].items())[:8]))
