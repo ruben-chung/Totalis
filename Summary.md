@@ -16,7 +16,7 @@
 - Legs in the same game are priced off a joint distribution of the final score, reconstructed from the market: the spread ladder gives the margin, the total ladder gives the points, the team-total ladders tie the two team scores together. Fitting all of them at once onto a home-away score grid gives one joint that reproduces every quoted line.
 - The fitted grid is a probability table over scores. Full-game combos are priced exactly on it (the mass of cells where every leg wins); combos with a half-game leg are priced on 50k scores drawn from it. 
 
-Comparing our dependence model against resolved games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overestimated. The calibration map is continuous in the leg probability (hinge tails with variance floors), so a quote never jumps at a bucket edge, which a requester could otherwise exploit by asking twice.
+Comparing our dependence model against resolved games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overestimated. The calibration map is continuous in the leg probability (tails fit seperately), so a quote never jumps at a bucket edge, which a requester could otherwise exploit by asking twice.
 
 Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independence
 
