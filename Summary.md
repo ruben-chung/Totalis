@@ -61,18 +61,14 @@ Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independen
 | | |
 |---|---|
 | NFL/NBA RFQs evaluated | 56,270 over 58 games |
-| quoted | 21,499 |
-| filled (won the print) | 19, on 10 distinct combos |
 | fill rate on quoted | 0.09% |
 | shares filled | 1,675 |
-| capital deployed on fills (collateral at risk) | $997 over the day; $536 of it as premium paid on bought combos |
-| peak book collateral, filled plus pending quotes | $8.2k of $50k (average $3.2k) |
-| margin earned at fill, per contract | 1.5 pt (1,675 contracts, $25 in total) |
-| drift of the fair against us at 5 min / 30 min, per contract | about 0 / -0.1 pt |
-| EV per contract = margin + drift | +1.5 pt (± 0.6 pt, per-game SE) |
+| capital deployed | $997 |
+| margin earned at fill, per contract | 1.5 ct |
+| drift of the fair against us, per contract | +0.01 pt at 5 min, -0.03 pt at 30 min ($0.20 and -$0.56 over 1,675 contracts) |
+| EV per contract = margin + drift | +1.5 pt at 5 min, +1.46 pt at 30 min (± 0.6 pt, per-game SE) |
 | worst-case loss (1% tail) | $6.3k, 12.5% of capital, under the 15% cap |
 
-**Sizing.** Kelly on the edge net of the winner's curse, the per-quote cap on collateral at risk, and pending quotes that never net against each other keep fills small: 88 shares on average and no stacking of the same combo. Joint-engine pricing and independence give identical fills on this window because no same-game combo filled. A zero-edge setting quotes nothing, since sizing on net edge gives zero size when there is no edge.
 
 **Reading the EV.** 1.5 points per contract after adverse selection, on $1k of collateral deployed over the day. Fills are rare (one in 1,100 quotes) and small, so the dollar figure is tiny; the per-contract edge is the stable quantity and is what a larger capital base or looser caps would scale.
 
