@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Regenerate the two figures in handin-summary.md (needs the `figures` extra: matplotlib).
+"""Regenerate the two figures in Summary.md (needs the `figures` extra: matplotlib).
 
     .venv/bin/python scripts/make_figures.py grid nfl-cin-bal-2026-10-25   # img/joint-grid-<game>.png
     .venv/bin/python scripts/make_figures.py fill                           # img/fill-curve.png

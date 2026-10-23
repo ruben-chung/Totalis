@@ -11,9 +11,9 @@ exposure caps, and logs the paper quote. Spec: `instructions.md`.
 | 1. Listener and storage | done: ws client, verbatim raw log, SQLite store, derived expiry, replay |
 | 2. Pricing and correlation | done, paper mode: NFL/NBA parsers and Kalshi matching, ladder books, marginal layer, independence classifier, NFL joint engine with validation and calibration, quote assembly |
 | 3. Inventory and risk | done: outcome deltas, hard caps, Kelly sizing, inventory skew, fitted margin table, wallet blocks |
-| 4. Backtest | done: `rfqbot/backtest` replay and compare; results in `handin-summary.md` |
+| 4. Backtest | done: `rfqbot/backtest` replay and compare; results in `Summary.md` |
 
-Results, limits and next steps: `handin-summary.md`.
+Results, limits and next steps: `Summary.md`.
 
 ## Setup
 
@@ -95,8 +95,8 @@ Both book stores are change-only; staleness is measured from the feed's last con
 ## Docs
 
 `claude-sessions/` holds the material exchanged between the Claude Code sessions that built this: `*-brief.md` is how a task was
-framed and what was verified first, `*-notes.md` is what the session built and what the data said. `handin-summary.md` is the results summary with next steps; `img/joint-grid-cin-bal.png` one game's
-fitted joint score grid; `coupling-environment-study.md` an idea recorded and not developed.
+framed and what was verified first, `*-notes.md` is what the session built and what the data said. `Summary.md` is the results summary with next steps; `img/joint-grid-cin-bal.png` one game's
+fitted joint score grid.
 
 ## Workflow
 

@@ -151,3 +151,24 @@ Compare (Δ model P&L vs base; verdict is on the game-cluster SE):
 - **Engine** counts expiries by `expires_ms` in `advance()`. It uses `Assembler.set_edge_table` and `Inventory.fill_pending` when they exist and falls back to the private names otherwise; `lazy.py` (a `GameCache` subclass) still reads `_pending`, `_lock`, `_model_builder` and `_parse_specs` until the public `GameCache.set_model_builder` is in; switch then.
 - **Preload** keeps flat float64 buffers per token and drops each as it becomes its numpy view. `ro()` is `rfqbot.db.ro_connect`; `E6` and `game_prefix_of` come from `rfqbot.slugs`; magic numbers are named (`PRICE_SCALE`, `PRINT_SLACK_MS`, `HOUR_MS`, `ES1_HALF_CAP_FRAC`).
 - **Tests:** `tests/test_backtest_world.py` is `tests/backtest_world.py` (a fixture module; the test-pattern name is gone, `test_world_builds` dropped). Library modules no longer print: `settle_runs`, `run_compare`, `report_runs` and `validate_run` return data; `__main__` prints; the raw-log scan counts and logs lines it cannot parse.
+
+## cmp3: the 13 h window on the reviewed code (2026-10-22)
+
+Run 17:51-21:00 local after the review fixes (commit 4271d8b and follow-ups), 6 settings, 2 bootstrap replicas,
+window 2026-10-21 02:36 to 15:45 UTC. Two earlier attempts were killed by the kernel at 78 GB: the CacheView memo
+retained every rebuilt model; it now keeps one per game (9fda9b4). Settled against the resolve pass of 21:17 local.
+
+| setting | quoted | filled | markup $ | realized $ (resolved) | max ES1 $ |
+|---|---|---|---|---|---|
+| base | 21,499 | 19 (10 combos) | 25.02 | -663.79 (19) | 6,259 |
+| indep | 21,497 | 19 | 25.02 | -663.79 (19) | 6,312 |
+| caps-off | 21,495 | 32 | 85.80 | -2,984.75 (28) | 8,687 |
+| edge-1pt | 21,522 | 4 | 14.08 | +3.34 (4) | 7,469 |
+| table (in-sample) | 18,232 | 8 | 12.98 | -101.88 (8) | 6,261 |
+| edge-0 | 0 | 0 | 0 | 0 | 0 (net-edge Kelly sizes zero at zero edge) |
+
+Base markouts per share on the model fair: 1m/5m/15m/30m all within +-0.0001 (19 fills, no leg book moved after
+these fills); attribution: pnl -663.79 = pricing error -688.82 + margin +25.02 (base +8.38, u_m +17.99, inventory
+-3.33). cmp2 re-settled on the same resolutions for comparison: base realized -1,901.47 on 23 of 26 fills, caps-off
+-4,450.43, table +4.54. The realized gap between cmp2 and cmp3 is the five 570-share fills on one re-sent combo that the
+pending worse-side rule and net-edge Kelly removed.

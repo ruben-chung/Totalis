@@ -259,7 +259,7 @@ def fmt(rep: dict[str, Any]) -> str:
         L.append("markouts fair source: " + (mo.get("fair_source") or MARKOUT_FAIR_SOURCE))
         L.append("markouts (per share, maker): " + "  ".join(
             f"{h}: n{v['n']} fair {v['vs_fair_at_fill']:+.4f}" + ("" if v['se_fair'] is None else f"±{v['se_fair']:.4f}") + f" price {v['vs_our_price']:+.4f}"
-            for h, v in mo.items() if h != "missing" and v.get("n")))
+            for h, v in mo.items() if isinstance(v, dict) and v.get("n")))
     e = rep["es1"]
     if e.get("samples"):
         L.append(f"ES1 max {e['max_es1']:.0f} ({e['max_es1_frac']:.1%} of capital) at {e['max_at_ms']}, {e['max_positions']} positions; "

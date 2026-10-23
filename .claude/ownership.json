@@ -47,6 +47,6 @@
     "rfqbot/probe/**": "nba",
     "tests/test_probe_*.py": "nba",
     "claude-sessions/probe-rfq-notes.md": "nba",
-    "handin-summary.md": "planning"
+    "Summary.md": "planning"
   }
 }

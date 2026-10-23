@@ -56,21 +56,25 @@ Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independen
 
 **Paper runs:** one-hour run we wanted to quote ~2,000 RFQs, quoted 947, refused 1,062 for risk. Worst drawdown (bottom 1% of outcomes) less than 7.5k.
 
-**Backtest (paper, replayed on 13 h of recorded flow, 2026-10-21, base setting):**
+**Backtest (paper, replayed on 13 h of recorded flow, 2026-10-21, base setting, after the code review fixes):**
 
-| | |
-|---|---|
-| NFL/NBA RFQs evaluated | 56,220 over 58 games |
-| quoted | 22,296 |
-| fill rate on quoted | 0.12% |
-| margin earned at fill | $156 ($6.0 per fill) |
-| drift of the fair against us, 60 s after fill | -$0.3 |
-| drift at 5 min | -$45 ± $32 |
-| drift at 30 min | -$61 ± $34 |
-| EV at 5 min = margin + drift | +$110 ± $29 ($4.2 per fill) |
-| EV at 30 min | +$95 ± $27 ($3.6 per fill) |
-| worst-case loss (1% tail) | $7.7k, 15% of capital, at the cap |
+| | run on the reviewed code (cmp3) | same window before the fixes (cmp2) |
+|---|---|---|
+| NFL/NBA RFQs evaluated | 56,270 over 58 games | 56,220 |
+| quoted | 21,499 | 22,296 |
+| filled (won the print) | 19 on 10 distinct combos | 26 on 19 combos |
+| fill rate on quoted | 0.09% | 0.12% |
+| shares filled | 1,675 | 5,781 |
+| margin earned at fill | $25 ($1.3 per fill) | $154 ($6.0 per fill) |
+| drift of the fair against us at 5 min / 30 min | $0 / $0 (no leg book moved) | -$41 / -$61 |
+| EV = margin + drift (5 min) | +$25 ± $10 per game | +$112 ± $27 |
+| realized P&L (all 19 resolved) | -$664 ± $158 | -$1,901 (23 of 26 resolved) |
+| worst-case loss (1% tail) | $6.3k, 12.5% of capital | $7.7k, at the 15% cap |
+| same without caps | $8.7k (32 fills, realized -$2,985) | $57k |
 
+**What the review fixes changed.** Kelly now sizes on the edge net of the winner's curse and the margin clamps at the curse instead of zero, so fills are smaller (1,675 shares against 5,781) and margin earned fell with them; the five 570-share fills on one re-sent combo that dominated cmp2 are gone, which is also why the measured drift vanished (it sat on those fills). Pending quotes in opposite directions no longer net and the ES1 cap no longer switches off on an empty book, so caps-off now stays at $8.7k of tail instead of $57k. Joint-engine pricing and independence give identical fills on this window: no same-game combo filled.
+
+**Realized vs EV.** EV is +$25 and realized is -$664. The gap is outcome variance on very few independent bets: 10 combos, one of them bought ten times from one requester (-$317 when it lost) and one sold combo that hit (-$242). With a $25 expected edge and bets of $50 to $250 at risk each, a day's realized P&L is a coin-flip sum; the EV is the number to read, and it needs weeks of fills before realized P&L says anything. A zero-edge setting (edge 0) now quotes nothing at all, because sizing on net edge gives zero size when there is no edge.
 
 ## Design decisions 
 
