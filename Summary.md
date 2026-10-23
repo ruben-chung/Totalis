@@ -67,16 +67,14 @@ Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independen
 | shares filled | 1,675 |
 | capital deployed on fills (collateral at risk) | $997 over the day; $536 of it as premium paid on bought combos |
 | peak book collateral, filled plus pending quotes | $8.2k of $50k (average $3.2k) |
-| margin earned at fill | $25 ($1.3 per fill, 1.5 pt per share) |
-| drift of the fair against us at 5 min / 30 min | about $0 / -$2 |
-| EV = margin + drift | +$25 ± $10 per game |
-| realized P&L, all 19 resolved | -$664 ± $158 |
+| margin earned at fill, per contract | 1.5 pt (1,675 contracts, $25 in total) |
+| drift of the fair against us at 5 min / 30 min, per contract | about 0 / -0.1 pt |
+| EV per contract = margin + drift | +1.5 pt (± 0.6 pt, per-game SE) |
 | worst-case loss (1% tail) | $6.3k, 12.5% of capital, under the 15% cap |
-| same without caps | $8.7k, 32 fills, realized -$2,985 |
 
 **Sizing.** Kelly on the edge net of the winner's curse, the per-quote cap on collateral at risk, and pending quotes that never net against each other keep fills small: 88 shares on average and no stacking of the same combo. Joint-engine pricing and independence give identical fills on this window because no same-game combo filled. A zero-edge setting quotes nothing, since sizing on net edge gives zero size when there is no edge.
 
-**Realized vs EV.** EV is +$25 and realized is -$664. The gap is outcome variance on very few independent bets: 10 combos, one of them bought ten times from one requester (-$317 when it lost) and one sold combo that hit (-$242). With $1k of collateral at risk over the day and a $25 expected edge, a day's realized P&L is a coin-flip sum; the EV is the number to read, and it needs weeks of fills before realized P&L says anything.
+**Reading the EV.** 1.5 points per contract after adverse selection, on $1k of collateral deployed over the day. Fills are rare (one in 1,100 quotes) and small, so the dollar figure is tiny; the per-contract edge is the stable quantity and is what a larger capital base or looser caps would scale.
 
 ## Design decisions 
 
