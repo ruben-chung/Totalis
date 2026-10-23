@@ -8,7 +8,7 @@
 
 **Fair Value Estimation**: 
 - Each Polymarket leg is matched to its Kalshi market. We calculate the marginal fairs using a precision weighted price (of Poly and Kalshi). 
-- Essentially we track change in variance of both venues (these are both tracking the same true probability) - in any window the change in midprice = true change + venues noise. So comparing the two venues gives each venues noise/variance. 
+- Essentially we measure the variance of mid-price changes on both venues (these are both tracking the same true probability) - in any window the change in midprice = true change + venue noise. So comparing the two venues gives each venue's noise/variance. 
 - The error on each fair becomes part of the margin: less confident price, wider quote.
 
 **Dependence:** 
@@ -18,7 +18,6 @@
 
 Comparing our dependence model against resolved games (by combo type: spread x total, ML x spread, etc..) we apply shrinkage towards independence if our dependence is statistically overestimated. The calibration map is continuous in the leg probability (tails fit seperately), so a quote never jumps at a bucket edge, which a requester could otherwise exploit by asking twice.
 
-Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independence
 
 ## Stage 3: inventory and risk
 
@@ -30,7 +29,7 @@ Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independen
 
 **Margin:** 
 - We want the margin that maximises expected profit per RFQ = P(fill at margin m) x EV(fill at m). The optimiser picks m to maximise this and updates dynamically. 
-- P(fill) is the fill curve: we compare our logged paper quotes to the actual prints and count how often we would have won at each margin. See Appendix B. 
+- P(fill) is the fill curve: we compare our logged paper quotes to the actual prints and count how often we would have won at each margin.
 
 - EV per fill is margin minus two costs. (1) Winner's curse: we get filled more precisely when our price is wrong. So conditional on a fill our fair is wrong against us, by more when it is less certain. The cost is that expected error given a fill. (2) Price Drift (Adverse Selection): Implied Fair price moving away from us after fill. So EV = Margin - curse - drift.
 
@@ -47,14 +46,12 @@ Validation on 93 resolved NFL games: Brier 0.130 vs 0.140 for assumed independen
 
 **Venues:** On 4.4h of matched pre-game books, Kalshi leads price discovery in both sports. This is expected as Kalshi is more liquid. 
 
-**What the prints say:** P(fill) = 0.135%. Margin makers charge (print vs product of leg fairs at trade time) and the drift of the fair after the fill:
-
-**Wallet block rule:** 3.5% false positives at 95% confidence (we would rather wrongly block neutral wallets than let sharps trade w us)
+**Wallet block rule:** 22% false positives at 90% confidence (we would rather wrongly block neutral wallets than let sharps trade w us)
 
 **Probe RFQs (built, dry-run only):** request our own quote on a combo we just filled, read the price, never accept. Gives the combo's price seconds after our fill and the best competing quote per RFQ. Dry-run on 3 h of prints: 26 triggers, 20 request bodies built, 18 disguised with a 0.99 leg from another game, 0 sent. Live needs the API passphrase and deposit-wallet addresses; never run in production here.
 
 **Backtest (paper, replayed on 13 h of recorded flow on Wednesday):**
-The model trades all NFL and any NBA that isnt SGP. 
+The replay runs the live quoting code on a pinned clock with books read as of each RFQ, so no information leakage. The model trades all NFL and any NBA that isnt SGP. 
 
 | | |
 |---|---|
