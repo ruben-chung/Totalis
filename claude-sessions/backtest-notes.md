@@ -172,3 +172,6 @@ these fills); attribution: pnl -663.79 = pricing error -688.82 + margin +25.02 (
 -3.33). cmp2 re-settled on the same resolutions for comparison: base realized -1,901.47 on 23 of 26 fills, caps-off
 -4,450.43, table +4.54. The realized gap between cmp2 and cmp3 is the five 570-share fills on one re-sent combo that the
 pending worse-side rule and net-edge Kelly removed.
+
+P&L path (cmp3 base, 19 fills in print order, realized where resolved): final -663.79, peak +28.17, trough -675.40,
+max downswing -703.57 (peak to trough), max upswing +28.17. Added to `report` as the `path` section on 2026-10-22.

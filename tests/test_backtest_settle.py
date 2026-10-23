@@ -261,3 +261,18 @@ def test_unresolved_fills_are_marked_to_the_reference_run_for_paired_deltas(tmp_
     assert alt["unrealized"] == pytest.approx(100 * (0.56 - 0.52)) and alt["unrealized_ref"] == pytest.approx(100 * (0.50 - 0.52))
     from rfqbot.backtest.settle import base_run_id
     assert base_run_id(st, "alt") == "base"
+
+
+def test_pnl_path_downswing_and_upswing():
+    from rfqbot.backtest.report import pnl_path
+    fills = [{"executed_at_ms": 1, "at_ms": 1, "model_pnl_ref": +10.0},
+             {"executed_at_ms": 2, "at_ms": 2, "model_pnl_ref": -30.0},
+             {"executed_at_ms": 3, "at_ms": 3, "model_pnl_ref": +50.0},
+             {"executed_at_ms": 0, "at_ms": 0, "model_pnl_ref": -5.0}]      # earliest fill, listed last
+    pa = pnl_path(fills)
+    # order by time: -5, +10, -30, +50 -> cumulative -5, +5, -25, +25
+    assert [round(c, 6) for _, c in pa["points"]] == [-5.0, 5.0, -25.0, 25.0]
+    assert pa["final"] == 25.0 and pa["peak"] == 25.0 and pa["trough"] == -25.0
+    assert pa["max_downswing"] == -30.0      # +5 to -25
+    assert pa["max_upswing"] == 50.0         # -25 to +25
+    assert pnl_path([])["n"] == 0

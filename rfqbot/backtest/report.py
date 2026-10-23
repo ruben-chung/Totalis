@@ -133,6 +133,26 @@ def pnl_section(fills: list[dict[str, Any]]) -> dict[str, Any]:
             "total_model_pnl": block(allf, "model_pnl"), "decisive_games": n_games(fills[i]["games"] for i in decisive)}
 
 
+def pnl_path(fills: list[dict[str, Any]]) -> dict[str, Any]:
+    """Cumulative P&L in fill order (realized where the combo resolved, else the mark) with the largest peak-to-trough
+    downswing and trough-to-peak upswing along the way. Fills are ordered by the print time that filled them."""
+    order = sorted(range(len(fills)), key=lambda i: (fills[i]["executed_at_ms"] or fills[i]["at_ms"] or 0))
+    cum, peak, trough = 0.0, 0.0, 0.0
+    max_down, max_up = 0.0, 0.0
+    points: list[tuple[int, float]] = []
+    for i in order:
+        v = fills[i].get("model_pnl_ref")
+        if v is None:
+            v = fills[i].get("model_pnl") or 0.0
+        cum += float(v)
+        points.append((int(fills[i]["executed_at_ms"] or fills[i]["at_ms"] or 0), cum))
+        peak, trough = max(peak, cum), min(trough, cum)
+        max_down = max(max_down, peak - cum)
+        max_up = max(max_up, cum - trough)
+    return {"n": len(points), "final": cum, "peak": peak, "trough": trough, "max_downswing": -max_down,
+            "max_upswing": max_up, "points": points}
+
+
 def attribution(fills: list[dict[str, Any]]) -> dict[str, Any]:
     """payoff - price = (payoff - fair) + (fair - price): pricing error + margin, margin split by term. $ totals, resolved and marked."""
     def agg(sel: list[dict[str, Any]]) -> dict[str, Any]:
@@ -220,7 +240,7 @@ def build_report(store: BacktestStore, run_id: str, *, rfq_db: Path, books_db: P
     fills = fill_table(store, run_id)
     rep: dict[str, Any] = {"run_id": run_id, "name": run["name"], "group": run["group_id"], "config": json.loads(run["config_json"]),
                            "window": json.loads(run["window_json"]), "summary": json.loads(run["summary_json"] or "{}"),
-                           "funnel": funnel(store, run_id), "pnl": pnl_section(fills), "attribution": attribution(fills),
+                           "funnel": funnel(store, run_id), "pnl": pnl_section(fills), "path": pnl_path(fills), "attribution": attribution(fills),
                            "es1": es1_section(store, run_id), "latency": latency_section(store, run_id)}
     rep["funnel"]["strict_range"] = {"win_fills": rep["funnel"]["win"], "strict_fills": rep["funnel"]["strict"]}
     if markouts and fills:
@@ -250,6 +270,10 @@ def fmt(rep: dict[str, Any]) -> str:
              f"{'-' if p['unresolved_share'] is None else format(p['unresolved_share'], '.0%')}]")
     L.append(f"marked        {b(p['mark_to_model_unresolved'])}")
     L.append(f"model P&L     {b(p['total_model_pnl'])}")
+    pa = rep.get("path") or {}
+    if pa.get("n"):
+        L.append(f"P&L path      final {pa['final']:+.2f}  peak {pa['peak']:+.2f}  trough {pa['trough']:+.2f}  "
+                 f"max downswing {pa['max_downswing']:+.2f}  max upswing {pa['max_upswing']:+.2f}  ({pa['n']} fills in print order)")
     a = rep["attribution"]["all"]
     if a.get("n"):
         L.append(f"attribution ({a['n']} fills): pnl {a['pnl']:+.2f} = pricing error {a['pricing_error']:+.2f} + margin {a['margin']:+.2f}; margin by term: "
